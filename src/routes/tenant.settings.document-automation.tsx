@@ -6,8 +6,19 @@ import { PageCard, Pill } from "@/components/tenant/ui";
 import { findStatus } from "@/lib/status-mock";
 import { LETTER_TEMPLATES } from "@/lib/letters-mock";
 import {
-  ChevronLeft, ChevronDown, ChevronUp, FileText, Plus, Trash2,
-  Save, RotateCcw, Eye, AlertCircle, Sparkles, CalendarClock, X,
+  ChevronLeft,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Plus,
+  Trash2,
+  Save,
+  RotateCcw,
+  Eye,
+  AlertCircle,
+  Sparkles,
+  CalendarClock,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,7 +32,7 @@ type DeliveryMode = "generate" | "generate_send";
 
 type DocSchedule = {
   id: string;
-  dayOffset: number;          // days after status was set
+  dayOffset: number; // days after status was set
   templateId: string;
   delivery: DeliveryMode;
   note?: string;
@@ -30,7 +41,7 @@ type DocSchedule = {
 type StatusDocRule = {
   statusCode: string;
   enabled: boolean;
-  repeat: boolean;            // continue generating until status changes
+  repeat: boolean; // continue generating until status changes
   schedules: DocSchedule[];
 };
 
@@ -45,38 +56,92 @@ function tplName(id: string) {
 
 const DEFAULT_RULES: Record<string, StatusDocRule> = {
   ACT: {
-    statusCode: "ACT", enabled: true, repeat: false,
+    statusCode: "ACT",
+    enabled: true,
+    repeat: false,
     schedules: [
-      { id: "s1", dayOffset: 1,  templateId: "lt-001", delivery: "generate_send", note: "Initial demand on placement" },
-      { id: "s2", dayOffset: 30, templateId: "lt-004", delivery: "generate_send", note: "Settlement offer after 30 days" },
-      { id: "s3", dayOffset: 60, templateId: "lt-002", delivery: "generate_send", note: "Final notice before legal" },
+      {
+        id: "s1",
+        dayOffset: 1,
+        templateId: "lt-001",
+        delivery: "generate_send",
+        note: "Initial demand on placement",
+      },
+      {
+        id: "s2",
+        dayOffset: 30,
+        templateId: "lt-004",
+        delivery: "generate_send",
+        note: "Settlement offer after 30 days",
+      },
+      {
+        id: "s3",
+        dayOffset: 60,
+        templateId: "lt-002",
+        delivery: "generate_send",
+        note: "Final notice before legal",
+      },
     ],
   },
   PTP: {
-    statusCode: "PTP", enabled: true, repeat: false,
+    statusCode: "PTP",
+    enabled: true,
+    repeat: false,
     schedules: [
-      { id: "s1", dayOffset: 0, templateId: "lt-008", delivery: "generate_send", note: "PTP acknowledgement letter" },
+      {
+        id: "s1",
+        dayOffset: 0,
+        templateId: "lt-008",
+        delivery: "generate_send",
+        note: "PTP acknowledgement letter",
+      },
     ],
   },
   BRP: {
-    statusCode: "BRP", enabled: true, repeat: false,
+    statusCode: "BRP",
+    enabled: true,
+    repeat: false,
     schedules: [
-      { id: "s1", dayOffset: 2,  templateId: "lt-002", delivery: "generate_send", note: "Broken-promise warning" },
-      { id: "s2", dayOffset: 14, templateId: "lt-005", delivery: "generate",       note: "Final settlement opportunity (review before send)" },
+      {
+        id: "s1",
+        dayOffset: 2,
+        templateId: "lt-002",
+        delivery: "generate_send",
+        note: "Broken-promise warning",
+      },
+      {
+        id: "s2",
+        dayOffset: 14,
+        templateId: "lt-005",
+        delivery: "generate",
+        note: "Final settlement opportunity (review before send)",
+      },
     ],
   },
   PPA: {
-    statusCode: "PPA", enabled: true, repeat: false,
+    statusCode: "PPA",
+    enabled: true,
+    repeat: false,
     schedules: [
-      { id: "s1", dayOffset: 1, templateId: "lt-007", delivery: "generate_send", note: "Payment plan confirmation" },
+      {
+        id: "s1",
+        dayOffset: 1,
+        templateId: "lt-007",
+        delivery: "generate_send",
+        note: "Payment plan confirmation",
+      },
     ],
   },
   PPD: {
-    statusCode: "PPD", enabled: false, repeat: false,
+    statusCode: "PPD",
+    enabled: false,
+    repeat: false,
     schedules: [],
   },
   REV: {
-    statusCode: "REV", enabled: false, repeat: false,
+    statusCode: "REV",
+    enabled: false,
+    repeat: false,
     schedules: [],
   },
 };
@@ -125,14 +190,22 @@ function DocumentAutomationPage() {
           ...p[code],
           schedules: [
             ...p[code].schedules,
-            { id: `s${Date.now()}`, dayOffset: next, templateId: ACTIVE_TEMPLATES[0]?.id ?? "", delivery: "generate_send" },
+            {
+              id: `s${Date.now()}`,
+              dayOffset: next,
+              templateId: ACTIVE_TEMPLATES[0]?.id ?? "",
+              delivery: "generate_send",
+            },
           ],
         },
       };
     });
 
   const removeSchedule = (code: string, id: string) =>
-    setRules((p) => ({ ...p, [code]: { ...p[code], schedules: p[code].schedules.filter((s) => s.id !== id) } }));
+    setRules((p) => ({
+      ...p,
+      [code]: { ...p[code], schedules: p[code].schedules.filter((s) => s.id !== id) },
+    }));
 
   const handleSave = () => {
     for (const code of DOC_STATUSES) {
@@ -164,13 +237,22 @@ function DocumentAutomationPage() {
         subtitle="Schedule AI-generated letters by debtor status and time"
         action={
           <div className="flex items-center gap-2">
-            <Link to="/tenant/settings" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
+            <Link
+              to="/tenant/settings"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+            >
               <ChevronLeft className="h-4 w-4" /> Back
             </Link>
-            <button onClick={handleReset} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
+            <button
+              onClick={handleReset}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+            >
               <RotateCcw className="h-4 w-4" /> Reset to default
             </button>
-            <button onClick={handleSave} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant">
+            <button
+              onClick={handleSave}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+            >
               <Save className="h-4 w-4" /> Save changes
             </button>
           </div>
@@ -186,15 +268,14 @@ function DocumentAutomationPage() {
             <div className="space-y-1">
               <h2 className="font-display text-lg font-bold">AI document schedules per status</h2>
               <p className="text-sm text-muted-foreground max-w-3xl">
-                Define which letters AI should generate from your template library
-                while a debtor remains in a given status. Set the day offset
-                (counted from when the status was set), pick the template, and
-                choose whether the document is auto-sent or staged for review.
-                Schedules are tenant-specific and every generated document is
-                audit-logged.
+                Define which letters AI should generate from your template library while a debtor
+                remains in a given status. Set the day offset (counted from when the status was
+                set), pick the template, and choose whether the document is auto-sent or staged for
+                review. Schedules are tenant-specific and every generated document is audit-logged.
               </p>
               <p className="text-xs text-muted-foreground">
-                <strong>{totalSchedules}</strong> active schedule(s) configured across {DOC_STATUSES.length} statuses.
+                <strong>{totalSchedules}</strong> active schedule(s) configured across{" "}
+                {DOC_STATUSES.length} statuses.
               </p>
             </div>
           </div>
@@ -214,11 +295,19 @@ function DocumentAutomationPage() {
                   onClick={() => setExpanded((p) => ({ ...p, [code]: !p[code] }))}
                   className="flex items-center gap-3 flex-1 text-left min-w-0"
                 >
-                  {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  <Pill tone={status.tone}>{status.icon} {status.code}</Pill>
+                  {isOpen ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <Pill tone={status.tone}>
+                    {status.icon} {status.code}
+                  </Pill>
                   <div className="min-w-0">
                     <div className="font-semibold">{status.displayName}</div>
-                    <div className="text-xs text-muted-foreground truncate">{status.description}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {status.description}
+                    </div>
                   </div>
                   <span className="ml-2 text-xs text-muted-foreground">
                     · {rule.schedules.length} doc(s)
@@ -237,23 +326,31 @@ function DocumentAutomationPage() {
                     <Eye className="h-3.5 w-3.5" /> Timeline
                   </button>
                   <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <span className="text-xs text-muted-foreground">{rule.enabled ? "Enabled" : "Disabled"}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {rule.enabled ? "Enabled" : "Disabled"}
+                    </span>
                     <input
                       type="checkbox"
                       className="sr-only peer"
                       checked={rule.enabled}
                       onChange={(e) => update(code, { enabled: e.target.checked })}
                     />
-                    <span className="relative w-10 h-5 bg-muted peer-checked:bg-tenant rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5" />
+                    <span
+                      className={`relative w-10 h-5 ${rule.enabled ? "bg-tenant" : "bg-muted"} rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5`}
+                    />
                   </label>
                 </div>
               </div>
 
               {isOpen && (
-                <div className={`px-6 py-5 space-y-5 ${!rule.enabled ? "opacity-50 pointer-events-none" : ""}`}>
+                <div
+                  className={`px-6 py-5 space-y-5 ${!rule.enabled ? "opacity-50 pointer-events-none" : ""}`}
+                >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Document schedule</div>
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                        Document schedule
+                      </div>
                       <div className="text-xs text-muted-foreground mt-1">
                         Day offset is counted from when the status was set on the debtor.
                       </div>
@@ -271,7 +368,8 @@ function DocumentAutomationPage() {
 
                   {rule.schedules.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                      No document schedules yet. Add one to start generating AI letters for this status.
+                      No document schedules yet. Add one to start generating AI letters for this
+                      status.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -279,37 +377,59 @@ function DocumentAutomationPage() {
                         .slice()
                         .sort((a, b) => a.dayOffset - b.dayOffset)
                         .map((s) => (
-                          <div key={s.id} className="rounded-lg border border-border bg-muted/20 p-3 grid grid-cols-12 gap-3 items-start">
+                          <div
+                            key={s.id}
+                            className="rounded-lg border border-border bg-muted/20 p-3 grid grid-cols-12 gap-3 items-start"
+                          >
                             <div className="col-span-12 md:col-span-2">
-                              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">Day offset</label>
+                              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                                Day offset
+                              </label>
                               <div className="flex items-center gap-2">
                                 <CalendarClock className="h-4 w-4 text-tenant shrink-0" />
                                 <input
-                                  type="number" min={0}
+                                  type="number"
+                                  min={0}
                                   value={s.dayOffset}
-                                  onChange={(e) => updateSchedule(code, s.id, { dayOffset: Number(e.target.value) || 0 })}
+                                  onChange={(e) =>
+                                    updateSchedule(code, s.id, {
+                                      dayOffset: Number(e.target.value) || 0,
+                                    })
+                                  }
                                   className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                                 />
                               </div>
                             </div>
                             <div className="col-span-12 md:col-span-5">
-                              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">Template</label>
+                              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                                Template
+                              </label>
                               <select
                                 value={s.templateId}
-                                onChange={(e) => updateSchedule(code, s.id, { templateId: e.target.value })}
+                                onChange={(e) =>
+                                  updateSchedule(code, s.id, { templateId: e.target.value })
+                                }
                                 className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                               >
                                 <option value="">Select template…</option>
                                 {ACTIVE_TEMPLATES.map((t) => (
-                                  <option key={t.id} value={t.id}>{t.name}</option>
+                                  <option key={t.id} value={t.id}>
+                                    {t.name}
+                                  </option>
                                 ))}
                               </select>
                             </div>
                             <div className="col-span-12 md:col-span-3">
-                              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">Delivery</label>
+                              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                                Delivery
+                              </label>
                               <select
                                 value={s.delivery}
-                                onChange={(e) => updateSchedule(code, s.id, { delivery: e.target.value as DeliveryMode })}
+                                onChange={(e) =>
+                                  updateSchedule(code, s.id, {
+                                    delivery: e.target.value as DeliveryMode,
+                                  })
+                                }
                                 className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                               >
                                 <option value="generate_send">Generate & send</option>
@@ -317,10 +437,14 @@ function DocumentAutomationPage() {
                               </select>
                             </div>
                             <div className="col-span-11 md:col-span-2">
-                              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">Note</label>
+                              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                                Note
+                              </label>
                               <input
                                 value={s.note ?? ""}
-                                onChange={(e) => updateSchedule(code, s.id, { note: e.target.value })}
+                                onChange={(e) =>
+                                  updateSchedule(code, s.id, { note: e.target.value })
+                                }
                                 placeholder="Optional"
                                 className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                               />
@@ -363,13 +487,27 @@ function DocumentAutomationPage() {
   );
 }
 
-function PreviewModal({ code, rule, onClose }: { code: string; rule: StatusDocRule; onClose: () => void }) {
+function PreviewModal({
+  code,
+  rule,
+  onClose,
+}: {
+  code: string;
+  rule: StatusDocRule;
+  onClose: () => void;
+}) {
   const status = findStatus(code);
   const sorted = rule.schedules.slice().sort((a, b) => a.dayOffset - b.dayOffset);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-background rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-background rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <div>
             <div className="text-xs text-muted-foreground">Document timeline preview</div>
@@ -377,11 +515,15 @@ function PreviewModal({ code, rule, onClose }: { code: string; rule: StatusDocRu
               {status?.displayName} ({status?.code})
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="p-2 rounded hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
         </div>
         <div className="px-6 py-5">
           {!rule.enabled && (
-            <div className="text-sm text-muted-foreground italic mb-4">Automation is currently disabled for this status.</div>
+            <div className="text-sm text-muted-foreground italic mb-4">
+              Automation is currently disabled for this status.
+            </div>
           )}
           {sorted.length === 0 ? (
             <div className="text-sm text-muted-foreground">No documents scheduled.</div>
@@ -398,7 +540,9 @@ function PreviewModal({ code, rule, onClose }: { code: string; rule: StatusDocRu
                     {tplName(s.templateId)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {s.delivery === "generate_send" ? "Auto-generate & send" : "Generate only — queued for review"}
+                    {s.delivery === "generate_send"
+                      ? "Auto-generate & send"
+                      : "Generate only — queued for review"}
                     {s.note ? ` · ${s.note}` : ""}
                   </div>
                 </li>

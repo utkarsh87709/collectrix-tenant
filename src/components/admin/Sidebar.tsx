@@ -73,8 +73,8 @@ export function Sidebar() {
             className="select-none"
             style={
               collapsed
-                ? { height: 32, width: 32, objectFit: "cover", objectPosition: "left center", filter: "brightness(0) invert(1)" }
-                : { height: 40, width: "auto", filter: "brightness(0) invert(1)" }
+                ? { height: 48, width: 48, objectFit: "cover", objectPosition: "left center", filter: "brightness(0) invert(1)" }
+                : { height: 48, width: "auto", filter: "brightness(0) invert(1)" }
             }
             draggable={false}
           />

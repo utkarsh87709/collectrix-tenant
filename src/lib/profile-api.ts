@@ -72,3 +72,26 @@ export function validateResetPassword(resetPasswordCode: string): Promise<unknow
 export function resetPassword(resetPasswordCode: string, newPassword: string): Promise<unknown> {
   return apiPost("/tenant/resetPassword", { resetPasswordCode, newPassword });
 }
+
+// Sets the password for a reset link issued from the Users screen.
+//   POST /generic/submitResetPasswordRequest { resetPasswordCode, newPassword }
+// Public: invoked by a logged-out user from the /resetpassword page. We use a
+// bare fetch (not apiFetch) so a 401 surfaces as an inline error instead of
+// triggering the global "session expired" redirect to /login.
+export async function submitResetPasswordRequest(
+  resetPasswordCode: string,
+  newPassword: string,
+): Promise<void> {
+  const res = await fetch(apiUrl("/generic/submitResetPasswordRequest"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resetPasswordCode, newPassword }),
+  });
+  const json = await res.json().catch(() => null);
+  if (!json?.meta?.status) {
+    throw new Error(
+      json?.meta?.message ||
+        `Failed to reset password. The link may have expired (status ${res.status}).`,
+    );
+  }
+}

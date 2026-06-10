@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ResetpasswordRouteImport } from './routes/resetpassword'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
@@ -73,6 +74,11 @@ import { Route as TenantCommsLettersApprovalRouteImport } from './routes/tenant.
 import { Route as TenantDebtorsDebtorIdNotesNoteIdRouteImport } from './routes/tenant.debtors.$debtorId.notes.$noteId'
 import { Route as TenantDebtorsDebtorIdCallsCallIdRouteImport } from './routes/tenant.debtors.$debtorId.calls.$callId'
 
+const ResetpasswordRoute = ResetpasswordRouteImport.update({
+  id: '/resetpassword',
+  path: '/resetpassword',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -406,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/resetpassword': typeof ResetpasswordRoute
   '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
@@ -471,6 +478,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/resetpassword': typeof ResetpasswordRoute
   '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
@@ -533,6 +541,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/resetpassword': typeof ResetpasswordRoute
   '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
@@ -600,6 +609,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/reset-password'
+    | '/resetpassword'
     | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
@@ -665,6 +675,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/reset-password'
+    | '/resetpassword'
     | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
@@ -726,6 +737,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/reset-password'
+    | '/resetpassword'
     | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
@@ -792,6 +804,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ResetpasswordRoute: typeof ResetpasswordRoute
   TenantAnalyticsRoute: typeof TenantAnalyticsRoute
   TenantAppointmentsRoute: typeof TenantAppointmentsRoute
   TenantAssignmentRoute: typeof TenantAssignmentRoute
@@ -831,6 +844,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/resetpassword': {
+      id: '/resetpassword'
+      path: '/resetpassword'
+      fullPath: '/resetpassword'
+      preLoaderRoute: typeof ResetpasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -1378,6 +1398,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ResetpasswordRoute: ResetpasswordRoute,
   TenantAnalyticsRoute: TenantAnalyticsRoute,
   TenantAppointmentsRoute: TenantAppointmentsRoute,
   TenantAssignmentRoute: TenantAssignmentRoute,

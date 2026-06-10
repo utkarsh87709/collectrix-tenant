@@ -6,8 +6,20 @@ import { PageCard, CardHead, Pill } from "@/components/tenant/ui";
 import { findStatus } from "@/lib/status-mock";
 import { templates as allTemplates } from "@/lib/comms-mock";
 import {
-  ChevronLeft, Mail, MessageSquare, Phone, Plus, Trash2, Zap,
-  Save, RotateCcw, X, AlertCircle, Eye, ChevronDown, ChevronUp,
+  ChevronLeft,
+  Mail,
+  MessageSquare,
+  Phone,
+  Plus,
+  Trash2,
+  Zap,
+  Save,
+  RotateCcw,
+  X,
+  AlertCircle,
+  Eye,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,10 +64,12 @@ const STATUS_CODES = ["ACT", "PPD", "BRP", "PPA", "PTP"] as const;
 
 const DEFAULT_RULES: Record<string, StatusRule> = {
   ACT: {
-    statusCode: "ACT", enabled: true, followUpsEnabled: true,
+    statusCode: "ACT",
+    enabled: true,
+    followUpsEnabled: true,
     channels: {
       email: { enabled: true, startAfterDays: 5, templateId: "tpl-001" },
-      sms:   { enabled: true, startAfterDays: 15, templateId: "tpl-005" },
+      sms: { enabled: true, startAfterDays: 15, templateId: "tpl-005" },
       voice: { enabled: true, startAfterDays: 10, templateId: "tpl-006" },
     },
     followUps: [
@@ -65,10 +79,12 @@ const DEFAULT_RULES: Record<string, StatusRule> = {
     ],
   },
   PPD: {
-    statusCode: "PPD", enabled: true, followUpsEnabled: true,
+    statusCode: "PPD",
+    enabled: true,
+    followUpsEnabled: true,
     channels: {
       email: { enabled: true, startAfterDays: 1, templateId: "tpl-002" },
-      sms:   { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
+      sms: { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
       voice: { enabled: false, startAfterDays: 3, templateId: "tpl-006" },
     },
     followUps: [
@@ -77,10 +93,13 @@ const DEFAULT_RULES: Record<string, StatusRule> = {
     ],
   },
   BRP: {
-    statusCode: "BRP", enabled: true, followUpsEnabled: true, escalateToLegal: true,
+    statusCode: "BRP",
+    enabled: true,
+    followUpsEnabled: true,
+    escalateToLegal: true,
     channels: {
       email: { enabled: true, startAfterDays: 1, templateId: "tpl-002" },
-      sms:   { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
+      sms: { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
       voice: { enabled: true, startAfterDays: 2, templateId: "tpl-006" },
     },
     followUps: [
@@ -89,10 +108,12 @@ const DEFAULT_RULES: Record<string, StatusRule> = {
     ],
   },
   PPA: {
-    statusCode: "PPA", enabled: true, followUpsEnabled: true,
+    statusCode: "PPA",
+    enabled: true,
+    followUpsEnabled: true,
     channels: {
       email: { enabled: true, startAfterDays: 2, templateId: "tpl-002" },
-      sms:   { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
+      sms: { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
       voice: { enabled: false, startAfterDays: 3, templateId: "tpl-006" },
     },
     followUps: [
@@ -101,10 +122,12 @@ const DEFAULT_RULES: Record<string, StatusRule> = {
     ],
   },
   PTP: {
-    statusCode: "PTP", enabled: true, followUpsEnabled: true,
+    statusCode: "PTP",
+    enabled: true,
+    followUpsEnabled: true,
     channels: {
       email: { enabled: true, startAfterDays: 1, templateId: "tpl-002" },
-      sms:   { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
+      sms: { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
       voice: { enabled: false, startAfterDays: 2, templateId: "tpl-006" },
     },
     followUps: [
@@ -125,7 +148,9 @@ function templatesForChannel(ch: ChannelKey) {
 
 function validateRule(r: StatusRule): string | null {
   if (!r.enabled) return null;
-  const enabledChannels = (Object.keys(r.channels) as ChannelKey[]).filter((c) => r.channels[c].enabled);
+  const enabledChannels = (Object.keys(r.channels) as ChannelKey[]).filter(
+    (c) => r.channels[c].enabled,
+  );
   if (enabledChannels.length === 0) return "Enable at least one channel.";
   for (const c of enabledChannels) {
     if (!r.channels[c].templateId) return `Select a template for ${CHANNEL_META[c].label}.`;
@@ -150,13 +175,19 @@ function StatusAutomationPage() {
   const updateChannel = (code: string, ch: ChannelKey, patch: Partial<ChannelConfig>) =>
     setRules((p) => ({
       ...p,
-      [code]: { ...p[code], channels: { ...p[code].channels, [ch]: { ...p[code].channels[ch], ...patch } } },
+      [code]: {
+        ...p[code],
+        channels: { ...p[code].channels, [ch]: { ...p[code].channels[ch], ...patch } },
+      },
     }));
 
   const updateFollowUp = (code: string, id: string, patch: Partial<FollowUp>) =>
     setRules((p) => ({
       ...p,
-      [code]: { ...p[code], followUps: p[code].followUps.map((f) => f.id === id ? { ...f, ...patch } : f) },
+      [code]: {
+        ...p[code],
+        followUps: p[code].followUps.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+      },
     }));
 
   const addFollowUp = (code: string) =>
@@ -164,14 +195,23 @@ function StatusAutomationPage() {
       ...p,
       [code]: {
         ...p[code],
-        followUps: [...p[code].followUps, {
-          id: `fu${Date.now()}`, channel: "sms", afterDays: 3, templateId: templatesForChannel("sms")[0]?.id ?? "",
-        }],
+        followUps: [
+          ...p[code].followUps,
+          {
+            id: `fu${Date.now()}`,
+            channel: "sms",
+            afterDays: 3,
+            templateId: templatesForChannel("sms")[0]?.id ?? "",
+          },
+        ],
       },
     }));
 
   const removeFollowUp = (code: string, id: string) =>
-    setRules((p) => ({ ...p, [code]: { ...p[code], followUps: p[code].followUps.filter((f) => f.id !== id) } }));
+    setRules((p) => ({
+      ...p,
+      [code]: { ...p[code], followUps: p[code].followUps.filter((f) => f.id !== id) },
+    }));
 
   const handleSave = () => {
     for (const code of STATUS_CODES) {
@@ -198,13 +238,22 @@ function StatusAutomationPage() {
         subtitle="Configure outreach and follow-up rules per debtor status"
         action={
           <div className="flex items-center gap-2">
-            <Link to="/tenant/settings" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
+            <Link
+              to="/tenant/settings"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+            >
               <ChevronLeft className="h-4 w-4" /> Back
             </Link>
-            <button onClick={handleReset} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
+            <button
+              onClick={handleReset}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+            >
               <RotateCcw className="h-4 w-4" /> Reset to default
             </button>
-            <button onClick={handleSave} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant">
+            <button
+              onClick={handleSave}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+            >
               <Save className="h-4 w-4" /> Save changes
             </button>
           </div>
@@ -220,10 +269,9 @@ function StatusAutomationPage() {
             <div className="space-y-1">
               <h2 className="font-display text-lg font-bold">Automated outreach rules</h2>
               <p className="text-sm text-muted-foreground max-w-3xl">
-                These rules drive automated multi-channel outreach when a debtor's
-                status changes. Each status is independently configurable — pick
-                channels, define when the first message goes out, choose a
-                template from your library, and schedule any follow-ups.
+                These rules drive automated multi-channel outreach when a debtor's status changes.
+                Each status is independently configurable — pick channels, define when the first
+                message goes out, choose a template from your library, and schedule any follow-ups.
                 Configurations are tenant-specific and audit-logged.
               </p>
             </div>
@@ -245,16 +293,26 @@ function StatusAutomationPage() {
                   onClick={() => setExpanded((p) => ({ ...p, [code]: !p[code] }))}
                   className="flex items-center gap-3 flex-1 text-left min-w-0"
                 >
-                  {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  <Pill tone={status.tone}>{status.icon} {status.code}</Pill>
+                  {isOpen ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <Pill tone={status.tone}>
+                    {status.icon} {status.code}
+                  </Pill>
                   <div className="min-w-0">
                     <div className="font-semibold">
                       {status.displayName}
                       {isReminderStatus && (
-                        <span className="ml-2 text-[10px] uppercase tracking-wider text-tenant border border-tenant/30 rounded px-1.5 py-0.5">Reminder mode</span>
+                        <span className="ml-2 text-[10px] uppercase tracking-wider text-tenant border border-tenant/30 rounded px-1.5 py-0.5">
+                          Reminder mode
+                        </span>
                       )}
                     </div>
-                    <div className="text-xs text-muted-foreground truncate">{status.description}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {status.description}
+                    </div>
                   </div>
                 </button>
                 <div className="flex items-center gap-3 shrink-0">
@@ -270,20 +328,26 @@ function StatusAutomationPage() {
                     <Eye className="h-3.5 w-3.5" /> Preview
                   </button>
                   <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <span className="text-xs text-muted-foreground">{rule.enabled ? "Enabled" : "Disabled"}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {rule.enabled ? "Enabled" : "Disabled"}
+                    </span>
                     <input
                       type="checkbox"
                       className="sr-only peer"
                       checked={rule.enabled}
                       onChange={(e) => update(code, { enabled: e.target.checked })}
                     />
-                    <span className="relative w-10 h-5 bg-muted peer-checked:bg-tenant rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5" />
+                    <span
+                      className={`relative w-10 h-5 ${rule.enabled ? "bg-tenant" : "bg-muted"} rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5`}
+                    />
                   </label>
                 </div>
               </div>
 
               {isOpen && (
-                <div className={`px-6 py-5 space-y-6 ${!rule.enabled ? "opacity-50 pointer-events-none" : ""}`}>
+                <div
+                  className={`px-6 py-5 space-y-6 ${!rule.enabled ? "opacity-50 pointer-events-none" : ""}`}
+                >
                   {/* Channels */}
                   <div>
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-3">
@@ -296,7 +360,10 @@ function StatusAutomationPage() {
                         const Icon = meta.icon;
                         const tmpls = templatesForChannel(ch);
                         return (
-                          <div key={ch} className={`rounded-lg border p-3 space-y-3 ${cfg.enabled ? "border-tenant/40 bg-tenant-soft/30" : "border-border bg-muted/30"}`}>
+                          <div
+                            key={ch}
+                            className={`rounded-lg border p-3 space-y-3 ${cfg.enabled ? "border-tenant/40 bg-tenant-soft/30" : "border-border bg-muted/30"}`}
+                          >
                             <label className="flex items-center justify-between cursor-pointer">
                               <span className="inline-flex items-center gap-2 text-sm font-semibold">
                                 <Icon className="h-4 w-4 text-tenant" /> {meta.label}
@@ -304,7 +371,9 @@ function StatusAutomationPage() {
                               <input
                                 type="checkbox"
                                 checked={cfg.enabled}
-                                onChange={(e) => updateChannel(code, ch, { enabled: e.target.checked })}
+                                onChange={(e) =>
+                                  updateChannel(code, ch, { enabled: e.target.checked })
+                                }
                                 className="h-4 w-4 accent-tenant"
                               />
                             </label>
@@ -312,24 +381,39 @@ function StatusAutomationPage() {
                               <div className="space-y-2">
                                 <div>
                                   <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
-                                    {isReminderStatus ? "First reminder after (days)" : "Start outreach after (days)"}
+                                    {isReminderStatus
+                                      ? "First reminder after (days)"
+                                      : "Start outreach after (days)"}
                                   </label>
                                   <input
-                                    type="number" min={0}
+                                    type="number"
+                                    min={0}
                                     value={cfg.startAfterDays}
-                                    onChange={(e) => updateChannel(code, ch, { startAfterDays: Number(e.target.value) || 0 })}
+                                    onChange={(e) =>
+                                      updateChannel(code, ch, {
+                                        startAfterDays: Number(e.target.value) || 0,
+                                      })
+                                    }
                                     className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">First template</label>
+                                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                                    First template
+                                  </label>
                                   <select
                                     value={cfg.templateId}
-                                    onChange={(e) => updateChannel(code, ch, { templateId: e.target.value })}
+                                    onChange={(e) =>
+                                      updateChannel(code, ch, { templateId: e.target.value })
+                                    }
                                     className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                                   >
                                     <option value="">Select template…</option>
-                                    {tmpls.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    {tmpls.map((t) => (
+                                      <option key={t.id} value={t.id}>
+                                        {t.name}
+                                      </option>
+                                    ))}
                                   </select>
                                 </div>
                               </div>
@@ -361,41 +445,68 @@ function StatusAutomationPage() {
                         {rule.followUps.map((fu, idx) => {
                           const tmpls = templatesForChannel(fu.channel);
                           return (
-                            <div key={fu.id} className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border border-border bg-card">
-                              <div className="col-span-1 text-xs text-muted-foreground font-semibold pb-2">#{idx + 1}</div>
+                            <div
+                              key={fu.id}
+                              className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border border-border bg-card"
+                            >
+                              <div className="col-span-1 text-xs text-muted-foreground font-semibold pb-2">
+                                #{idx + 1}
+                              </div>
                               <div className="col-span-3">
-                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">Channel</label>
+                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                                  Channel
+                                </label>
                                 <select
                                   value={fu.channel}
                                   onChange={(e) => {
                                     const newCh = e.target.value as ChannelKey;
-                                    updateFollowUp(code, fu.id, { channel: newCh, templateId: templatesForChannel(newCh)[0]?.id ?? "" });
+                                    updateFollowUp(code, fu.id, {
+                                      channel: newCh,
+                                      templateId: templatesForChannel(newCh)[0]?.id ?? "",
+                                    });
                                   }}
                                   className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                                 >
                                   {(Object.keys(CHANNEL_META) as ChannelKey[]).map((c) => (
-                                    <option key={c} value={c}>{CHANNEL_META[c].label}</option>
+                                    <option key={c} value={c}>
+                                      {CHANNEL_META[c].label}
+                                    </option>
                                   ))}
                                 </select>
                               </div>
                               <div className="col-span-2">
-                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">After (days)</label>
+                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                                  After (days)
+                                </label>
                                 <input
-                                  type="number" min={0}
+                                  type="number"
+                                  min={0}
                                   value={fu.afterDays}
-                                  onChange={(e) => updateFollowUp(code, fu.id, { afterDays: Number(e.target.value) || 0 })}
+                                  onChange={(e) =>
+                                    updateFollowUp(code, fu.id, {
+                                      afterDays: Number(e.target.value) || 0,
+                                    })
+                                  }
                                   className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                                 />
                               </div>
                               <div className="col-span-5">
-                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">Template</label>
+                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                                  Template
+                                </label>
                                 <select
                                   value={fu.templateId}
-                                  onChange={(e) => updateFollowUp(code, fu.id, { templateId: e.target.value })}
+                                  onChange={(e) =>
+                                    updateFollowUp(code, fu.id, { templateId: e.target.value })
+                                  }
                                   className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
                                 >
                                   <option value="">Select template…</option>
-                                  {tmpls.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                  {tmpls.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name}
+                                    </option>
+                                  ))}
                                 </select>
                               </div>
                               <div className="col-span-1 flex justify-end">
@@ -423,7 +534,9 @@ function StatusAutomationPage() {
                   {/* BRP escalation */}
                   {code === "BRP" && (
                     <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
-                      <div className="text-sm font-semibold mb-2">After all follow-ups complete, send to legal review?</div>
+                      <div className="text-sm font-semibold mb-2">
+                        After all follow-ups complete, send to legal review?
+                      </div>
                       <div className="flex items-center gap-4">
                         <label className="inline-flex items-center gap-2 cursor-pointer text-sm">
                           <input
@@ -455,12 +568,7 @@ function StatusAutomationPage() {
         })}
       </section>
 
-      {previewing && (
-        <PreviewModal
-          rule={rules[previewing]}
-          onClose={() => setPreviewing(null)}
-        />
-      )}
+      {previewing && <PreviewModal rule={rules[previewing]} onClose={() => setPreviewing(null)} />}
     </Shell>
   );
 }
@@ -474,7 +582,12 @@ function PreviewModal({ rule, onClose }: { rule: StatusRule; onClose: () => void
       const c = rule.channels[ch];
       if (c.enabled) {
         const tmpl = allTemplates.find((t) => t.id === c.templateId);
-        out.push({ day: c.startAfterDays, channel: ch, templateName: tmpl?.name ?? "—", kind: "First outreach" });
+        out.push({
+          day: c.startAfterDays,
+          channel: ch,
+          templateName: tmpl?.name ?? "—",
+          kind: "First outreach",
+        });
       }
     });
     if (rule.followUpsEnabled) {
@@ -482,42 +595,74 @@ function PreviewModal({ rule, onClose }: { rule: StatusRule; onClose: () => void
       rule.followUps.forEach((fu, i) => {
         acc += fu.afterDays;
         const tmpl = allTemplates.find((t) => t.id === fu.templateId);
-        out.push({ day: acc, channel: fu.channel, templateName: tmpl?.name ?? "—", kind: `Follow-up #${i + 1}` });
+        out.push({
+          day: acc,
+          channel: fu.channel,
+          templateName: tmpl?.name ?? "—",
+          kind: `Follow-up #${i + 1}`,
+        });
       });
     }
     return out.sort((a, b) => a.day - b.day);
   }, [rule]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {status && <Pill tone={status.tone}>{status.icon} {status.code}</Pill>}
+            {status && (
+              <Pill tone={status.tone}>
+                {status.icon} {status.code}
+              </Pill>
+            )}
             <h3 className="font-display text-lg font-bold">Automation flow preview</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
         </div>
         <div className="px-6 py-5 overflow-y-auto space-y-3">
           {steps.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">No steps configured.</p>
-          ) : steps.map((s, i) => {
-            const Icon = CHANNEL_META[s.channel].icon;
-            return (
-              <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-border bg-background">
-                <div className="shrink-0 h-8 w-8 rounded-full bg-tenant-soft text-tenant flex items-center justify-center text-xs font-bold">D{s.day}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{s.kind}</div>
-                  <div className="text-sm font-semibold flex items-center gap-1.5"><Icon className="h-3.5 w-3.5" /> {CHANNEL_META[s.channel].label}</div>
-                  <div className="text-xs text-muted-foreground truncate">{s.templateName}</div>
+          ) : (
+            steps.map((s, i) => {
+              const Icon = CHANNEL_META[s.channel].icon;
+              return (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 p-3 rounded-lg border border-border bg-background"
+                >
+                  <div className="shrink-0 h-8 w-8 rounded-full bg-tenant-soft text-tenant flex items-center justify-center text-xs font-bold">
+                    D{s.day}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                      {s.kind}
+                    </div>
+                    <div className="text-sm font-semibold flex items-center gap-1.5">
+                      <Icon className="h-3.5 w-3.5" /> {CHANNEL_META[s.channel].label}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">{s.templateName}</div>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
           {rule.statusCode === "BRP" && rule.escalateToLegal && (
             <div className="flex items-start gap-3 p-3 rounded-lg border border-warning/30 bg-warning/10">
-              <div className="shrink-0 h-8 w-8 rounded-full bg-warning/20 text-warning-foreground flex items-center justify-center text-xs font-bold">⚖</div>
-              <div className="text-sm">After final follow-up, account is escalated to <strong>Legal Review</strong>.</div>
+              <div className="shrink-0 h-8 w-8 rounded-full bg-warning/20 text-warning-foreground flex items-center justify-center text-xs font-bold">
+                ⚖
+              </div>
+              <div className="text-sm">
+                After final follow-up, account is escalated to <strong>Legal Review</strong>.
+              </div>
             </div>
           )}
         </div>

@@ -1,4 +1,12 @@
-import { Outlet, Link, createRootRoute, HeadContent, redirect, useLocation, useNavigate } from "@tanstack/react-router";
+import {
+  Outlet,
+  Link,
+  createRootRoute,
+  HeadContent,
+  redirect,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { PortalProvider } from "@/lib/portal-context";
@@ -6,7 +14,16 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 
 // Only these tenant modules are enabled (have real API integration). Any other
 // /tenant/* path is blocked — even via direct URL entry — and bounced to Overview.
-const ENABLED_TENANT_PREFIXES = ["/tenant/users", "/tenant/roles"];
+const ENABLED_TENANT_PREFIXES = [
+  "/tenant/users",
+  "/tenant/roles",
+  "/tenant/teams",
+  "/tenant/audit",
+  "/tenant/settings",
+  // Demo-only modules (mock data, no API yet).
+  "/tenant/analytics",
+  "/tenant/debtors",
+];
 function isEnabledTenantPath(pathname: string): boolean {
   if (pathname === "/tenant" || pathname === "/tenant/") return true; // Overview
   return ENABLED_TENANT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -65,16 +82,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  const publicPaths = ["/login", "/reset-password"];
+  // Password-reset pages are for logged-out users only.
+  const resetPaths = ["/reset-password", "/resetpassword"];
+  const publicPaths = ["/login", ...resetPaths];
   const isPublic = publicPaths.includes(pathname);
+  const isResetPath = resetPaths.includes(pathname);
 
   useEffect(() => {
     if (!isAuthenticated && !isPublic) {
       navigate({ to: "/login" });
+    } else if (isAuthenticated && isResetPath) {
+      // A signed-in user has no business on a reset link — send them home.
+      navigate({ to: "/tenant" });
     }
-  }, [isAuthenticated, isPublic, navigate]);
+  }, [isAuthenticated, isPublic, isResetPath, navigate]);
 
   if (!isAuthenticated && !isPublic) return null;
+  if (isAuthenticated && isResetPath) return null;
   return <>{children}</>;
 }
 
