@@ -190,3 +190,30 @@
   .border-tenant { border-color: var(--tenant); }
   .ring-tenant { --tw-ring-color: var(--tenant); }
 }
+
+/* react-phone-number-input — themed to match form fields */
+.phone-input { display: flex; align-items: center; gap: 0.5rem; }
+.phone-input .PhoneInputInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  outline: none;
+}
+.phone-input .PhoneInputInput::placeholder { color: var(--muted-foreground); }
+.phone-input .PhoneInputInput:focus {
+  border-color: var(--tenant);
+  box-shadow: 0 0 0 2px var(--tenant);
+}
+.phone-input .PhoneInputCountry {
+  margin: 0;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+}
+.phone-input .PhoneInputCountrySelectArrow { color: var(--muted-foreground); opacity: 0.7; }

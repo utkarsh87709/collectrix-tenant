@@ -64,34 +64,39 @@ export async function uploadProfilePic(file: File): Promise<Partial<MyProfile>> 
   return (json.data ?? {}) as Partial<MyProfile>;
 }
 
-// Public reset-password flow (no auth token required).
-export function validateResetPassword(resetPasswordCode: string): Promise<unknown> {
-  return apiPost("/tenant/validateResetPassword", { resetPasswordCode });
-}
-
-export function resetPassword(resetPasswordCode: string, newPassword: string): Promise<unknown> {
-  return apiPost("/tenant/resetPassword", { resetPasswordCode, newPassword });
-}
-
-// Sets the password for a reset link issued from the Users screen.
-//   POST /generic/submitResetPasswordRequest { resetPasswordCode, newPassword }
-// Public: invoked by a logged-out user from the /resetpassword page. We use a
-// bare fetch (not apiFetch) so a 401 surfaces as an inline error instead of
-// triggering the global "session expired" redirect to /login.
-export async function submitResetPasswordRequest(
-  resetPasswordCode: string,
-  newPassword: string,
-): Promise<void> {
-  const res = await fetch(apiUrl("/generic/submitResetPasswordRequest"), {
+// Public reset-password flow (no auth token required). A reset link can be
+// issued either from the signed-in user's own account (sendResetMyPasswordLink)
+// or for another user from the Users screen (resetUserPassword) — both land the
+// recipient on /resetpassword?resetPasswordCode=…, and the handling is identical.
+//
+// These use a bare fetch (not apiFetch/apiPost) on purpose: the visitor is
+// logged out, so a 401/expired-code response must surface as an inline error
+// rather than tripping the global "session expired" redirect to /login.
+async function publicPost(path: string, body: Record<string, unknown>, failMsg: string): Promise<unknown> {
+  const res = await fetch(apiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resetPasswordCode, newPassword }),
+    body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => null);
   if (!json?.meta?.status) {
-    throw new Error(
-      json?.meta?.message ||
-        `Failed to reset password. The link may have expired (status ${res.status}).`,
-    );
+    throw new Error(json?.meta?.message || `${failMsg} (status ${res.status}).`);
   }
+  return json.data;
+}
+
+export function validateResetPassword(resetPasswordCode: string): Promise<unknown> {
+  return publicPost(
+    "/tenant/validateResetPassword",
+    { resetPasswordCode },
+    "This reset link is invalid or has expired",
+  );
+}
+
+export function resetPassword(resetPasswordCode: string, newPassword: string): Promise<unknown> {
+  return publicPost(
+    "/tenant/resetPassword",
+    { resetPasswordCode, newPassword },
+    "Failed to reset password. The link may have expired",
+  );
 }

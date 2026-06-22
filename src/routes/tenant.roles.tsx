@@ -5,7 +5,7 @@ import { Pill } from "@/components/tenant/ui";
 import { motion } from "motion/react";
 import { RolesGridSkeleton } from "@/components/admin/Skeletons";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, X, ChevronDown, Loader2, RefreshCw, ShieldCheck, Check } from "lucide-react";
+import { Plus, X, ChevronDown, Loader2, RefreshCw, ShieldCheck, Check, Minus, Layers } from "lucide-react";
 import { toast } from "sonner";
 import {
   getConfiguredRoles,
@@ -16,6 +16,7 @@ import {
   type Role,
 } from "@/lib/roles-api";
 import { getRoleDescription, setRoleDescription } from "@/lib/role-descriptions";
+import { regroupByModule, uniquePermissionCount } from "@/lib/permission-modules";
 
 export const Route = createFileRoute("/tenant/roles")({
   head: () => ({ meta: [{ title: "Roles & Permissions · Tenant Admin" }] }),
@@ -33,7 +34,7 @@ function RolesPage() {
   const [creating, setCreating] = useState(false);
 
   const catalogTotal = useMemo(
-    () => catalog?.configuredRoles.reduce((acc, g) => acc + g.configuration.length, 0) ?? 0,
+    () => (catalog ? uniquePermissionCount(catalog) : 0),
     [catalog],
   );
   const total = totalConfiguration || catalogTotal;
@@ -176,11 +177,16 @@ function RoleEditor({
     () => new Set(role?.allowedConfiguration ?? []),
   );
   const [saving, setSaving] = useState(false);
+  // Right panel groups by the backend's functional categories (header). The
+  // left rail re-buckets the same permissions by module (tabsLinked); a
+  // permission linked to several modules appears under each, and selection
+  // stays in sync because everything is keyed by configId.
+  const moduleGroups = useMemo(() => regroupByModule(catalog), [catalog]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
     () => Object.fromEntries(catalog.configuredRoles.map((g) => [g.header, true])),
   );
 
-  const totalConfigs = catalog.configuredRoles.reduce((a, g) => a + g.configuration.length, 0);
+  const totalConfigs = uniquePermissionCount(catalog);
 
   const toggle = (configId: number) => {
     setSelected((prev) => {
@@ -191,10 +197,9 @@ function RoleEditor({
     });
   };
 
-  const toggleGroup = (header: string) => {
-    const group = catalog.configuredRoles.find((g) => g.header === header);
-    if (!group) return;
-    const ids = group.configuration.map((c) => c.configId);
+  // Toggle a set of permissions on/off as a unit. Used by both the module rail
+  // and a category's "Select all" — they pass different id sets, same logic.
+  const toggleIds = (ids: number[]) => {
     const allOn = ids.every((id) => selected.has(id));
     setSelected((prev) => {
       const next = new Set(prev);
@@ -266,39 +271,52 @@ function RoleEditor({
           </div>
 
           <div className="flex gap-5 items-start">
-          <div className="hidden md:block w-52 shrink-0 sticky top-0">
-            <div className="rounded-lg border border-border overflow-hidden">
-              <div className="px-3 py-2.5 bg-muted/40 border-b border-border">
-                <span className="font-display font-semibold text-sm">Quick select</span>
-                <span className="block text-[11px] text-muted-foreground mt-0.5">Toggle every permission in a group</span>
+          <div className="hidden md:block w-60 shrink-0 sticky top-0 space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Layers className="h-4 w-4" />
+                <span className="text-xs uppercase tracking-wider font-semibold">Modules</span>
               </div>
-              <div className="p-1.5 space-y-0.5">
-                {catalog.configuredRoles.map((group) => {
-                  const ids = group.configuration.map((c) => c.configId);
-                  const onCount = ids.filter((id) => selected.has(id)).length;
-                  const allOn = ids.length > 0 && onCount === ids.length;
-                  return (
-                    <button
-                      key={group.header}
-                      type="button"
-                      onClick={() => toggleGroup(group.header)}
-                      className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-left text-sm transition ${
-                        allOn ? "bg-tenant/10 text-tenant" : "hover:bg-muted text-foreground"
+              <p className="text-[11px] text-muted-foreground leading-snug mt-1.5">
+                Selecting a module auto-checks its linked permissions on the right.
+              </p>
+            </div>
+            <div className="space-y-2.5">
+              {moduleGroups.map((group) => {
+                const ids = group.configuration.map((c) => c.configId);
+                const onCount = ids.filter((id) => selected.has(id)).length;
+                const allOn = ids.length > 0 && onCount === ids.length;
+                const partial = onCount > 0 && !allOn;
+                return (
+                  <button
+                    key={group.header}
+                    type="button"
+                    onClick={() => toggleIds(ids)}
+                    className={`w-full flex items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition ${
+                      allOn
+                        ? "bg-tenant/10 border-tenant/40"
+                        : "bg-muted/30 border-border hover:bg-muted/60"
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        allOn || partial ? "bg-tenant border-tenant text-white" : "border-muted-foreground/40"
                       }`}
                     >
-                      <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                          allOn ? "bg-tenant border-tenant text-white" : "border-border"
-                        }`}
-                      >
-                        {allOn && <Check className="h-3 w-3" />}
+                      {allOn && <Check className="h-3 w-3" />}
+                      {partial && <Minus className="h-3 w-3" />}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className={`block font-display font-semibold text-sm ${allOn ? "text-tenant" : "text-foreground"}`}>
+                        {group.header}
                       </span>
-                      <span className="flex-1 min-w-0 truncate">{group.header}</span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{onCount}/{ids.length}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                      <span className="block text-[11px] text-muted-foreground mt-1">
+                        {onCount}/{ids.length} permissions
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -327,7 +345,7 @@ function RoleEditor({
                           className="accent-tenant"
                           checked={allOn}
                           ref={(el) => { if (el) el.indeterminate = onCount > 0 && !allOn; }}
-                          onChange={() => toggleGroup(group.header)}
+                          onChange={() => toggleIds(ids)}
                         />
                         Select all
                       </label>

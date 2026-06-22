@@ -23,6 +23,8 @@ const ENABLED_TENANT_PREFIXES = [
   // Demo-only modules (mock data, no API yet).
   "/tenant/analytics",
   "/tenant/debtors",
+  "/tenant/intake/clients",
+  "/tenant/intake/upload",
 ];
 function isEnabledTenantPath(pathname: string): boolean {
   if (pathname === "/tenant" || pathname === "/tenant/") return true; // Overview
@@ -63,14 +65,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Collectrix Tenant" },
+      { name: "description", content: "Collectrix Tenant" },
+      { name: "author", content: "Collectrix" },
+      { property: "og:title", content: "Collectrix Tenant" },
+      { property: "og:description", content: "Collectrix Tenant" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@Collectrix" },
     ],
   }),
   component: RootComponent,
@@ -82,23 +84,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  // Password-reset pages are for logged-out users only.
-  const resetPaths = ["/reset-password", "/resetpassword"];
-  const publicPaths = ["/login", ...resetPaths];
+  // Password-reset and tenant-invite pages are for logged-out users only.
+  const loggedOutOnlyPaths = ["/reset-password", "/resetpassword", "/tenantinvite"];
+  const publicPaths = ["/login", ...loggedOutOnlyPaths];
   const isPublic = publicPaths.includes(pathname);
-  const isResetPath = resetPaths.includes(pathname);
+  const isLoggedOutOnly = loggedOutOnlyPaths.includes(pathname);
 
   useEffect(() => {
     if (!isAuthenticated && !isPublic) {
       navigate({ to: "/login" });
-    } else if (isAuthenticated && isResetPath) {
-      // A signed-in user has no business on a reset link — send them home.
+    } else if (isAuthenticated && isLoggedOutOnly) {
+      // A signed-in user has no business on a reset/invite link — send them home.
       navigate({ to: "/tenant" });
     }
-  }, [isAuthenticated, isPublic, isResetPath, navigate]);
+  }, [isAuthenticated, isPublic, isLoggedOutOnly, navigate]);
 
   if (!isAuthenticated && !isPublic) return null;
-  if (isAuthenticated && isResetPath) return null;
+  if (isAuthenticated && isLoggedOutOnly) return null;
   return <>{children}</>;
 }
 

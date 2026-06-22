@@ -8,7 +8,15 @@ import {
   LineChart,
   Wallet,
   Settings,
+  Database,
 } from "lucide-react";
+
+export type NavSubItem = {
+  to: string;
+  label: string;
+  /** Disabled submodules render greyed-out and are not routable. */
+  disabled?: boolean;
+};
 
 export type NavItem = {
   to: string;
@@ -16,6 +24,8 @@ export type NavItem = {
   icon: typeof LayoutDashboard;
   description?: string;
   keywords?: string;
+  /** When present, the item is an expandable module with nested links. */
+  submodules?: NavSubItem[];
 };
 
 export type NavGroup = {
@@ -85,6 +95,23 @@ export const tenantGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Operations",
+    items: [
+      {
+        to: "/tenant/intake",
+        label: "Data Intake",
+        icon: Database,
+        description: "Client list, debtor uploads and CRM sync",
+        keywords: "data intake import upload debtor crm integration clients",
+        submodules: [
+          { to: "/tenant/intake/clients", label: "Client List" },
+          { to: "/tenant/intake/upload", label: "Upload Debtor Data" },
+          { to: "/tenant/intake/crm", label: "CRM Integration", disabled: true },
+        ],
+      },
+    ],
+  },
+  {
     label: "Compliance",
     items: [
       {
@@ -114,5 +141,18 @@ export const tenantGroups: NavGroup[] = [
 
 /** Used by the global ⌘K palette — only the enabled destinations. */
 export const allRoutes: NavItem[] = tenantGroups.flatMap((g) =>
-  g.items.map((i) => ({ ...i, keywords: `tenant ${g.label} ${i.keywords ?? ""}` })),
+  g.items.flatMap((i) => {
+    // Expandable modules contribute their enabled submodules as destinations.
+    if (i.submodules?.length) {
+      return i.submodules
+        .filter((s) => !s.disabled)
+        .map((s) => ({
+          to: s.to,
+          label: s.label,
+          icon: i.icon,
+          keywords: `tenant ${g.label} ${i.label} ${s.label}`,
+        }));
+    }
+    return [{ ...i, keywords: `tenant ${g.label} ${i.keywords ?? ""}` }];
+  }),
 );

@@ -464,12 +464,18 @@ function TeamFormModal({
     [members, leaderId],
   );
 
+  // Members must never exceed the entered capacity.
+  const capacityNum = capacity === "" ? 0 : Number(capacity);
+  const overCapacity = capacityNum > 0 && effectiveMembers.length > capacityNum;
+  const capacityReached = capacityNum > 0 && effectiveMembers.length >= capacityNum;
+
   const canSave =
     !!name.trim() &&
     leaderId !== "" &&
     capacity !== "" &&
     Number(capacity) > 0 &&
     effectiveMembers.length > 0 &&
+    !overCapacity &&
     !saving;
 
   const save = async () => {
@@ -596,28 +602,45 @@ function TeamFormModal({
                   No members match “{memberQuery}”.
                 </div>
               ) : (
-                filteredPool.map((u) => (
-                  <label
-                    key={u.userId}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      className="accent-tenant"
-                      checked={members.includes(u.userId)}
-                      onChange={() => toggle(u.userId)}
-                    />
-                    <span className="text-sm flex-1 truncate">{fullName(u) || u.emailId}</span>
-                    <span className="text-xs text-muted-foreground truncate max-w-[40%]">
-                      {u.role}
-                    </span>
-                  </label>
-                ))
+                filteredPool.map((u) => {
+                  const isChecked = members.includes(u.userId);
+                  // Block selecting beyond capacity — already-checked members stay toggleable.
+                  const disabled = capacityReached && !isChecked;
+                  return (
+                    <label
+                      key={u.userId}
+                      title={disabled ? "Team capacity reached" : undefined}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded ${
+                        disabled
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-muted cursor-pointer"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-tenant"
+                        checked={isChecked}
+                        disabled={disabled}
+                        onChange={() => toggle(u.userId)}
+                      />
+                      <span className="text-sm flex-1 truncate">{fullName(u) || u.emailId}</span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[40%]">
+                        {u.role}
+                      </span>
+                    </label>
+                  );
+                })
               )}
             </div>
             {!optionsLoading && effectiveMembers.length === 0 && (
               <p className="mt-1.5 text-[11px] text-muted-foreground">
                 Select at least one member — a team can't be saved empty.
+              </p>
+            )}
+            {overCapacity && (
+              <p className="mt-1.5 text-[11px] font-medium text-red-500">
+                {effectiveMembers.length} members selected exceeds the capacity of {capacityNum}.
+                Remove members or increase capacity before saving.
               </p>
             )}
           </div>

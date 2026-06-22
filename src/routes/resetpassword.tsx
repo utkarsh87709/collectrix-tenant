@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { submitResetPasswordRequest, validateResetPassword } from "@/lib/profile-api";
+import { resetPassword, validateResetPassword } from "@/lib/profile-api";
 
 const searchSchema = z.object({
   resetPasswordCode: z.string().optional(),
@@ -77,7 +77,7 @@ function ResetPasswordPage() {
     }
     setLoading(true);
     try {
-      await submitResetPasswordRequest(code, password);
+      await resetPassword(code, password);
       setDone(true);
       toast.success("Password updated. You can now sign in.");
     } catch (err) {

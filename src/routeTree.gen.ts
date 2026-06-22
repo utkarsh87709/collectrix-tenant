@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TenantinviteRouteImport } from './routes/tenantinvite'
 import { Route as ResetpasswordRouteImport } from './routes/resetpassword'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
@@ -36,11 +37,12 @@ import { Route as TenantCommsIndexRouteImport } from './routes/tenant.comms.inde
 import { Route as TenantSettingsStatusesRouteImport } from './routes/tenant.settings.statuses'
 import { Route as TenantSettingsStatusAutomationRouteImport } from './routes/tenant.settings.status-automation'
 import { Route as TenantSettingsDocumentAutomationRouteImport } from './routes/tenant.settings.document-automation'
-import { Route as TenantSettingsCustomFieldsRouteImport } from './routes/tenant.settings.custom-fields'
 import { Route as TenantPaymentsSettlementsRouteImport } from './routes/tenant.payments.settlements'
 import { Route as TenantPaymentsPlansRouteImport } from './routes/tenant.payments.plans'
+import { Route as TenantIntakeUploadRouteImport } from './routes/tenant.intake.upload'
 import { Route as TenantIntakeImportRouteImport } from './routes/tenant.intake.import'
 import { Route as TenantIntakeDedupeRouteImport } from './routes/tenant.intake.dedupe'
+import { Route as TenantIntakeClientsRouteImport } from './routes/tenant.intake.clients'
 import { Route as TenantIntakeAuditRouteImport } from './routes/tenant.intake.audit'
 import { Route as TenantDebtorsDebtorIdRouteImport } from './routes/tenant.debtors.$debtorId'
 import { Route as TenantDashboardsSupervisorRouteImport } from './routes/tenant.dashboards.supervisor'
@@ -74,6 +76,11 @@ import { Route as TenantCommsLettersApprovalRouteImport } from './routes/tenant.
 import { Route as TenantDebtorsDebtorIdNotesNoteIdRouteImport } from './routes/tenant.debtors.$debtorId.notes.$noteId'
 import { Route as TenantDebtorsDebtorIdCallsCallIdRouteImport } from './routes/tenant.debtors.$debtorId.calls.$callId'
 
+const TenantinviteRoute = TenantinviteRouteImport.update({
+  id: '/tenantinvite',
+  path: '/tenantinvite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetpasswordRoute = ResetpasswordRouteImport.update({
   id: '/resetpassword',
   path: '/resetpassword',
@@ -211,12 +218,6 @@ const TenantSettingsDocumentAutomationRoute =
     path: '/document-automation',
     getParentRoute: () => TenantSettingsRoute,
   } as any)
-const TenantSettingsCustomFieldsRoute =
-  TenantSettingsCustomFieldsRouteImport.update({
-    id: '/custom-fields',
-    path: '/custom-fields',
-    getParentRoute: () => TenantSettingsRoute,
-  } as any)
 const TenantPaymentsSettlementsRoute =
   TenantPaymentsSettlementsRouteImport.update({
     id: '/settlements',
@@ -228,6 +229,11 @@ const TenantPaymentsPlansRoute = TenantPaymentsPlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => TenantPaymentsRoute,
 } as any)
+const TenantIntakeUploadRoute = TenantIntakeUploadRouteImport.update({
+  id: '/tenant/intake/upload',
+  path: '/tenant/intake/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TenantIntakeImportRoute = TenantIntakeImportRouteImport.update({
   id: '/tenant/intake/import',
   path: '/tenant/intake/import',
@@ -236,6 +242,11 @@ const TenantIntakeImportRoute = TenantIntakeImportRouteImport.update({
 const TenantIntakeDedupeRoute = TenantIntakeDedupeRouteImport.update({
   id: '/tenant/intake/dedupe',
   path: '/tenant/intake/dedupe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TenantIntakeClientsRoute = TenantIntakeClientsRouteImport.update({
+  id: '/tenant/intake/clients',
+  path: '/tenant/intake/clients',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TenantIntakeAuditRoute = TenantIntakeAuditRouteImport.update({
@@ -413,6 +424,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/resetpassword': typeof ResetpasswordRoute
+  '/tenantinvite': typeof TenantinviteRoute
   '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
@@ -449,11 +461,12 @@ export interface FileRoutesByFullPath {
   '/tenant/dashboards/supervisor': typeof TenantDashboardsSupervisorRoute
   '/tenant/debtors/$debtorId': typeof TenantDebtorsDebtorIdRouteWithChildren
   '/tenant/intake/audit': typeof TenantIntakeAuditRoute
+  '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
   '/tenant/intake/import': typeof TenantIntakeImportRoute
+  '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
-  '/tenant/settings/custom-fields': typeof TenantSettingsCustomFieldsRoute
   '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
@@ -479,6 +492,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/resetpassword': typeof ResetpasswordRoute
+  '/tenantinvite': typeof TenantinviteRoute
   '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
@@ -511,11 +525,12 @@ export interface FileRoutesByTo {
   '/tenant/dashboards/supervisor': typeof TenantDashboardsSupervisorRoute
   '/tenant/debtors/$debtorId': typeof TenantDebtorsDebtorIdRouteWithChildren
   '/tenant/intake/audit': typeof TenantIntakeAuditRoute
+  '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
   '/tenant/intake/import': typeof TenantIntakeImportRoute
+  '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
-  '/tenant/settings/custom-fields': typeof TenantSettingsCustomFieldsRoute
   '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
@@ -542,6 +557,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/resetpassword': typeof ResetpasswordRoute
+  '/tenantinvite': typeof TenantinviteRoute
   '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
@@ -578,11 +594,12 @@ export interface FileRoutesById {
   '/tenant/dashboards/supervisor': typeof TenantDashboardsSupervisorRoute
   '/tenant/debtors/$debtorId': typeof TenantDebtorsDebtorIdRouteWithChildren
   '/tenant/intake/audit': typeof TenantIntakeAuditRoute
+  '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
   '/tenant/intake/import': typeof TenantIntakeImportRoute
+  '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
-  '/tenant/settings/custom-fields': typeof TenantSettingsCustomFieldsRoute
   '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
@@ -610,6 +627,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/resetpassword'
+    | '/tenantinvite'
     | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
@@ -646,11 +664,12 @@ export interface FileRouteTypes {
     | '/tenant/dashboards/supervisor'
     | '/tenant/debtors/$debtorId'
     | '/tenant/intake/audit'
+    | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
     | '/tenant/intake/import'
+    | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
-    | '/tenant/settings/custom-fields'
     | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
@@ -676,6 +695,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/resetpassword'
+    | '/tenantinvite'
     | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
@@ -708,11 +728,12 @@ export interface FileRouteTypes {
     | '/tenant/dashboards/supervisor'
     | '/tenant/debtors/$debtorId'
     | '/tenant/intake/audit'
+    | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
     | '/tenant/intake/import'
+    | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
-    | '/tenant/settings/custom-fields'
     | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
@@ -738,6 +759,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/resetpassword'
+    | '/tenantinvite'
     | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
@@ -774,11 +796,12 @@ export interface FileRouteTypes {
     | '/tenant/dashboards/supervisor'
     | '/tenant/debtors/$debtorId'
     | '/tenant/intake/audit'
+    | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
     | '/tenant/intake/import'
+    | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
-    | '/tenant/settings/custom-fields'
     | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
@@ -805,6 +828,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ResetpasswordRoute: typeof ResetpasswordRoute
+  TenantinviteRoute: typeof TenantinviteRoute
   TenantAnalyticsRoute: typeof TenantAnalyticsRoute
   TenantAppointmentsRoute: typeof TenantAppointmentsRoute
   TenantAssignmentRoute: typeof TenantAssignmentRoute
@@ -831,8 +855,10 @@ export interface RootRouteChildren {
   TenantCommsTemplatesRoute: typeof TenantCommsTemplatesRoute
   TenantDebtorsDebtorIdRoute: typeof TenantDebtorsDebtorIdRouteWithChildren
   TenantIntakeAuditRoute: typeof TenantIntakeAuditRoute
+  TenantIntakeClientsRoute: typeof TenantIntakeClientsRoute
   TenantIntakeDedupeRoute: typeof TenantIntakeDedupeRoute
   TenantIntakeImportRoute: typeof TenantIntakeImportRoute
+  TenantIntakeUploadRoute: typeof TenantIntakeUploadRoute
   TenantCommsIndexRoute: typeof TenantCommsIndexRoute
   TenantDebtorsIndexRoute: typeof TenantDebtorsIndexRoute
   TenantIntakeIndexRoute: typeof TenantIntakeIndexRoute
@@ -844,6 +870,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tenantinvite': {
+      id: '/tenantinvite'
+      path: '/tenantinvite'
+      fullPath: '/tenantinvite'
+      preLoaderRoute: typeof TenantinviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/resetpassword': {
       id: '/resetpassword'
       path: '/resetpassword'
@@ -1033,13 +1066,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantSettingsDocumentAutomationRouteImport
       parentRoute: typeof TenantSettingsRoute
     }
-    '/tenant/settings/custom-fields': {
-      id: '/tenant/settings/custom-fields'
-      path: '/custom-fields'
-      fullPath: '/tenant/settings/custom-fields'
-      preLoaderRoute: typeof TenantSettingsCustomFieldsRouteImport
-      parentRoute: typeof TenantSettingsRoute
-    }
     '/tenant/payments/settlements': {
       id: '/tenant/payments/settlements'
       path: '/settlements'
@@ -1054,6 +1080,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantPaymentsPlansRouteImport
       parentRoute: typeof TenantPaymentsRoute
     }
+    '/tenant/intake/upload': {
+      id: '/tenant/intake/upload'
+      path: '/tenant/intake/upload'
+      fullPath: '/tenant/intake/upload'
+      preLoaderRoute: typeof TenantIntakeUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tenant/intake/import': {
       id: '/tenant/intake/import'
       path: '/tenant/intake/import'
@@ -1066,6 +1099,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant/intake/dedupe'
       fullPath: '/tenant/intake/dedupe'
       preLoaderRoute: typeof TenantIntakeDedupeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tenant/intake/clients': {
+      id: '/tenant/intake/clients'
+      path: '/tenant/intake/clients'
+      fullPath: '/tenant/intake/clients'
+      preLoaderRoute: typeof TenantIntakeClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenant/intake/audit': {
@@ -1343,7 +1383,6 @@ const TenantPaymentsRouteWithChildren = TenantPaymentsRoute._addFileChildren(
 )
 
 interface TenantSettingsRouteChildren {
-  TenantSettingsCustomFieldsRoute: typeof TenantSettingsCustomFieldsRoute
   TenantSettingsDocumentAutomationRoute: typeof TenantSettingsDocumentAutomationRoute
   TenantSettingsStatusAutomationRoute: typeof TenantSettingsStatusAutomationRoute
   TenantSettingsStatusesRoute: typeof TenantSettingsStatusesRoute
@@ -1351,7 +1390,6 @@ interface TenantSettingsRouteChildren {
 }
 
 const TenantSettingsRouteChildren: TenantSettingsRouteChildren = {
-  TenantSettingsCustomFieldsRoute: TenantSettingsCustomFieldsRoute,
   TenantSettingsDocumentAutomationRoute: TenantSettingsDocumentAutomationRoute,
   TenantSettingsStatusAutomationRoute: TenantSettingsStatusAutomationRoute,
   TenantSettingsStatusesRoute: TenantSettingsStatusesRoute,
@@ -1399,6 +1437,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ResetpasswordRoute: ResetpasswordRoute,
+  TenantinviteRoute: TenantinviteRoute,
   TenantAnalyticsRoute: TenantAnalyticsRoute,
   TenantAppointmentsRoute: TenantAppointmentsRoute,
   TenantAssignmentRoute: TenantAssignmentRoute,
@@ -1425,8 +1464,10 @@ const rootRouteChildren: RootRouteChildren = {
   TenantCommsTemplatesRoute: TenantCommsTemplatesRoute,
   TenantDebtorsDebtorIdRoute: TenantDebtorsDebtorIdRouteWithChildren,
   TenantIntakeAuditRoute: TenantIntakeAuditRoute,
+  TenantIntakeClientsRoute: TenantIntakeClientsRoute,
   TenantIntakeDedupeRoute: TenantIntakeDedupeRoute,
   TenantIntakeImportRoute: TenantIntakeImportRoute,
+  TenantIntakeUploadRoute: TenantIntakeUploadRoute,
   TenantCommsIndexRoute: TenantCommsIndexRoute,
   TenantDebtorsIndexRoute: TenantDebtorsIndexRoute,
   TenantIntakeIndexRoute: TenantIntakeIndexRoute,

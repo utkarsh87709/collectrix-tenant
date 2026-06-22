@@ -1,4 +1,5 @@
 // Team management calls to the separately-hosted backend.
+//   POST /tenant/getTeamList                {} -> { teamList[] }     (lightweight {teamId, teamName} for pickers)
 //   POST /tenant/getTeamsCardView          {} -> { teamList[] }
 //   POST /tenant/getTeamsOrgView           {} -> { leaderList[] }   (leaders → their teams → members)
 //   POST /tenant/getAllLeaderList          {} -> { userList[] }     (candidate leaders = all users)
@@ -84,6 +85,16 @@ export type GetTeamDetailsResult = {
   /** Members available to add to this team. */
   unassignedTeamMembers: TeamMember[];
 };
+
+/** Minimal team shape for dropdowns (assigning a user to a team). */
+export type TeamListItem = {
+  teamId: number;
+  teamName: string;
+};
+
+export function getTeamList(): Promise<{ teamList: TeamListItem[] }> {
+  return apiPost<{ teamList: TeamListItem[] }>("/tenant/getTeamList");
+}
 
 export function getTeamsCardView(): Promise<{ teamList: TeamCard[] }> {
   return apiPost<{ teamList: TeamCard[] }>("/tenant/getTeamsCardView");

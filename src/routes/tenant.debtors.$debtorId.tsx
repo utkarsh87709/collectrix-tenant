@@ -27,7 +27,6 @@ import { NoteEditor } from "@/components/tenant/NoteEditor";
 import { AssignmentCard, AssignmentSummary } from "@/components/tenant/AssignmentCard";
 import { useAssignment, getAssignmentStatus } from "@/lib/assignment-store";
 
-import { CustomFieldsSection } from "@/components/tenant/CustomFieldsSection";
 import { NoteCard } from "@/components/tenant/NoteCard";
 import type { Note } from "@/lib/notes-store";
 import { toast } from "sonner";
@@ -521,7 +520,6 @@ function DebtorProfile() {
           <TabsContent value="dataprofile" className="mt-0 space-y-4">
             <DataValidationCard debtorId={d.id} />
             <DebtorProfileFields debtor={d} />
-            <CustomFieldsSection debtorId={d.id} />
           </TabsContent>
 
           <TabsContent value="rpv" className="mt-0 space-y-4">

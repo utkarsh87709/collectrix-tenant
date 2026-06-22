@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
 import { useState, useEffect, useCallback } from "react";
@@ -7,9 +7,7 @@ import {
   Save,
   Clock,
   Calendar,
-  ChevronRight,
   ChevronDown,
-  Sparkles,
   Mail,
   Phone,
   Eye,
@@ -215,21 +213,6 @@ function SettingsPage() {
         <SettingsSkeleton />
       ) : (
         <>
-          {/* Quick links */}
-          <section className="px-6 lg:px-10 pt-6">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-2 flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-tenant" /> Shortcuts
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <ShortcutCard
-                to="/tenant/settings/custom-fields"
-                icon={<Sparkles className="h-5 w-5" />}
-                title="Custom Fields"
-                desc="Tenant-defined debtor fields, import & CRM mapping"
-              />
-            </div>
-          </section>
-
           {/* Tabs */}
           <section className="px-6 lg:px-10 py-6">
             <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
@@ -665,33 +648,5 @@ function Field({
       {hint && <p className="text-xs text-muted-foreground mb-2">{hint}</p>}
       {children}
     </div>
-  );
-}
-
-function ShortcutCard({
-  to,
-  icon,
-  title,
-  desc,
-}: {
-  to: string;
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="group flex items-center gap-3 rounded-2xl border border-border bg-card hover:border-tenant/50 hover:bg-tenant/5 transition px-5 py-4 shadow-elegant"
-    >
-      <div className="h-11 w-11 rounded-xl bg-tenant-soft text-tenant flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="font-display font-bold text-sm">{title}</div>
-        <div className="text-xs text-muted-foreground truncate">{desc}</div>
-      </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-tenant group-hover:translate-x-0.5 transition" />
-    </Link>
   );
 }

@@ -19,17 +19,107 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-function isActiveFor(pathname: string, item: NavItem): boolean {
+// Bold gradient pill — marks the actual current page (a top-level item or an
+// active submodule leaf).
+const ACTIVE_CLS =
+  "bg-gradient-tenant text-white shadow-tenant hover:bg-gradient-tenant hover:text-white data-[active=true]:bg-gradient-tenant data-[active=true]:text-white";
+
+// Quiet treatment for a parent module whose child is the current page — a soft
+// tint + azure accent so it reads as "open section", not a second active pill.
+const SECTION_OPEN_CLS =
+  "bg-sidebar-accent/40 font-semibold text-tenant hover:bg-sidebar-accent/60 hover:text-tenant";
+
+function isActivePath(pathname: string, to: string): boolean {
   // Exact match for short roots; prefix match otherwise
-  if (item.to === "/" || item.to === "/tenant") return pathname === item.to;
-  return pathname === item.to || pathname.startsWith(item.to + "/");
+  if (to === "/" || to === "/tenant") return pathname === to;
+  return pathname === to || pathname.startsWith(to + "/");
+}
+
+function isActiveFor(pathname: string, item: NavItem): boolean {
+  return isActivePath(pathname, item.to);
+}
+
+function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
+  const Icon = item.icon;
+  const hasSub = !!item.submodules?.length;
+  const subActive = item.submodules?.some((s) => isActivePath(pathname, s.to)) ?? false;
+  const active = isActiveFor(pathname, item);
+  const [open, setOpen] = useState(subActive);
+
+  if (!hasSub) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          asChild
+          isActive={active}
+          tooltip={item.label}
+          className={active ? ACTIVE_CLS : ""}
+        >
+          <Link to={item.to as never}>
+            <Icon className="h-4 w-4 shrink-0" />
+            <span>{item.label}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} asChild>
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton
+            isActive={false}
+            tooltip={item.label}
+            className={subActive ? SECTION_OPEN_CLS : ""}
+          >
+            <Icon className={cn("h-4 w-4 shrink-0", subActive && "text-tenant")} />
+            <span>{item.label}</span>
+            <ChevronRight className={cn("ml-auto h-4 w-4 transition-transform", open && "rotate-90")} />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {item.submodules!.map((sub) => {
+              if (sub.disabled) {
+                return (
+                  <SidebarMenuSubItem key={sub.to}>
+                    <SidebarMenuSubButton
+                      aria-disabled
+                      className="pointer-events-none cursor-not-allowed opacity-50"
+                    >
+                      <span>{sub.label}</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                );
+              }
+              const sActive = isActivePath(pathname, sub.to);
+              return (
+                <SidebarMenuSubItem key={sub.to}>
+                  <SidebarMenuSubButton asChild isActive={sActive} className={sActive ? ACTIVE_CLS : ""}>
+                    <Link to={sub.to as never}>
+                      <span>{sub.label}</span>
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  );
 }
 
 export function Sidebar() {
@@ -87,29 +177,9 @@ export function Sidebar() {
             {!collapsed && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActiveFor(pathname, item);
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={active}
-                        tooltip={item.label}
-                        className={
-                          active
-                            ? "bg-gradient-tenant text-white shadow-tenant hover:bg-gradient-tenant hover:text-white data-[active=true]:bg-gradient-tenant data-[active=true]:text-white"
-                            : ""
-                        }
-                      >
-                        <Link to={item.to as never}>
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
+                {group.items.map((item) => (
+                  <NavMenuItem key={item.to} item={item} pathname={pathname} />
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

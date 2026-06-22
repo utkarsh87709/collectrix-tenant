@@ -55,6 +55,7 @@
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.71.2",
     "react-is": "^19.2.7",
+    "react-phone-number-input": "^3.4.17",
     "react-resizable-panels": "^4.6.5",
     "reactflow": "^11.11.4",
     "recharts": "^3.8.1",

@@ -6,7 +6,7 @@ import { motion } from "motion/react";
 import { UsersTableSkeleton } from "@/components/admin/Skeletons";
 import { useCallback, useEffect, useState } from "react";
 import {
-  Plus, Search, X, Loader2, RefreshCw, KeyRound, PauseCircle, RotateCcw, Copy, ChevronLeft, ChevronRight, Mail,
+  Plus, Search, X, Loader2, RefreshCw, KeyRound, PauseCircle, RotateCcw, Copy, ChevronLeft, ChevronRight, Mail, CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
@@ -14,6 +14,9 @@ import {
   getUsers, getRoleList, createUser, updateUser, resetUserPassword, activateUser, disableUser,
   type TenantUser, type RoleListItem, type UserInput,
 } from "@/lib/users-api";
+import { getTeamList, type TeamListItem } from "@/lib/teams-api";
+import PhoneInput, { isValidPhoneNumber, type Value as PhoneValue } from "react-phone-number-input";
+import "react-phone-number-input/style.css";
 
 export const Route = createFileRoute("/tenant/users")({
   head: () => ({ meta: [{ title: "Users · Tenant Admin" }] }),
@@ -30,7 +33,70 @@ function fullNameOf(u: { firstName: string; lastName: string | null }) {
 function formatDate(iso: string | null) {
   if (!iso) return "Never";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
+function teamNameOf(teamId: number | null, teams: TeamListItem[]) {
+  if (!teamId) return "Unassigned";
+  return teams.find((t) => t.teamId === teamId)?.teamName ?? `Team #${teamId}`;
+}
+
+function CalendarLogo({ provider }: { provider: "google" | "outlook" }) {
+  if (provider === "google") {
+    return (
+      <div className="h-9 w-9 rounded-lg bg-white border border-border flex items-center justify-center overflow-hidden shrink-0">
+        <svg viewBox="0 0 48 48" className="h-6 w-6" aria-hidden="true">
+          <defs>
+            <linearGradient id="google-logo-blue" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#4285F4" />
+              <stop offset="100%" stopColor="#1A73E8" />
+            </linearGradient>
+            <linearGradient id="google-logo-green" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#34A853" />
+              <stop offset="100%" stopColor="#188038" />
+            </linearGradient>
+          </defs>
+          <path d="M44 24c0-1.4-.1-2.7-.4-4H24v8.5h11.4c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8C41.8 35.8 44 30.3 44 24Z" fill="#4285F4" />
+          <path d="M24 44c5.4 0 9.9-1.8 13.2-4.9l-6.8-5.2c-1.9 1.3-4.4 2-6.4 2-4.9 0-9-3.3-10.5-7.8H6.5v5.4C9.8 40.1 16.4 44 24 44Z" fill={"#34A853"} />
+          <path d="M13.5 28.1c-.4-1.2-.6-2.4-.6-3.6s.2-2.4.6-3.6v-5.4H6.5C5.1 18.3 4 21 4 24s1.1 5.7 2.5 8.5l7-5.4Z" fill="#FBBC05" />
+          <path d="M24 12.7c2.9 0 5.5 1 7.5 2.8l5.7-5.7C33.8 6.6 29.4 4.8 24 4.8 16.4 4.8 9.8 8.7 6.5 14.4l7 5.4c1.5-4.5 5.6-7.1 10.5-7.1Z" fill="#EA4335" />
+          <path d="M44 24c0-1.4-.1-2.7-.4-4H24v8.5h11.4c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8C41.8 35.8 44 30.3 44 24Z" fill="url(#google-logo-blue)" opacity="0.12" />
+          <path d="M24 44c5.4 0 9.9-1.8 13.2-4.9l-6.8-5.2c-1.9 1.3-4.4 2-6.4 2-4.9 0-9-3.3-10.5-7.8H6.5v5.4C9.8 40.1 16.4 44 24 44Z" fill="url(#google-logo-green)" opacity="0.12" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#0F5BA7] to-[#0A447D] flex items-center justify-center text-white shrink-0 shadow-sm border border-[#0A447D]/20">
+      <svg viewBox="0 0 48 48" className="h-6 w-6" aria-hidden="true">
+        <rect x="8" y="10" width="32" height="28" rx="5" fill="white" opacity="0.14" />
+        <path d="M14 16h20a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H14a3 3 0 0 1-3-3V19a3 3 0 0 1 3-3Z" fill="white" opacity="0.95" />
+        <path d="M14 19.2 24 26l10-6.8" fill="none" stroke="#0F5BA7" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="24" cy="24" r="8.5" fill="none" stroke="#2B6CB0" strokeWidth="3" opacity="0.9" />
+      </svg>
+    </div>
+  );
+}
+
+function CalendarOption({
+  provider,
+  title,
+}: {
+  provider: "google" | "outlook";
+  title: string;
+}) {
+  return (
+    <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-muted/20 px-3 py-3 text-left opacity-55 cursor-not-allowed">
+      <CalendarLogo provider={provider} />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        <button type="button" disabled className="mt-1 inline-flex items-center rounded-md border border-border bg-background px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+          Not connected
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function TenantUsersPage() {
@@ -41,6 +107,7 @@ function TenantUsersPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [roles, setRoles] = useState<RoleListItem[]>([]);
+  const [teams, setTeams] = useState<TeamListItem[]>([]);
   const [page, setPage] = useState(0);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [q, setQ] = useState("");
@@ -49,7 +116,6 @@ function TenantUsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<TenantUser | null>(null);
   const [resetLink, setResetLink] = useState<{ link: string; email: string } | null>(null);
-  const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -87,22 +153,10 @@ function TenantUsersPage() {
 
   useEffect(() => {
     getRoleList().then((r) => setRoles(r.roles ?? [])).catch(() => {});
+    getTeamList().then((t) => setTeams(t.teamList ?? [])).catch(() => {});
   }, []);
 
-  const toggleUserStatus = async (u: TenantUser) => {
-    const disable = u.status === "active";
-    setTogglingId(u.userId);
-    try {
-      if (disable) await disableUser(u.userId);
-      else await activateUser(u.userId);
-      toast.success(disable ? "User disabled" : "User activated");
-      await fetchUsers();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update status");
-    } finally {
-      setTogglingId(null);
-    }
-  };
+  const teamNameById = new Map(teams.map((t) => [t.teamId, t.teamName]));
 
   return (
     <Shell>
@@ -164,7 +218,9 @@ function TenantUsersPage() {
                   <tr>
                     <th className="px-6 py-3 font-semibold">User</th>
                     <th className="px-4 py-3 font-semibold">Role</th>
+                    <th className="px-4 py-3 font-semibold">Team</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
+                    <th className="px-4 py-3 font-semibold">Calendar</th>
                     <th className="px-4 py-3 font-semibold">Last login</th>
                     <th className="px-4 py-3 font-semibold w-12" />
                   </tr>
@@ -185,27 +241,19 @@ function TenantUsersPage() {
                       </td>
                       <td className="px-4 py-3"><Pill tone="muted">{u.role}</Pill></td>
                       <td className="px-4 py-3">
+                        <Pill tone="muted">{teamNameById.get(u.teamId ?? 0) ?? teamNameOf(u.teamId, teams)}</Pill>
+                      </td>
+                      <td className="px-4 py-3">
                         {u.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Disabled</Pill>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <CalendarDays className="h-3.5 w-3.5" /> Not connected
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(u.loginAt)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          {me?.userId !== u.userId && (
-                            <button
-                              onClick={() => toggleUserStatus(u)}
-                              disabled={togglingId === u.userId}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold border transition disabled:opacity-50 ${
-                                u.status === "active"
-                                  ? "border-destructive/40 text-destructive hover:bg-destructive/10"
-                                  : "border-success/40 text-success hover:bg-success/10"
-                              }`}
-                            >
-                              {togglingId === u.userId
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : u.status === "active" ? <PauseCircle className="h-3.5 w-3.5" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                              {u.status === "active" ? "Disable" : "Activate"}
-                            </button>
-                          )}
                           <button
                             onClick={() => setEditing(u)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border border-border hover:bg-[var(--tenant)] hover:text-white hover:border-[var(--tenant)] transition"
@@ -243,6 +291,7 @@ function TenantUsersPage() {
       {showCreate && (
         <UserFormModal
           roles={roles}
+          teams={teams}
           onClose={() => setShowCreate(false)}
           onSaved={async (link, email) => {
             setShowCreate(false);
@@ -255,9 +304,12 @@ function TenantUsersPage() {
       {editing && (
         <UserFormModal
           roles={roles}
+          teams={teams}
           user={editing}
           onClose={() => setEditing(null)}
           onSaved={async () => { setEditing(null); await fetchUsers(); }}
+          onStatusChanged={fetchUsers}
+          canChangeStatus={me?.userId !== editing.userId}
           onResetLink={(link, email) => setResetLink({ link, email })}
         />
       )}
@@ -268,31 +320,45 @@ function TenantUsersPage() {
 }
 
 function UserFormModal({
-  roles, user, onClose, onSaved, onResetLink,
+  roles, teams, user, onClose, onSaved, onStatusChanged, canChangeStatus, onResetLink,
 }: {
   roles: RoleListItem[];
+  teams: TeamListItem[];
   user?: TenantUser;
   onClose: () => void;
   onSaved: (resetLink: string | null, email: string) => void | Promise<void>;
+  onStatusChanged?: () => void | Promise<void>;
+  canChangeStatus?: boolean;
   onResetLink?: (link: string, email: string) => void;
 }) {
   const isEdit = !!user;
   const [fullName, setFullName] = useState(user ? fullNameOf(user) : "");
   const [emailId, setEmailId] = useState(user?.emailId ?? "");
-  const [phoneNo, setPhoneNo] = useState(user?.phoneNo ?? "");
+  // E.164 phone value (e.g. "+14165550123"); the picker carries the country.
+  const [phone, setPhone] = useState<PhoneValue | undefined>((user?.phoneNo as PhoneValue) ?? undefined);
   const [roleId, setRoleId] = useState<number>(user?.roleId ?? roles[0]?.roleId ?? 0);
+  // Team is not required; null = unassigned.
+  const [teamId, setTeamId] = useState<number | null>(user?.teamId ?? null);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [accountStatus, setAccountStatus] = useState<UserStatus>(user?.status === "active" ? "active" : "disabled");
+
+  useEffect(() => {
+    setAccountStatus(user?.status === "active" ? "active" : "disabled");
+  }, [user?.userId, user?.status]);
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailId.trim());
-  const canSave = fullName.trim() && emailValid && !saving;
+  const phoneValid = !!phone && isValidPhoneNumber(phone);
+  const canSave = fullName.trim() && emailValid && phoneValid && !saving;
 
   // The backend stores the full name in firstName; lastName is unused here.
+  // Phone is persisted in E.164 form (e.g. +14165550123).
   const buildInput = (): UserInput => ({
     roleId,
-    teamId: user?.teamId ?? null,
+    teamId,
     emailId: emailId.trim(),
-    phoneNo: phoneNo.trim(),
+    phoneNo: phone ?? "",
     firstName: fullName.trim(),
     lastName: "",
   });
@@ -331,6 +397,27 @@ function UserFormModal({
     }
   };
 
+  const toggleStatus = async () => {
+    if (!user) return;
+    setStatusBusy(true);
+    try {
+      if (accountStatus === "active") {
+        await disableUser(user.userId);
+        toast.success("User disabled");
+        setAccountStatus("disabled");
+      } else {
+        await activateUser(user.userId);
+        toast.success("User activated");
+        setAccountStatus("active");
+      }
+      await onStatusChanged?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update status");
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
   return (
     <motion.div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <motion.div className="w-full max-w-2xl rounded-2xl bg-card border border-border shadow-tenant overflow-hidden" initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 320, damping: 28 }}>
@@ -342,39 +429,83 @@ function UserFormModal({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {isEdit && (user!.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Disabled</Pill>)}
+            {isEdit && (accountStatus === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Disabled</Pill>)}
             <button onClick={onClose} className="p-1.5 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
           </div>
         </div>
 
         <div className="px-6 py-5 space-y-5 text-sm max-h-[70vh] overflow-y-auto">
-          <Field label="Full name">
+          <Field label="Full name" required>
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Sam Patel" className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant" />
           </Field>
 
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Email">
+            <Field label="Email" required>
               <input value={emailId} onChange={(e) => setEmailId(e.target.value)} placeholder="sam.p@company.com" className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant" />
               {emailId && !emailValid && <span className="text-[11px] text-destructive mt-1 block">Enter a valid email</span>}
             </Field>
-            <Field label="Phone number">
-              <input value={phoneNo} onChange={(e) => setPhoneNo(e.target.value)} placeholder="+1 (416) 555-0123" className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant" />
+            <Field label="Phone number" required>
+              <PhoneInput
+                international
+                defaultCountry="CA"
+                value={phone}
+                onChange={setPhone}
+                placeholder="Enter phone number"
+                className="phone-input"
+              />
+              {phone && !phoneValid && <span className="text-[11px] text-destructive mt-1 block">Enter a valid phone number</span>}
             </Field>
           </div>
 
-          <Field label="Role">
-            <select value={roleId} onChange={(e) => setRoleId(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant">
-              {roles.map((r) => <option key={r.roleId} value={r.roleId}>{r.roleName}</option>)}
-            </select>
-          </Field>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="Role" required>
+              <select value={roleId} onChange={(e) => setRoleId(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant">
+                {roles.map((r) => <option key={r.roleId} value={r.roleId}>{r.roleName}</option>)}
+              </select>
+            </Field>
+            <Field label="Team">
+              <select
+                value={teamId ?? ""}
+                onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
+              >
+                <option value="">No team</option>
+                {teams.map((t) => <option key={t.teamId} value={t.teamId}>{t.teamName}</option>)}
+              </select>
+            </Field>
+          </div>
+
+          {isEdit && (
+            <div>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Calendar sync</label>
+              <div className="mt-2 grid sm:grid-cols-2 gap-3">
+                <CalendarOption provider="google" title="Google Calendar" />
+                <CalendarOption provider="outlook" title="Outlook Calendar" />
+              </div>
+            </div>
+          )}
 
           {isEdit && (
             <div>
               <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 block">Account actions</label>
               <div className="flex flex-wrap gap-2">
                 <ActionBtn icon={KeyRound} label="Reset password" loading={resetting} disabled={resetting} onClick={doReset} />
+                {canChangeStatus ? (
+                  <ActionBtn
+                    icon={accountStatus === "active" ? PauseCircle : RotateCcw}
+                    label={accountStatus === "active" ? "Disable user" : "Enable user"}
+                    tone={accountStatus === "active" ? "danger" : "success"}
+                    loading={statusBusy}
+                    disabled={statusBusy}
+                    onClick={toggleStatus}
+                  />
+                ) : (
+                  <span className="inline-flex items-center rounded-md border border-border bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+                    You cannot disable your own account
+                  </span>
+                )}
               </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">Enable or disable this user from the users list.</p>
+              <p className="mt-2 text-[11px] text-muted-foreground">Manage credentials and account state from here.</p>
             </div>
           )}
         </div>
@@ -424,10 +555,13 @@ function ResetLinkModal({ link, email, onClose }: { link: string; email: string;
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</label>
+      <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+        {label}
+        {required && <span className="text-destructive ml-0.5">*</span>}
+      </label>
       <div className="mt-1">{children}</div>
     </div>
   );
