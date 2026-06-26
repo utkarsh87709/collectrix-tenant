@@ -3,20 +3,34 @@ import { useCallback, useEffect, useState } from "react";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
 import { PageCard, CardHead } from "@/components/tenant/ui";
-import { Building2, Plus, Pencil, Trash2, X, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
+import {
+  Building2, Plus, Settings2, Trash2, X, Loader2, RefreshCw, AlertTriangle,
+  MessageSquare, Mail, Phone, FileText, type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import {
   getAllClients,
   createClient,
   updateClient,
   deleteClient,
   type Client,
+  type ClientChannels,
 } from "@/lib/clients-api";
 
 export const Route = createFileRoute("/tenant/intake/clients")({
   head: () => ({ meta: [{ title: "Client List · Tenant Admin" }] }),
   component: ClientListPage,
 });
+
+// Communication channels each client can opt into. `key` matches the API field.
+const CHANNELS: { key: keyof ClientChannels; label: string; icon: LucideIcon }[] = [
+  { key: "smsEnabled", label: "SMS", icon: MessageSquare },
+  { key: "emailEnabled", label: "Email", icon: Mail },
+  { key: "callEnabled", label: "Call", icon: Phone },
+  { key: "documentEnabled", label: "Document", icon: FileText },
+];
 
 function ClientListPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -102,6 +116,7 @@ function ClientListPage() {
                     <th className="px-6 py-3 font-semibold">Client</th>
                     <th className="px-6 py-3 font-semibold">Client Number</th>
                     <th className="px-6 py-3 font-semibold">Files</th>
+                    <th className="px-6 py-3 font-semibold">Channels</th>
                     <th className="px-6 py-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -122,20 +137,53 @@ function ClientListPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setEditing(c)}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
-                          >
-                            <Pencil className="h-4 w-4" /> Edit
-                          </button>
-                          <button
-                            onClick={() => setDeleting(c)}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-destructive/40 text-destructive text-sm hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" /> Remove
-                          </button>
-                        </div>
+                        <TooltipProvider delayDuration={200}>
+                          <div className="flex items-center gap-1.5">
+                            {CHANNELS.map(({ key, label, icon: Icon }) => {
+                              const on = c[key];
+                              return (
+                                <Tooltip key={key}>
+                                  <TooltipTrigger asChild>
+                                    <span
+                                      className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${
+                                        on ? "bg-tenant/10 text-tenant" : "bg-muted text-muted-foreground/40"
+                                      }`}
+                                    >
+                                      <Icon className="h-3.5 w-3.5" />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    {label} {on ? "enabled" : "disabled"}
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                          </div>
+                        </TooltipProvider>
+                      </td>
+                      <td className="px-6 py-4">
+                        <TooltipProvider delayDuration={200}>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setEditing(c)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm font-medium hover:bg-muted hover:border-tenant/40 transition-colors"
+                            >
+                              <Settings2 className="h-4 w-4 text-muted-foreground" /> Configure
+                            </button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => setDeleting(c)}
+                                  aria-label={`Remove ${c.clientName}`}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Remove client</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TooltipProvider>
                       </td>
                     </tr>
                   ))}
@@ -185,11 +233,24 @@ function ClientFormModal({
   const isEdit = client !== null;
   const [clientName, setClientName] = useState(client?.clientName ?? "");
   const [clientNumber, setClientNumber] = useState(client?.clientNumber ?? "");
+  // New clients default every channel on; edits preserve the saved values.
+  const [channels, setChannels] = useState<ClientChannels>({
+    smsEnabled: client?.smsEnabled ?? true,
+    emailEnabled: client?.emailEnabled ?? true,
+    callEnabled: client?.callEnabled ?? true,
+    documentEnabled: client?.documentEnabled ?? true,
+  });
   const [saving, setSaving] = useState(false);
 
   const trimmedName = clientName.trim();
   const trimmedNumber = clientNumber.trim();
-  const dirty = !isEdit || trimmedName !== client.clientName || trimmedNumber !== client.clientNumber;
+  const channelsDirty =
+    isEdit && CHANNELS.some(({ key }) => channels[key] !== client[key]);
+  const dirty =
+    !isEdit ||
+    trimmedName !== client.clientName ||
+    trimmedNumber !== client.clientNumber ||
+    channelsDirty;
   const canSubmit = trimmedName.length > 0 && trimmedNumber.length > 0 && dirty && !saving;
 
   const submit = async () => {
@@ -197,10 +258,10 @@ function ClientFormModal({
     setSaving(true);
     try {
       if (isEdit) {
-        await updateClient({ clientId: client.clientId, clientName: trimmedName, clientNumber: trimmedNumber });
+        await updateClient({ clientId: client.clientId, clientName: trimmedName, clientNumber: trimmedNumber, ...channels });
         toast.success("Client updated successfully.");
       } else {
-        await createClient({ clientName: trimmedName, clientNumber: trimmedNumber });
+        await createClient({ clientName: trimmedName, clientNumber: trimmedNumber, ...channels });
         toast.success("Client created successfully.");
       }
       onSaved();
@@ -216,7 +277,7 @@ function ClientFormModal({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-display text-xl font-bold tracking-tight">
-            {isEdit ? "Edit client" : "Add client"}
+            {isEdit ? "Configure client" : "Add client"}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isEdit
@@ -254,6 +315,27 @@ function ClientFormModal({
           />
         </Field>
 
+        <div>
+          <span className="block text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
+            Communication channels
+          </span>
+          <div className="rounded-lg border border-border divide-y divide-border">
+            {CHANNELS.map(({ key, label, icon: Icon }) => (
+              <label key={key} className="flex items-center justify-between gap-3 px-3 py-2.5 cursor-pointer">
+                <span className="flex items-center gap-2.5 text-sm">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  {label}
+                </span>
+                <Switch
+                  checked={channels[key]}
+                  onCheckedChange={(v) => setChannels((c) => ({ ...c, [key]: v }))}
+                  aria-label={`Toggle ${label}`}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             type="button"
@@ -270,7 +352,7 @@ function ClientFormModal({
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : isEdit ? (
-              <Pencil className="h-4 w-4" />
+              <Settings2 className="h-4 w-4" />
             ) : (
               <Plus className="h-4 w-4" />
             )}{" "}

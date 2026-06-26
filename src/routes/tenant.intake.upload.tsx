@@ -8,6 +8,7 @@ import {
   ArrowRight, ArrowLeft, RefreshCw, Eye, Search, UserPlus, Pencil, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { getAllClients, type Client } from "@/lib/clients-api";
 import {
   validateDebtorFile, uploadDebtor, getUploadedDebtor, debtorFileDetails,
@@ -136,47 +137,64 @@ function UploadDebtorPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
-                    <th className="px-6 py-3 font-semibold">File</th>
-                    <th className="px-6 py-3 font-semibold">Client</th>
-                    <th className="px-6 py-3 font-semibold">Import date</th>
-                    <th className="px-6 py-3 font-semibold">Assigned files</th>
-                    <th className="px-6 py-3 font-semibold">Validation</th>
-                    <th className="px-6 py-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {files.map((f) => (
-                    <tr key={f.fileId} className="border-b border-border last:border-0 hover:bg-muted/40">
-                      <td className="px-6 py-4 font-mono text-xs">{f.originalFileName}</td>
-                      <td className="px-6 py-4">{f.clientName}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{relativeTime(f.createdAt)}</td>
-                      <td className="px-6 py-4 font-mono text-muted-foreground tabular-nums">
-                        {(f.assignedCount ?? 0)} / {f.totalCount}
-                      </td>
-                      <td className="px-6 py-4">
-                        {f.invalidCount === 0 ? (
-                          <CheckCircle2 className="h-5 w-5 text-success" />
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-warning font-semibold">
-                            <AlertTriangle className="h-4 w-4" /> {f.invalidCount}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => setDetail(f)}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
-                        >
-                          <Eye className="h-4 w-4" /> View
-                        </button>
-                      </td>
+              <TooltipProvider delayDuration={200}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
+                      <th className="px-6 py-3 font-semibold align-middle">File</th>
+                      <th className="px-6 py-3 font-semibold align-middle">Client</th>
+                      <th className="px-6 py-3 font-semibold align-middle">Import date</th>
+                      <th className="px-6 py-3 font-semibold align-middle">Assigned files</th>
+                      <th className="px-6 py-3 font-semibold align-middle">Validation</th>
+                      <th className="px-6 py-3 font-semibold text-right align-middle">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {files.map((f) => {
+                      const invalid = f.invalidCount ?? 0;
+                      return (
+                        <tr key={f.fileId} className="border-b border-border last:border-0 hover:bg-muted/40">
+                          <td className="px-6 py-4 font-mono text-xs align-middle">{f.originalFileName}</td>
+                          <td className="px-6 py-4 align-middle">{f.clientName}</td>
+                          <td className="px-6 py-4 text-muted-foreground align-middle">{relativeTime(f.createdAt)}</td>
+                          <td className="px-6 py-4 font-mono text-muted-foreground tabular-nums align-middle">
+                            {(f.assignedCount ?? 0)} / {f.totalCount}
+                          </td>
+                          <td className="px-6 py-4 align-middle">
+                            {invalid > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-1.5 text-warning font-semibold cursor-default">
+                                    <AlertTriangle className="h-4 w-4" /> {invalid}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  This import has {invalid} validation issue{invalid > 1 ? "s" : ""}. Open the file to review flagged records.
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <CheckCircle2 className="h-5 w-5 text-success" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top">No validation issues.</TooltipContent>
+                              </Tooltip>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right align-middle">
+                            <button
+                              onClick={() => setDetail(f)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
+                            >
+                              <Eye className="h-4 w-4" /> View
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </TooltipProvider>
             </div>
           )}
         </PageCard>

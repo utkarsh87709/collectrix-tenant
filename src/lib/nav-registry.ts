@@ -9,6 +9,7 @@ import {
   Wallet,
   Settings,
   Database,
+  Phone,
 } from "lucide-react";
 
 export type NavSubItem = {
@@ -108,6 +109,18 @@ export const tenantGroups: NavGroup[] = [
           { to: "/tenant/intake/upload", label: "Upload Debtor Data" },
           { to: "/tenant/intake/crm", label: "CRM Integration", disabled: true },
         ],
+      },
+    ],
+  },
+  {
+    label: "Engagement",
+    items: [
+      {
+        to: "/tenant/engagement/phone-numbers",
+        label: "Phone Numbers",
+        icon: Phone,
+        description: "Outbound caller IDs and phone numbers",
+        keywords: "phone number caller id outbound dialing engagement voice",
       },
     ],
   },

@@ -25,6 +25,7 @@ const ENABLED_TENANT_PREFIXES = [
   "/tenant/debtors",
   "/tenant/intake/clients",
   "/tenant/intake/upload",
+  "/tenant/engagement/phone-numbers",
 ];
 function isEnabledTenantPath(pathname: string): boolean {
   if (pathname === "/tenant" || pathname === "/tenant/") return true; // Overview

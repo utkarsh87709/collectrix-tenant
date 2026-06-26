@@ -44,6 +44,7 @@ import { Route as TenantIntakeImportRouteImport } from './routes/tenant.intake.i
 import { Route as TenantIntakeDedupeRouteImport } from './routes/tenant.intake.dedupe'
 import { Route as TenantIntakeClientsRouteImport } from './routes/tenant.intake.clients'
 import { Route as TenantIntakeAuditRouteImport } from './routes/tenant.intake.audit'
+import { Route as TenantEngagementPhoneNumbersRouteImport } from './routes/tenant.engagement.phone-numbers'
 import { Route as TenantDebtorsDebtorIdRouteImport } from './routes/tenant.debtors.$debtorId'
 import { Route as TenantDashboardsSupervisorRouteImport } from './routes/tenant.dashboards.supervisor'
 import { Route as TenantDashboardsScheduledRouteImport } from './routes/tenant.dashboards.scheduled'
@@ -254,6 +255,12 @@ const TenantIntakeAuditRoute = TenantIntakeAuditRouteImport.update({
   path: '/tenant/intake/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TenantEngagementPhoneNumbersRoute =
+  TenantEngagementPhoneNumbersRouteImport.update({
+    id: '/tenant/engagement/phone-numbers',
+    path: '/tenant/engagement/phone-numbers',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const TenantDebtorsDebtorIdRoute = TenantDebtorsDebtorIdRouteImport.update({
   id: '/tenant/debtors/$debtorId',
   path: '/tenant/debtors/$debtorId',
@@ -460,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/tenant/dashboards/scheduled': typeof TenantDashboardsScheduledRoute
   '/tenant/dashboards/supervisor': typeof TenantDashboardsSupervisorRoute
   '/tenant/debtors/$debtorId': typeof TenantDebtorsDebtorIdRouteWithChildren
+  '/tenant/engagement/phone-numbers': typeof TenantEngagementPhoneNumbersRoute
   '/tenant/intake/audit': typeof TenantIntakeAuditRoute
   '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
@@ -524,6 +532,7 @@ export interface FileRoutesByTo {
   '/tenant/dashboards/scheduled': typeof TenantDashboardsScheduledRoute
   '/tenant/dashboards/supervisor': typeof TenantDashboardsSupervisorRoute
   '/tenant/debtors/$debtorId': typeof TenantDebtorsDebtorIdRouteWithChildren
+  '/tenant/engagement/phone-numbers': typeof TenantEngagementPhoneNumbersRoute
   '/tenant/intake/audit': typeof TenantIntakeAuditRoute
   '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
@@ -593,6 +602,7 @@ export interface FileRoutesById {
   '/tenant/dashboards/scheduled': typeof TenantDashboardsScheduledRoute
   '/tenant/dashboards/supervisor': typeof TenantDashboardsSupervisorRoute
   '/tenant/debtors/$debtorId': typeof TenantDebtorsDebtorIdRouteWithChildren
+  '/tenant/engagement/phone-numbers': typeof TenantEngagementPhoneNumbersRoute
   '/tenant/intake/audit': typeof TenantIntakeAuditRoute
   '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
@@ -663,6 +673,7 @@ export interface FileRouteTypes {
     | '/tenant/dashboards/scheduled'
     | '/tenant/dashboards/supervisor'
     | '/tenant/debtors/$debtorId'
+    | '/tenant/engagement/phone-numbers'
     | '/tenant/intake/audit'
     | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
@@ -727,6 +738,7 @@ export interface FileRouteTypes {
     | '/tenant/dashboards/scheduled'
     | '/tenant/dashboards/supervisor'
     | '/tenant/debtors/$debtorId'
+    | '/tenant/engagement/phone-numbers'
     | '/tenant/intake/audit'
     | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
@@ -795,6 +807,7 @@ export interface FileRouteTypes {
     | '/tenant/dashboards/scheduled'
     | '/tenant/dashboards/supervisor'
     | '/tenant/debtors/$debtorId'
+    | '/tenant/engagement/phone-numbers'
     | '/tenant/intake/audit'
     | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
@@ -854,6 +867,7 @@ export interface RootRouteChildren {
   TenantCommsSmsRoute: typeof TenantCommsSmsRoute
   TenantCommsTemplatesRoute: typeof TenantCommsTemplatesRoute
   TenantDebtorsDebtorIdRoute: typeof TenantDebtorsDebtorIdRouteWithChildren
+  TenantEngagementPhoneNumbersRoute: typeof TenantEngagementPhoneNumbersRoute
   TenantIntakeAuditRoute: typeof TenantIntakeAuditRoute
   TenantIntakeClientsRoute: typeof TenantIntakeClientsRoute
   TenantIntakeDedupeRoute: typeof TenantIntakeDedupeRoute
@@ -1113,6 +1127,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant/intake/audit'
       fullPath: '/tenant/intake/audit'
       preLoaderRoute: typeof TenantIntakeAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tenant/engagement/phone-numbers': {
+      id: '/tenant/engagement/phone-numbers'
+      path: '/tenant/engagement/phone-numbers'
+      fullPath: '/tenant/engagement/phone-numbers'
+      preLoaderRoute: typeof TenantEngagementPhoneNumbersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenant/debtors/$debtorId': {
@@ -1463,6 +1484,7 @@ const rootRouteChildren: RootRouteChildren = {
   TenantCommsSmsRoute: TenantCommsSmsRoute,
   TenantCommsTemplatesRoute: TenantCommsTemplatesRoute,
   TenantDebtorsDebtorIdRoute: TenantDebtorsDebtorIdRouteWithChildren,
+  TenantEngagementPhoneNumbersRoute: TenantEngagementPhoneNumbersRoute,
   TenantIntakeAuditRoute: TenantIntakeAuditRoute,
   TenantIntakeClientsRoute: TenantIntakeClientsRoute,
   TenantIntakeDedupeRoute: TenantIntakeDedupeRoute,
