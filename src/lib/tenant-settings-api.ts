@@ -3,8 +3,10 @@
 //   POST /tenant/updateTenantDetails { ...TenantDetails }   -> {}
 // A single tenant record backs the whole Settings page: the Organization tab
 // (companyName, timezone), the Hours tab (per-day enabled/start/end), and the
-// Connectors tab (sender email + sender phone/Twilio). updateTenantDetails
-// replaces the whole record, so every save must send the FULL payload.
+// Connectors tab (sender email — Gmail/Outlook). The senderPhone* fields are
+// legacy (the Twilio settings UI was removed in favour of the Phone Numbers
+// module) and are round-tripped untouched. updateTenantDetails replaces the
+// whole record, so every save must send the FULL payload.
 // Timezone options come from getTimezoneList (see profile-api).
 // All authenticated with the raw token (attached automatically by apiPost).
 import { apiPost } from "./api-client";

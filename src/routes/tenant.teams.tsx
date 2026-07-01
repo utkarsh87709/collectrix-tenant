@@ -15,6 +15,7 @@ import {
   Pencil,
   Trash2,
   AlertTriangle,
+  Phone,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -23,14 +24,17 @@ import {
   getTeamsOrgView,
   getAllLeaderList,
   getUnassignedTeamMembers,
+  getTeamNumbers,
   getTeamDetails,
   createTeam,
   updateTeam,
   deleteTeam,
   fullName,
+  formatPhoneNo,
   type TeamCard,
   type LeaderGroup,
   type SelectableUser,
+  type TeamPhoneNumber,
 } from "@/lib/teams-api";
 
 export const Route = createFileRoute("/tenant/teams")({
@@ -49,6 +53,7 @@ function TeamsPage() {
   const [view, setView] = useState<ViewMode>("cards");
   const [cards, setCards] = useState<TeamCard[]>([]);
   const [leaderGroups, setLeaderGroups] = useState<LeaderGroup[]>([]);
+  const [numbersByTeam, setNumbersByTeam] = useState<Map<number, TeamPhoneNumber[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,13 +65,27 @@ function TeamsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [card, org] = await Promise.all([getTeamsCardView(), getTeamsOrgView()]);
+      // Card/org views don't carry phone data, so pull all numbers and group by team.
+      const [card, org, nums] = await Promise.all([
+        getTeamsCardView(),
+        getTeamsOrgView(),
+        getTeamNumbers().catch(() => ({ phoneNoList: [] as TeamPhoneNumber[] })),
+      ]);
       setCards(card.teamList ?? []);
       setLeaderGroups(org.leaderList ?? []);
+      const map = new Map<number, TeamPhoneNumber[]>();
+      for (const n of nums.phoneNoList ?? []) {
+        if (n.teamId == null) continue;
+        const list = map.get(n.teamId) ?? [];
+        list.push(n);
+        map.set(n.teamId, list);
+      }
+      setNumbersByTeam(map);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load teams.");
       setCards([]);
       setLeaderGroups([]);
+      setNumbersByTeam(new Map());
     } finally {
       setLoading(false);
     }
@@ -239,7 +258,7 @@ function TeamsPage() {
                     />
                   </div>
                 </div>
-                <div className="px-6 pb-5 flex flex-wrap gap-1.5">
+                <div className="px-6 pb-4 flex flex-wrap gap-1.5">
                   {members.length === 0 ? (
                     <span className="text-xs text-muted-foreground">No members assigned</span>
                   ) : (
@@ -253,6 +272,30 @@ function TeamsPage() {
                       </span>
                     ))
                   )}
+                </div>
+                <div className="px-6 pb-5 pt-3 border-t border-border">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
+                    Phone numbers
+                  </div>
+                  {(() => {
+                    const nums = numbersByTeam.get(t.teamId) ?? [];
+                    if (nums.length === 0)
+                      return (
+                        <span className="text-xs text-muted-foreground">No numbers assigned</span>
+                      );
+                    return (
+                      <div className="flex flex-wrap gap-1.5">
+                        {nums.map((n) => (
+                          <span
+                            key={n.phoneNoId}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-tenant/10 text-tenant text-xs font-medium"
+                          >
+                            <Phone className="h-3 w-3" /> {formatPhoneNo(n.phoneNo)}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </PageCard>
             );
@@ -391,6 +434,10 @@ function TeamFormModal({
   const [leaders, setLeaders] = useState<SelectableUser[]>([]);
   // Full pool of selectable members (create: unassigned; edit: assigned + unassigned).
   const [memberPool, setMemberPool] = useState<SelectableUser[]>([]);
+  // Numbers available to this team (unassigned + this team's own) plus, on create,
+  // ones on other teams (shown disabled for context).
+  const [numberPool, setNumberPool] = useState<TeamPhoneNumber[]>([]);
+  const [phoneIds, setPhoneIds] = useState<number[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -413,11 +460,19 @@ function TeamFormModal({
           setCapacity(td.capacity);
           setLeaderId(td.leaderId);
           setMembers((details.assignedTeamMembers ?? []).map((m) => m.userId));
+          // phoneNoList holds this team's numbers (teamId === teamId) + unassigned ones.
+          const nums = details.phoneNoList ?? [];
+          setNumberPool(nums);
+          setPhoneIds(nums.filter((n) => n.teamId === teamId).map((n) => n.phoneNoId));
         } else {
-          const unassignedRes = await getUnassignedTeamMembers();
+          const [unassignedRes, numsRes] = await Promise.all([
+            getUnassignedTeamMembers(),
+            getTeamNumbers().catch(() => ({ phoneNoList: [] as TeamPhoneNumber[] })),
+          ]);
           if (cancelled) return;
           setLeaders(leaderRes.userList ?? []);
           setMemberPool(unassignedRes.userList ?? []);
+          setNumberPool(numsRes.phoneNoList ?? []);
           setLeaderId(leaderRes.userList?.[0]?.userId ?? "");
         }
       } catch (e) {
@@ -458,6 +513,9 @@ function TeamFormModal({
   const toggle = (id: number) =>
     setMembers((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
+  const togglePhone = (id: number) =>
+    setPhoneIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
   // Submitted members never include the leader.
   const effectiveMembers = useMemo(
     () => members.filter((id) => id !== leaderId),
@@ -487,6 +545,7 @@ function TeamFormModal({
         leaderId: Number(leaderId),
         userList: effectiveMembers,
         capacity: Number(capacity),
+        phoneNoList: phoneIds,
       };
       if (isEdit) {
         await updateTeam({ teamId, ...payload });
@@ -611,9 +670,7 @@ function TeamFormModal({
                       key={u.userId}
                       title={disabled ? "Team capacity reached" : undefined}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded ${
-                        disabled
-                          ? "opacity-50 cursor-not-allowed"
-                          : "hover:bg-muted cursor-pointer"
+                        disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-muted cursor-pointer"
                       }`}
                     >
                       <input
@@ -643,6 +700,66 @@ function TeamFormModal({
                 Remove members or increase capacity before saving.
               </p>
             )}
+          </div>
+
+          {/* Phone numbers */}
+          <div>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1 block">
+              Phone numbers{" "}
+              {phoneIds.length > 0 && (
+                <span className="text-tenant">({phoneIds.length} selected)</span>
+              )}
+            </label>
+            <div className="grid sm:grid-cols-2 gap-1 max-h-48 overflow-y-auto rounded-lg border border-border p-2">
+              {optionsLoading ? (
+                <div className="col-span-full py-6 text-center text-xs text-muted-foreground inline-flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading numbers…
+                </div>
+              ) : numberPool.length === 0 ? (
+                <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                  No numbers available. Buy numbers from Phone Numbers first.
+                </div>
+              ) : (
+                numberPool.map((n) => {
+                  const onOtherTeam = n.teamId != null && n.teamId !== teamId;
+                  const isChecked = phoneIds.includes(n.phoneNoId);
+                  return (
+                    <label
+                      key={n.phoneNoId}
+                      title={onOtherTeam ? `Assigned to ${n.teamName}` : undefined}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded ${
+                        onOtherTeam
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-muted cursor-pointer"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-tenant"
+                        checked={isChecked}
+                        disabled={onOtherTeam}
+                        onChange={() => togglePhone(n.phoneNoId)}
+                      />
+                      <span className="inline-flex items-center gap-1.5 text-sm flex-1 truncate">
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        {formatPhoneNo(n.phoneNo)}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground truncate max-w-[45%]">
+                        {onOtherTeam
+                          ? n.teamName
+                          : n.numberType === "tollFree"
+                            ? "Toll-Free"
+                            : "Local"}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Numbers assigned here are available to this team's members. Deleting the team releases
+              them.
+            </p>
           </div>
         </div>
 
@@ -718,7 +835,7 @@ function DeleteTeamDialog({
               ) : (
                 "."
               )}{" "}
-              This can't be undone.
+              Any phone numbers assigned to this team will be released. This can't be undone.
             </p>
           </div>
         </div>

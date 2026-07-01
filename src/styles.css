@@ -69,9 +69,9 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.22 0.05 255);
 
-  --primary: oklch(0.32 0.11 258);            /* deep navy */
+  --primary: oklch(0.32 0.11 258); /* deep navy */
   --primary-foreground: oklch(0.99 0.005 230);
-  --primary-glow: oklch(0.78 0.13 215);       /* cyan glow */
+  --primary-glow: oklch(0.78 0.13 215); /* cyan glow */
 
   --secondary: oklch(0.96 0.012 230);
   --secondary-foreground: oklch(0.32 0.11 258);
@@ -79,7 +79,7 @@
   --muted: oklch(0.96 0.008 240);
   --muted-foreground: oklch(0.5 0.025 250);
 
-  --accent: oklch(0.78 0.13 215);             /* cyan accent */
+  --accent: oklch(0.78 0.13 215); /* cyan accent */
   --accent-foreground: oklch(0.22 0.05 255);
 
   --destructive: oklch(0.6 0.22 25);
@@ -115,16 +115,21 @@
   --sidebar-ring: oklch(0.78 0.13 215);
 
   /* Tenant Admin accent — brand cyan/azure (logo "Ai" + X mark gradient) */
-  --tenant: oklch(0.66 0.16 235);                                       /* vibrant azure */
+  --tenant: oklch(0.66 0.16 235); /* vibrant azure */
   --tenant-foreground: oklch(0.99 0.005 230);
   --tenant-soft: oklch(0.96 0.03 230);
   --gradient-tenant: linear-gradient(135deg, oklch(0.42 0.18 258), oklch(0.74 0.16 225));
-  --shadow-tenant: 0 0 0 1px oklch(0.66 0.16 235 / 0.22), 0 12px 32px -8px oklch(0.42 0.18 258 / 0.35);
+  --shadow-tenant:
+    0 0 0 1px oklch(0.66 0.16 235 / 0.22), 0 12px 32px -8px oklch(0.42 0.18 258 / 0.35);
 
   /* Gradients & shadows */
   --gradient-brand: linear-gradient(135deg, oklch(0.32 0.11 258), oklch(0.78 0.13 215));
   --gradient-subtle: linear-gradient(180deg, oklch(0.985 0.005 230), oklch(0.96 0.012 230));
-  --gradient-glow: radial-gradient(circle at top right, color-mix(in oklab, oklch(0.78 0.13 215) 25%, transparent), transparent 60%);
+  --gradient-glow: radial-gradient(
+    circle at top right,
+    color-mix(in oklab, oklch(0.78 0.13 215) 25%, transparent),
+    transparent 60%
+  );
 
   --shadow-sm: 0 1px 2px 0 oklch(0.22 0.05 255 / 0.04);
   --shadow-md: 0 4px 16px -4px oklch(0.22 0.05 255 / 0.08);
@@ -156,43 +161,107 @@
   * {
     border-color: var(--color-border);
   }
-  html, body {
+  html,
+  body {
     font-family: var(--font-sans);
     background-color: var(--color-background);
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
   }
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
+  }
+
+  /* Branded text selection. */
+  ::selection {
+    background-color: color-mix(in oklab, var(--accent) 30%, transparent);
+    color: var(--foreground);
+  }
+
+  /* Refined, on-brand scrollbars. */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--foreground) 16%, transparent);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, var(--tenant) 50%, transparent);
   }
 }
 
 @layer utilities {
-  .font-display { font-family: var(--font-display); }
-  .font-mono { font-family: var(--font-mono); }
-  .bg-gradient-brand { background-image: var(--gradient-brand); }
-  .bg-gradient-subtle { background-image: var(--gradient-subtle); }
-  .bg-gradient-glow { background-image: var(--gradient-glow); }
-  .shadow-elegant { box-shadow: var(--shadow-md); }
-  .shadow-glow { box-shadow: var(--shadow-glow); }
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+  .bg-gradient-brand {
+    background-image: var(--gradient-brand);
+  }
+  .bg-gradient-subtle {
+    background-image: var(--gradient-subtle);
+  }
+  .bg-gradient-glow {
+    background-image: var(--gradient-glow);
+  }
+  .shadow-elegant {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
   .text-gradient-brand {
     background-image: var(--gradient-brand);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
-  .bg-gradient-tenant { background-image: var(--gradient-tenant); }
-  .shadow-tenant { box-shadow: var(--shadow-tenant); }
-  .bg-tenant { background-color: var(--tenant); }
-  .text-tenant { color: var(--tenant); }
-  .bg-tenant-soft { background-color: var(--tenant-soft); }
-  .border-tenant { border-color: var(--tenant); }
-  .ring-tenant { --tw-ring-color: var(--tenant); }
+  .bg-gradient-tenant {
+    background-image: var(--gradient-tenant);
+  }
+  .shadow-tenant {
+    box-shadow: var(--shadow-tenant);
+  }
+  .bg-tenant {
+    background-color: var(--tenant);
+  }
+  .text-tenant {
+    color: var(--tenant);
+  }
+  .bg-tenant-soft {
+    background-color: var(--tenant-soft);
+  }
+  .border-tenant {
+    border-color: var(--tenant);
+  }
+  .ring-tenant {
+    --tw-ring-color: var(--tenant);
+  }
 }
 
 /* react-phone-number-input — themed to match form fields */
-.phone-input { display: flex; align-items: center; gap: 0.5rem; }
+.phone-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .phone-input .PhoneInputInput {
   flex: 1;
   min-width: 0;
@@ -204,7 +273,9 @@
   color: var(--foreground);
   outline: none;
 }
-.phone-input .PhoneInputInput::placeholder { color: var(--muted-foreground); }
+.phone-input .PhoneInputInput::placeholder {
+  color: var(--muted-foreground);
+}
 .phone-input .PhoneInputInput:focus {
   border-color: var(--tenant);
   box-shadow: 0 0 0 2px var(--tenant);
@@ -216,4 +287,7 @@
   background-color: var(--muted);
   border: 1px solid var(--border);
 }
-.phone-input .PhoneInputCountrySelectArrow { color: var(--muted-foreground); opacity: 0.7; }
+.phone-input .PhoneInputCountrySelectArrow {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}

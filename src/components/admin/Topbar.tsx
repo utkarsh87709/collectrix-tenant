@@ -12,7 +12,9 @@ const LABEL_OVERRIDES: Record<string, string> = {
 function buildLabelMap() {
   const m: Record<string, string> = { ...LABEL_OVERRIDES };
   tenantGroups.forEach((g) => g.items.forEach((i) => (m[i.to] = i.label)));
-  allRoutes.forEach((i) => { if (!m[i.to]) m[i.to] = i.label; });
+  allRoutes.forEach((i) => {
+    if (!m[i.to]) m[i.to] = i.label;
+  });
   return m;
 }
 
@@ -38,7 +40,15 @@ function useBreadcrumbs() {
   }, [pathname]);
 }
 
-export function Topbar({ title, subtitle, action }: { title?: string; subtitle?: string; action?: React.ReactNode }) {
+export function Topbar({
+  title,
+  subtitle,
+  action,
+}: {
+  title?: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
   const crumbs = useBreadcrumbs();
   const last = crumbs[crumbs.length - 1];
   const displayTitle = title ?? last?.label ?? "";
@@ -50,20 +60,29 @@ export function Topbar({ title, subtitle, action }: { title?: string; subtitle?:
 
         <div className="flex-1 min-w-0">
           {/* Breadcrumbs */}
-          <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground mb-1">
+          <nav
+            aria-label="Breadcrumb"
+            className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground mb-1"
+          >
             {crumbs.map((c, i) => (
               <span key={c.to} className="flex items-center gap-1 min-w-0">
                 {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 opacity-60" />}
                 {i === crumbs.length - 1 ? (
-                  <span className="font-medium text-foreground truncate">{c.label}</span>
+                  <span className="font-semibold text-tenant truncate">{c.label}</span>
                 ) : (
-                  <Link to={c.to as never} className="hover:text-foreground transition truncate">{c.label}</Link>
+                  <Link to={c.to as never} className="hover:text-foreground transition truncate">
+                    {c.label}
+                  </Link>
                 )}
               </span>
             ))}
           </nav>
-          <h1 className="text-lg sm:text-2xl font-display font-bold tracking-tight truncate">{displayTitle}</h1>
-          {subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">{subtitle}</p>}
+          <h1 className="text-lg sm:text-2xl font-display font-bold tracking-tight truncate">
+            {displayTitle}
+          </h1>
+          {subtitle && (
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">{subtitle}</p>
+          )}
         </div>
 
         <NotificationBell />

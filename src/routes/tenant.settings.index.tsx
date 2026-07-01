@@ -9,7 +9,6 @@ import {
   Calendar,
   ChevronDown,
   Mail,
-  Phone,
   Eye,
   EyeOff,
   CheckCircle2,
@@ -35,6 +34,20 @@ export const Route = createFileRoute("/tenant/settings/")({
 });
 
 type TabKey = "organization" | "availability" | "integrations";
+
+// Only Gmail and Outlook are offered. Backend stores the lowercase value
+// ("gmail" | "outlook"); legacy values (e.g. "Google", "Microsoft 365") are
+// normalized onto one of these so the dropdown is accurate.
+const EMAIL_PROVIDERS = [
+  { value: "gmail", label: "Gmail" },
+  { value: "outlook", label: "Outlook" },
+] as const;
+function normalizeProvider(v: string | null | undefined): string {
+  const s = (v ?? "").toLowerCase();
+  if (s.includes("out") || s.includes("microsoft") || s.includes("365") || s.includes("office"))
+    return "outlook";
+  return "gmail";
+}
 
 // Mapping between the backend's per-day flag/time columns and the WeeklyHours
 // shape the Hours UI works with.
@@ -86,21 +99,22 @@ function SettingsPage() {
   });
 
   // Email configuration (senderEmail* on the tenant record)
-  const [emailProvider, setEmailProvider] = useState("Google");
+  const [emailProvider, setEmailProvider] = useState("gmail");
   const [senderEmail, setSenderEmail] = useState("");
   const [senderPassword, setSenderPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
 
-  // Twilio SMS (senderPhone* on the tenant record)
-  const [twilioCountry, setTwilioCountry] = useState("United States (+1)");
-  const [twilioAreaCode, setTwilioAreaCode] = useState("");
-  const [twilioNumber, setTwilioNumber] = useState("");
+  // Legacy sender-phone values on the tenant record. The Twilio settings UI was
+  // removed (numbers are managed in the Phone Numbers module), but since
+  // updateTenantDetails replaces the whole record we round-trip these values
+  // untouched so saving other settings never wipes them.
+  const [senderPhoneCountry, setSenderPhoneCountry] = useState<string | null>(null);
+  const [senderPhoneAreaCode, setSenderPhoneAreaCode] = useState<string | null>(null);
+  const [senderPhoneNo, setSenderPhoneNo] = useState<string | null>(null);
 
   const [emailExpanded, setEmailExpanded] = useState(true);
-  const [twilioExpanded, setTwilioExpanded] = useState(true);
 
   const emailConnected = Boolean(senderEmail);
-  const twilioConnected = Boolean(twilioNumber);
 
   // Hydrate the form from the tenant record (and load timezone options).
   useEffect(() => {
@@ -112,12 +126,12 @@ function SettingsPage() {
         setName(d.companyName ?? "");
         setTz(d.timezone ?? "");
         setWeekly(detailsToWeekly(d));
-        setEmailProvider(d.senderEmailType ?? "Google");
+        setEmailProvider(normalizeProvider(d.senderEmailType));
         setSenderEmail(d.senderEmailId ?? "");
         setSenderPassword(d.senderEmailPassword ?? "");
-        setTwilioCountry(d.senderPhoneCountry ?? "United States (+1)");
-        setTwilioAreaCode(d.senderPhoneAreaCode ?? "");
-        setTwilioNumber(d.senderPhoneNo ?? "");
+        setSenderPhoneCountry(d.senderPhoneCountry ?? null);
+        setSenderPhoneAreaCode(d.senderPhoneAreaCode ?? null);
+        setSenderPhoneNo(d.senderPhoneNo ?? null);
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load settings"))
       .finally(() => {
@@ -144,9 +158,9 @@ function SettingsPage() {
       senderEmailType: emailProvider || null,
       senderEmailId: senderEmail || null,
       senderEmailPassword: senderPassword || null,
-      senderPhoneAreaCode: twilioAreaCode || null,
-      senderPhoneCountry: twilioCountry || null,
-      senderPhoneNo: twilioNumber || null,
+      senderPhoneAreaCode: senderPhoneAreaCode,
+      senderPhoneCountry: senderPhoneCountry,
+      senderPhoneNo: senderPhoneNo,
       ...(dayFields as unknown as Omit<
         UpdateTenantDetailsInput,
         | "companyName"
@@ -165,9 +179,9 @@ function SettingsPage() {
     emailProvider,
     senderEmail,
     senderPassword,
-    twilioCountry,
-    twilioAreaCode,
-    twilioNumber,
+    senderPhoneCountry,
+    senderPhoneAreaCode,
+    senderPhoneNo,
     weekly,
   ]);
 
@@ -190,7 +204,6 @@ function SettingsPage() {
   const saveProfile = () => save("Organization profile saved");
   const saveHours = () => save("Availability hours saved");
   const saveEmail = () => save("Email settings saved");
-  const saveTwilio = () => save("Twilio SMS settings saved");
 
   return (
     <Shell>
@@ -380,11 +393,11 @@ function SettingsPage() {
                             value={emailProvider}
                             onChange={(e) => setEmailProvider(e.target.value)}
                           >
-                            {["Google", "Microsoft 365", "SendGrid", "Mailgun", "Custom SMTP"].map(
-                              (p) => (
-                                <option key={p}>{p}</option>
-                              ),
-                            )}
+                            {EMAIL_PROVIDERS.map((p) => (
+                              <option key={p.value} value={p.value}>
+                                {p.label}
+                              </option>
+                            ))}
                           </SelectInput>
                         </Field>
                         <Field label="Sender Email" hint="Email address used for sending messages">
@@ -425,95 +438,6 @@ function SettingsPage() {
                         label="Save Email Settings"
                         saving={saving}
                       />
-                    </div>
-                  )}
-                </div>
-
-                {/* Twilio SMS */}
-                <div className="rounded-2xl border border-border bg-card shadow-elegant overflow-hidden">
-                  <button
-                    onClick={() => setTwilioExpanded((s) => !s)}
-                    className="w-full flex items-start gap-3 px-6 py-5 border-b border-border text-left hover:bg-muted/30 transition"
-                  >
-                    <div className="h-10 w-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                      <Phone className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="font-display text-lg font-bold tracking-tight">
-                        Twilio Configuration
-                      </h2>
-                      <p className="text-sm text-muted-foreground mt-0.5">
-                        Select the Twilio number used for sending SMS communication.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${twilioConnected ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-muted-foreground border border-border"}`}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />{" "}
-                        {twilioConnected ? "Connected" : "Not connected"}
-                      </span>
-                      <ChevronDown
-                        className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${twilioExpanded ? "rotate-180" : ""}`}
-                      />
-                    </div>
-                  </button>
-                  {twilioExpanded && (
-                    <div className="px-6 py-6">
-                      <div className="grid md:grid-cols-3 gap-5">
-                        <Field
-                          label="Country"
-                          hint="Country where the Twilio number is provisioned"
-                        >
-                          <SelectInput
-                            value={twilioCountry}
-                            onChange={(e) => setTwilioCountry(e.target.value)}
-                          >
-                            {[
-                              "South Africa (+27)",
-                              "United States (+1)",
-                              "Canada (+1)",
-                              "United Kingdom (+44)",
-                              "Australia (+61)",
-                              "Mexico (+52)",
-                            ].map((c) => (
-                              <option key={c}>{c}</option>
-                            ))}
-                          </SelectInput>
-                        </Field>
-                        <Field label="Area Code" hint="Filter numbers based on region">
-                          <input
-                            value={twilioAreaCode}
-                            onChange={(e) => setTwilioAreaCode(e.target.value)}
-                            className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
-                          />
-                        </Field>
-                        <Field
-                          label="Phone Number"
-                          hint="Select the Twilio number to send SMS from"
-                        >
-                          <input
-                            value={twilioNumber}
-                            onChange={(e) => setTwilioNumber(e.target.value)}
-                            placeholder="+1 555 123 4567"
-                            className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
-                          />
-                        </Field>
-                      </div>
-                      <div className="mt-6 pt-5 border-t border-border flex justify-end">
-                        <button
-                          onClick={saveTwilio}
-                          disabled={saving}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm disabled:opacity-60"
-                        >
-                          {saving ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Save className="h-4 w-4" />
-                          )}{" "}
-                          Save SMS Settings
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
