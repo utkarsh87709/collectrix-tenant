@@ -10,6 +10,7 @@ import {
   Settings,
   Database,
   Phone,
+  LibraryBig,
 } from "lucide-react";
 
 export type NavSubItem = {
@@ -121,6 +122,13 @@ export const tenantGroups: NavGroup[] = [
         icon: Phone,
         description: "Outbound caller IDs and phone numbers",
         keywords: "phone number caller id outbound dialing engagement voice",
+      },
+      {
+        to: "/tenant/engagement/template-library",
+        label: "Template Library",
+        icon: LibraryBig,
+        description: "Reusable email and SMS templates, organised by client",
+        keywords: "template library email sms message reusable variables client engagement",
       },
     ],
   },
