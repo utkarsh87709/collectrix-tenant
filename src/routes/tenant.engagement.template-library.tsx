@@ -74,21 +74,28 @@ function TemplateLibraryPage() {
   const [clientsError, setClientsError] = useState<string | null>(null);
   const [clientsLoading, setClientsLoading] = useState(true);
 
-  // All templates for a channel across every client, lazily loaded and cached.
-  const [cache, setCache] = useState<Partial<Record<TemplateType, Template[]>>>({});
-  const [channelLoading, setChannelLoading] = useState<Partial<Record<TemplateType, boolean>>>({});
-  const [channelError, setChannelError] = useState<Partial<Record<TemplateType, string | null>>>(
-    {},
-  );
-
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [selected, setSelected] = useState<
     { kind: "template"; id: number } | { kind: "draft" } | null
   >(null);
   const [draftClientId, setDraftClientId] = useState<number | null>(null);
 
+  // Templates for the currently selected client+channel. getClientTemplate only
+  // returns one client's list, so we fetch exactly the selected client's
+  // templates — one call per selection, never a fan-out across clients.
+  const [templates, setTemplates] = useState<Template[] | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Guards that make loading exactly-once and race-proof without relying on
+  // async state: `loadedKey` dedupes repeat effect runs for the same selection
+  // (so a StrictMode double-invoke or an extra re-render can't double-fire the
+  // call); `reqId` tags each request so a stale response from a selection you've
+  // already switched away from is ignored.
+  const loadedKey = useRef<string | null>(null);
+  const reqId = useRef(0);
+
   const clientList = useMemo(() => clients?.[channel] ?? [], [clients, channel]);
-  const templates = cache[channel];
 
   /* ------------------------------ data loading ------------------------------ */
 
@@ -109,45 +116,47 @@ function TemplateLibraryPage() {
     loadClients();
   }, [loadClients]);
 
-  const loadChannel = useCallback(async (ch: TemplateType, list: TemplateClient[]) => {
-    setChannelLoading((s) => ({ ...s, [ch]: true }));
-    setChannelError((s) => ({ ...s, [ch]: null }));
-    try {
-      const perClient = await Promise.all(
-        list.map((c) => getClientTemplate({ clientId: c.clientId, templateType: ch })),
-      );
-      setCache((s) => ({ ...s, [ch]: perClient.flat() }));
-    } catch (e) {
-      setChannelError((s) => ({
-        ...s,
-        [ch]: e instanceof Error ? e.message : "Failed to load templates.",
-      }));
-    } finally {
-      setChannelLoading((s) => ({ ...s, [ch]: false }));
-    }
+  const loadTemplates = useCallback((ch: TemplateType, clientId: number) => {
+    loadedKey.current = `${ch}:${clientId}`;
+    const id = ++reqId.current;
+    setLoading(true);
+    setError(null);
+    setTemplates(undefined);
+    getClientTemplate({ clientId, templateType: ch })
+      .then((list) => {
+        if (reqId.current === id) setTemplates(list);
+      })
+      .catch((e) => {
+        if (reqId.current !== id) return;
+        setError(e instanceof Error ? e.message : "Failed to load templates.");
+        loadedKey.current = null; // let a retry re-fetch this selection
+      })
+      .finally(() => {
+        if (reqId.current === id) setLoading(false);
+      });
   }, []);
 
-  // Load the active channel's templates once its client list is known, then
-  // prefetch the other channel in the background so both tab badges stay
-  // accurate (their counts are per-selected-client and must update on switch).
+  // Fetch the selected client+channel's templates whenever the selection
+  // changes — one call each time, always with the templateType of the active
+  // tab. Wait until the selected client actually belongs to the current
+  // channel's list so we never fetch with a stale client from the previous tab
+  // (on a channel switch this effect runs in the render before the selection is
+  // reconciled below). `loadedKey` skips a repeat run for the same selection so
+  // the call fires exactly once, not twice.
   useEffect(() => {
-    if (!clients) return;
-    const order: TemplateType[] = channel === "email" ? ["email", "sms"] : ["sms", "email"];
-    for (const ch of order) {
-      if (cache[ch] === undefined && !channelLoading[ch] && !channelError[ch]) {
-        loadChannel(ch, clients[ch]);
-      }
-    }
-  }, [clients, channel, cache, channelLoading, channelError, loadChannel]);
+    if (selectedClientId == null) return;
+    if (!clientList.some((c) => c.clientId === selectedClientId)) return;
+    const key = `${channel}:${selectedClientId}`;
+    if (loadedKey.current === key) return;
+    loadTemplates(channel, selectedClientId);
+  }, [channel, selectedClientId, clientList, loadTemplates]);
 
-  // Re-fetch a single client's templates and splice them into the channel cache.
+  // Re-fetch the current selection after a create/update/delete.
   const refreshClient = useCallback(
     async (ch: TemplateType, clientId: number): Promise<Template[]> => {
+      const id = ++reqId.current;
       const list = await getClientTemplate({ clientId, templateType: ch });
-      setCache((s) => ({
-        ...s,
-        [ch]: [...(s[ch] ?? []).filter((t) => t.clientId !== clientId), ...list],
-      }));
+      if (reqId.current === id) setTemplates(list);
       return list;
     },
     [],
@@ -166,17 +175,12 @@ function TemplateLibraryPage() {
     );
   }, [clientList]);
 
-  const countFor = useCallback(
-    (clientId: number) => (templates ?? []).filter((t) => t.clientId === clientId).length,
-    [templates],
-  );
-
   const clientTemplates = useMemo(
     () =>
       (templates ?? [])
-        .filter((t) => t.clientId === selectedClientId)
+        .slice()
         .sort((a, b) => a.templateName.localeCompare(b.templateName)),
-    [templates, selectedClientId],
+    [templates],
   );
 
   const hasDraft = selected?.kind === "draft" && draftClientId === selectedClientId;
@@ -191,6 +195,7 @@ function TemplateLibraryPage() {
     setChannel(ch);
     setSelected(null);
     setDraftClientId(null);
+    setError(null); // don't carry the previous tab's error into the new one
   };
 
   const selectClient = (clientId: number) => {
@@ -206,13 +211,6 @@ function TemplateLibraryPage() {
   };
 
   /* -------------------------------- render -------------------------------- */
-
-  // Per-selected-client count, so each tab badge updates as you switch clients
-  // and reflects create/delete immediately. Undefined until that channel loads.
-  const tabCount = (ch: TemplateType) =>
-    selectedClientId == null
-      ? undefined
-      : cache[ch]?.filter((t) => t.clientId === selectedClientId).length;
 
   return (
     <Shell>
@@ -234,7 +232,6 @@ function TemplateLibraryPage() {
               ).map((t) => {
                 const Icon = t.icon;
                 const active = channel === t.id;
-                const count = tabCount(t.id);
                 return (
                   <button
                     key={t.id}
@@ -247,18 +244,6 @@ function TemplateLibraryPage() {
                     )}
                   >
                     <Icon className="h-4 w-4" /> {t.label}
-                    {count != null && (
-                      <span
-                        className={cn(
-                          "min-w-5 px-1.5 rounded-full text-[11px] font-semibold tabular-nums",
-                          active
-                            ? "bg-[color:var(--tenant)]/12 text-tenant"
-                            : "bg-border/60 text-muted-foreground",
-                        )}
-                      >
-                        {count}
-                      </span>
-                    )}
                   </button>
                 );
               })}
@@ -273,7 +258,6 @@ function TemplateLibraryPage() {
                   clients={clientList}
                   value={selectedClientId}
                   onChange={selectClient}
-                  countFor={countFor}
                   loading={clientsLoading}
                 />
               </div>
@@ -283,12 +267,15 @@ function TemplateLibraryPage() {
           {/* Body */}
           {clientsError ? (
             <ErrorState message={clientsError} onRetry={loadClients} />
-          ) : channelError[channel] ? (
+          ) : error ? (
             <ErrorState
-              message={channelError[channel]!}
-              onRetry={() => clients && loadChannel(channel, clients[channel])}
+              message={error}
+              onRetry={() =>
+                selectedClientId != null && loadTemplates(channel, selectedClientId)
+              }
             />
-          ) : clientsLoading || channelLoading[channel] || templates === undefined ? (
+          ) : clientsLoading ||
+            (clientList.length > 0 && (loading || templates === undefined)) ? (
             <div className="flex items-center justify-center py-24 text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
@@ -412,7 +399,9 @@ function TemplateLibraryPage() {
                       );
                       setSelected(newest ? { kind: "template", id: newest.templateId } : null);
                     }}
-                    onUpdated={(clientId) => refreshClient(channel, clientId)}
+                    onUpdated={async (clientId) => {
+                      await refreshClient(channel, clientId);
+                    }}
                     onDeleted={async (clientId) => {
                       await refreshClient(channel, clientId);
                       setSelected(null);
@@ -434,13 +423,11 @@ function ClientCombobox({
   clients,
   value,
   onChange,
-  countFor,
   loading,
 }: {
   clients: TemplateClient[];
   value: number | null;
   onChange: (clientId: number) => void;
-  countFor: (clientId: number) => number;
   loading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -458,11 +445,6 @@ function ClientCombobox({
           <span className="truncate flex-1 text-left">
             {current ? current.clientName : "Select a client"}
           </span>
-          {current && (
-            <span className="min-w-5 px-1.5 rounded-full bg-muted text-[11px] font-semibold tabular-nums text-muted-foreground">
-              {countFor(current.clientId)}
-            </span>
-          )}
           <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
         </button>
       </PopoverTrigger>
@@ -474,7 +456,6 @@ function ClientCombobox({
             <CommandGroup>
               {clients.map((c) => {
                 const active = c.clientId === value;
-                const count = countFor(c.clientId);
                 return (
                   <CommandItem
                     key={c.clientId}
@@ -489,16 +470,6 @@ function ClientCombobox({
                       className={cn("h-4 w-4 text-tenant", active ? "opacity-100" : "opacity-0")}
                     />
                     <span className="flex-1 truncate">{c.clientName}</span>
-                    <span
-                      className={cn(
-                        "min-w-5 px-1.5 rounded-full text-[11px] font-semibold tabular-nums",
-                        count > 0
-                          ? "bg-[color:var(--tenant)]/10 text-tenant"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {count}
-                    </span>
                   </CommandItem>
                 );
               })}
