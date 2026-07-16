@@ -94,6 +94,9 @@ function TemplateLibraryPage() {
   // already switched away from is ignored.
   const loadedKey = useRef<string | null>(null);
   const reqId = useRef(0);
+  // Ensures getTemplateClients fires exactly once, even under StrictMode's
+  // dev-only double-invoke of effects.
+  const clientsLoaded = useRef(false);
 
   const clientList = useMemo(() => clients?.[channel] ?? [], [clients, channel]);
 
@@ -113,6 +116,8 @@ function TemplateLibraryPage() {
   }, []);
 
   useEffect(() => {
+    if (clientsLoaded.current) return;
+    clientsLoaded.current = true;
     loadClients();
   }, [loadClients]);
 
