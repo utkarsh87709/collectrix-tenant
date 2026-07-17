@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantIndexRouteImport } from './routes/tenant.index'
 import { Route as TenantUsersRouteImport } from './routes/tenant.users'
 import { Route as TenantTeamsRouteImport } from './routes/tenant.teams'
+import { Route as TenantTeamDeckRouteImport } from './routes/tenant.team-deck'
 import { Route as TenantSettingsRouteImport } from './routes/tenant.settings'
 import { Route as TenantSecurityRouteImport } from './routes/tenant.security'
 import { Route as TenantRolesRouteImport } from './routes/tenant.roles'
@@ -116,6 +117,11 @@ const TenantUsersRoute = TenantUsersRouteImport.update({
 const TenantTeamsRoute = TenantTeamsRouteImport.update({
   id: '/tenant/teams',
   path: '/tenant/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TenantTeamDeckRoute = TenantTeamDeckRouteImport.update({
+  id: '/tenant/team-deck',
+  path: '/tenant/team-deck',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TenantSettingsRoute = TenantSettingsRouteImport.update({
@@ -450,6 +456,7 @@ export interface FileRoutesByFullPath {
   '/tenant/roles': typeof TenantRolesRoute
   '/tenant/security': typeof TenantSecurityRoute
   '/tenant/settings': typeof TenantSettingsRouteWithChildren
+  '/tenant/team-deck': typeof TenantTeamDeckRoute
   '/tenant/teams': typeof TenantTeamsRoute
   '/tenant/users': typeof TenantUsersRoute
   '/tenant/': typeof TenantIndexRoute
@@ -517,6 +524,7 @@ export interface FileRoutesByTo {
   '/tenant/onboarding': typeof TenantOnboardingRoute
   '/tenant/roles': typeof TenantRolesRoute
   '/tenant/security': typeof TenantSecurityRoute
+  '/tenant/team-deck': typeof TenantTeamDeckRoute
   '/tenant/teams': typeof TenantTeamsRoute
   '/tenant/users': typeof TenantUsersRoute
   '/tenant': typeof TenantIndexRoute
@@ -587,6 +595,7 @@ export interface FileRoutesById {
   '/tenant/roles': typeof TenantRolesRoute
   '/tenant/security': typeof TenantSecurityRoute
   '/tenant/settings': typeof TenantSettingsRouteWithChildren
+  '/tenant/team-deck': typeof TenantTeamDeckRoute
   '/tenant/teams': typeof TenantTeamsRoute
   '/tenant/users': typeof TenantUsersRoute
   '/tenant/': typeof TenantIndexRoute
@@ -659,6 +668,7 @@ export interface FileRouteTypes {
     | '/tenant/roles'
     | '/tenant/security'
     | '/tenant/settings'
+    | '/tenant/team-deck'
     | '/tenant/teams'
     | '/tenant/users'
     | '/tenant/'
@@ -726,6 +736,7 @@ export interface FileRouteTypes {
     | '/tenant/onboarding'
     | '/tenant/roles'
     | '/tenant/security'
+    | '/tenant/team-deck'
     | '/tenant/teams'
     | '/tenant/users'
     | '/tenant'
@@ -795,6 +806,7 @@ export interface FileRouteTypes {
     | '/tenant/roles'
     | '/tenant/security'
     | '/tenant/settings'
+    | '/tenant/team-deck'
     | '/tenant/teams'
     | '/tenant/users'
     | '/tenant/'
@@ -866,6 +878,7 @@ export interface RootRouteChildren {
   TenantRolesRoute: typeof TenantRolesRoute
   TenantSecurityRoute: typeof TenantSecurityRoute
   TenantSettingsRoute: typeof TenantSettingsRouteWithChildren
+  TenantTeamDeckRoute: typeof TenantTeamDeckRoute
   TenantTeamsRoute: typeof TenantTeamsRoute
   TenantUsersRoute: typeof TenantUsersRoute
   TenantIndexRoute: typeof TenantIndexRoute
@@ -952,6 +965,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant/teams'
       fullPath: '/tenant/teams'
       preLoaderRoute: typeof TenantTeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tenant/team-deck': {
+      id: '/tenant/team-deck'
+      path: '/tenant/team-deck'
+      fullPath: '/tenant/team-deck'
+      preLoaderRoute: typeof TenantTeamDeckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenant/settings': {
@@ -1491,6 +1511,7 @@ const rootRouteChildren: RootRouteChildren = {
   TenantRolesRoute: TenantRolesRoute,
   TenantSecurityRoute: TenantSecurityRoute,
   TenantSettingsRoute: TenantSettingsRouteWithChildren,
+  TenantTeamDeckRoute: TenantTeamDeckRoute,
   TenantTeamsRoute: TenantTeamsRoute,
   TenantUsersRoute: TenantUsersRoute,
   TenantIndexRoute: TenantIndexRoute,

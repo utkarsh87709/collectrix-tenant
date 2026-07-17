@@ -11,6 +11,7 @@ import {
   Database,
   Phone,
   LibraryBig,
+  Inbox,
 } from "lucide-react";
 
 export type NavSubItem = {
@@ -67,6 +68,13 @@ export const tenantGroups: NavGroup[] = [
         icon: Wallet,
         description: "Debtor accounts (demo data)",
         keywords: "debtors accounts collections balances",
+      },
+      {
+        to: "/tenant/team-deck",
+        label: "Team Deck",
+        icon: Inbox,
+        description: "Files handed to teams, awaiting a member",
+        keywords: "team deck assign member debtor files queue in deck assigned",
       },
     ],
   },

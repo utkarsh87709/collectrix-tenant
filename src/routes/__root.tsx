@@ -18,6 +18,7 @@ const ENABLED_TENANT_PREFIXES = [
   "/tenant/users",
   "/tenant/roles",
   "/tenant/teams",
+  "/tenant/team-deck",
   "/tenant/audit",
   "/tenant/settings",
   // Demo-only modules (mock data, no API yet).
