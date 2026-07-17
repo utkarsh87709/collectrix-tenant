@@ -5,15 +5,15 @@ import { Topbar } from "@/components/admin/Topbar";
 import { PageCard, CardHead } from "@/components/tenant/ui";
 import {
   Upload, FileSpreadsheet, Download, X, Loader2, CheckCircle2, AlertTriangle,
-  ArrowRight, ArrowLeft, RefreshCw, Eye, Search, UserPlus, Pencil, ChevronRight,
+  ArrowRight, ArrowLeft, RefreshCw, Eye, Search, Users, Pencil, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { getAllClients, type Client } from "@/lib/clients-api";
 import {
   validateDebtorFile, uploadDebtor, getUploadedDebtor, debtorFileDetails,
-  assignUserList, assignUser, updateNewDebtor,
-  type UploadedFile, type ValidateResult, type DebtorRecord, type AssignableUser,
+  assignTeamList, assignTeam, updateNewDebtor,
+  type UploadedFile, type ValidateResult, type DebtorRecord, type AssignableTeam,
 } from "@/lib/upload-debtor-api";
 import { DEBTOR_FIELDS, DEBTOR_SECTIONS, buildSampleCsv } from "@/lib/debtor-fields";
 
@@ -507,6 +507,22 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [assigning, setAssigning] = useState(false);
   const [editing, setEditing] = useState<DebtorRecord | null>(null);
+  // The tab badges (new / assigned) come from the file summary, which changes
+  // when records are assigned — keep them in local state so they refresh live.
+  const [counts, setCounts] = useState<{ newCount: number; assignedCount: number }>({
+    newCount: file.newCount ?? 0,
+    assignedCount: file.assignedCount ?? 0,
+  });
+
+  const refreshCounts = useCallback(async () => {
+    try {
+      const res = await getUploadedDebtor(0, 100);
+      const f = res.uploadFileList?.find((x) => x.fileId === file.fileId);
+      if (f) setCounts({ newCount: f.newCount ?? 0, assignedCount: f.assignedCount ?? 0 });
+    } catch {
+      /* keep the previous counts if the summary refresh fails */
+    }
+  }, [file.fileId]);
 
   const fetchDebtors = useCallback(async () => {
     setLoading(true);
@@ -562,7 +578,7 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
               >
                 {t}{" "}
                 <span className="ml-1 text-xs">
-                  {t === "new" ? (file.newCount ?? 0) : (file.assignedCount ?? 0)}
+                  {t === "new" ? counts.newCount : counts.assignedCount}
                 </span>
               </button>
             ))}
@@ -635,8 +651,11 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
                         <Pencil className="h-3.5 w-3.5" /> Edit
                       </button>
                     )}
-                    {tab === "assigned" && d.assignedTo != null && (
-                      <span className="text-xs text-muted-foreground shrink-0">Assigned</span>
+                    {tab === "assigned" && (d.assignedTeamId != null || d.teamName) && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-tenant bg-tenant/10 px-2 py-1 rounded-md shrink-0">
+                        <Users className="h-3.5 w-3.5" />
+                        {str(d.teamName) || "Assigned"}
+                      </span>
                     )}
                   </li>
                 );
@@ -654,7 +673,7 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
             onClick={() => setAssigning(true)}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
           >
-            <UserPlus className="h-4 w-4" /> Assign to user
+            <Users className="h-4 w-4" /> Assign to team
           </button>
           <button onClick={() => setSelected(new Set())} className="text-sm text-muted-foreground hover:text-foreground">Clear</button>
         </div>
@@ -665,7 +684,7 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
           fileId={file.fileId}
           ids={[...selected]}
           onClose={() => setAssigning(false)}
-          onAssigned={() => { setAssigning(false); fetchDebtors(); }}
+          onAssigned={() => { setAssigning(false); fetchDebtors(); refreshCounts(); }}
         />
       )}
 
@@ -683,23 +702,23 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
 /* ------------------------------- assign modal ------------------------------- */
 
 function AssignModal({ fileId, ids, onClose, onAssigned }: { fileId: number; ids: number[]; onClose: () => void; onAssigned: () => void }) {
-  const [users, setUsers] = useState<AssignableUser[]>([]);
+  const [teams, setTeams] = useState<AssignableTeam[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<number | "">("");
+  const [teamId, setTeamId] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    assignUserList({ fileId, status: "new" })
-      .then((r) => setUsers(r.userList ?? []))
-      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load users."))
+    assignTeamList({ fileId, status: "new" })
+      .then((r) => setTeams(r.teamList ?? []))
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load teams."))
       .finally(() => setLoading(false));
   }, [fileId]);
 
   const submit = async () => {
-    if (userId === "") return;
+    if (teamId === "") return;
     setSaving(true);
     try {
-      await assignUser(ids, userId);
+      await assignTeam(ids, teamId);
       toast.success(`Assigned ${ids.length} record(s).`);
       onAssigned();
     } catch (e) {
@@ -713,25 +732,25 @@ function AssignModal({ fileId, ids, onClose, onAssigned }: { fileId: number; ids
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-display text-xl font-bold tracking-tight">Assign records</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Assign {ids.length} selected record(s) to a user.</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Assign {ids.length} selected record(s) to a team.</p>
         </div>
         <button onClick={onClose} className="p-1 rounded hover:bg-muted" aria-label="Close"><X className="h-5 w-5" /></button>
       </div>
 
       <div className="mt-6">
-        <span className="block text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">User</span>
+        <span className="block text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">Team</span>
         {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading users…</div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading teams…</div>
         ) : (
           <select
-            value={userId}
-            onChange={(e) => setUserId(e.target.value === "" ? "" : Number(e.target.value))}
+            value={teamId}
+            onChange={(e) => setTeamId(e.target.value === "" ? "" : Number(e.target.value))}
             className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
           >
-            <option value="">Select a user…</option>
-            {users.map((u) => (
-              <option key={u.userId} value={u.userId}>
-                {u.firstName} — {u.role}{u.teamName ? ` · ${u.teamName}` : ""}
+            <option value="">Select a team…</option>
+            {teams.map((t) => (
+              <option key={t.teamId} value={t.teamId}>
+                {t.teamName}
               </option>
             ))}
           </select>
@@ -742,10 +761,10 @@ function AssignModal({ fileId, ids, onClose, onAssigned }: { fileId: number; ids
         <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted">Cancel</button>
         <button
           onClick={submit}
-          disabled={userId === "" || saving}
+          disabled={teamId === "" || saving}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
         >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Assign
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />} Assign
         </button>
       </div>
     </Overlay>

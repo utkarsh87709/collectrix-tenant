@@ -1,22 +1,29 @@
 // User management calls to the separately-hosted backend.
-//   POST /tenant/getUsers           { page, size, status, searchText } -> { users[] (each w/ teamName, phoneNoList), totalCount }
+//   POST /tenant/getUsers           { page, size, status, searchText } -> { users[] (each w/ teamList, teamName, phoneNoList), totalCount }
 //   POST /tenant/getRoleList        {}                                 -> { roles: [{roleId, roleName}] }
 //   POST /tenant/getTeamPhoneNumber { teamId }                         -> { phoneNoList[] }  (numbers assigned to a team)
-//   POST /tenant/createUser         { roleId, teamId, emailId, phoneNo, firstName, lastName, phoneNoList } -> { resetPasswordLink }
+//   POST /tenant/createUser         { roleId, teamId, teamIdList, emailId, phoneNo, firstName, lastName, phoneNoList } -> { resetPasswordLink }
 //   POST /tenant/updateUser         { userId, ...same }                -> {}
 //   POST /tenant/resetUserPassword  { userId }                         -> { resetPasswordLink }
 //   POST /tenant/activateUser       { userId }                         -> {}
 //   POST /tenant/disableUser        { userId }                         -> {}
-// phoneNoList (create/update) is an array of phoneNoId assigned to the user. A user
-// can only be assigned numbers that belong to their team.
+// A user can belong to MULTIPLE teams: send teamId as null and populate teamIdList.
+// getUsers returns each user's teams as teamList [{teamId, teamName}] (plus a
+// comma-joined teamName convenience string).
+// phoneNoList carries the phone numbers allotted to the user, on both sides:
+//   - WRITE (create/update): send an array of phoneNoId.
+//   - READ  (getUsers): the allotted numbers come back here too. The element
+//     shape may be a bare id or an object carrying phoneNoId, so normalize with
+//     phoneNoIdsOf() rather than reading it directly.
+// A user can only be assigned numbers that belong to one of their teams.
 // All authenticated with the raw token (attached automatically by apiPost).
 import { apiPost } from "./api-client";
 import type { TeamPhoneNumber } from "./teams-api";
 
 export type UserStatus = "active" | "disabled";
 
-/** A team number as returned inside getUsers — annotated with who it's assigned to. */
-export type UserPhoneNumber = TeamPhoneNumber & { assignedUserId: number | null };
+/** A team the user belongs to, as returned inside getUsers. */
+export type UserTeam = { teamId: number; teamName: string };
 
 export type TenantUser = {
   userId: number;
@@ -26,16 +33,28 @@ export type TenantUser = {
   phoneNo: string | null;
   role: string;
   roleId: number;
-  teamId: number | null;
+  /** @deprecated legacy single-team field; users can now belong to many teams (see teamList). */
+  teamId?: number | null;
+  /** The teams this user belongs to. */
+  teamList?: UserTeam[];
+  /** Comma-joined team names, e.g. "Legal, Recovery Team" (convenience for display). */
   teamName: string | null;
   status: string;
   loginAt: string | null;
   createdAt: string;
   updatedAt: string;
   calendarConnected: boolean | null;
-  /** The user's team's numbers, each carrying assignedUserId. */
-  phoneNoList?: UserPhoneNumber[];
+  /** The phone numbers allotted to this user, as returned by getUsers. Element
+   *  shape isn't guaranteed (bare id or an object with phoneNoId) — read it via
+   *  phoneNoIdsOf() to normalize to number[]. */
+  phoneNoList?: Array<number | { phoneNoId: number }>;
 };
+
+/** Normalize a user's phoneNoList to plain phoneNoId numbers, tolerating either
+ *  a bare-id array or an array of objects carrying phoneNoId. */
+export function phoneNoIdsOf(user: Pick<TenantUser, "phoneNoList">): number[] {
+  return (user.phoneNoList ?? []).map((p) => (typeof p === "number" ? p : p.phoneNoId));
+}
 
 export type GetUsersParams = {
   page: number;
@@ -50,12 +69,15 @@ export type RoleListItem = { roleId: number; roleName: string };
 
 export type UserInput = {
   roleId: number;
-  teamId: number | null;
+  /** Always null now — team membership lives in teamIdList. */
+  teamId: null;
+  /** The teams this user belongs to. */
+  teamIdList: number[];
   emailId: string;
   phoneNo: string;
   firstName: string;
   lastName: string | null;
-  /** phoneNoIds (from the user's team) to assign to this user. */
+  /** phoneNoIds (from one of the user's teams) to assign to this user. */
   phoneNoList: number[];
 };
 

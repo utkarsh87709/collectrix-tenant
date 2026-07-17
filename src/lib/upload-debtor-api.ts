@@ -3,9 +3,12 @@
 //   POST /tenant/uploadDebtor         { originalFileName, newFileName, clientId, debtorList } -> {}
 //   POST /tenant/getUploadedDebtor    { page, size }               -> { totalCount, uploadFileList[] }
 //   POST /tenant/debtorFileDetails    { page, size, status, searchText, fileId } -> { totalCount, debtorList[] }
-//   POST /tenant/assignUserList       { page, size, status, searchText, fileId } -> { userList[] }
-//   POST /tenant/assignUser           { uploadedDebtorIdList, userId } -> {}
+//                                     (assigned records carry assignedTeamId + teamName)
+//   POST /tenant/assignTeamList       { page, size, status, searchText, fileId } -> { userList[] }
+//                                     NOTE: the response key is "userList" but it holds teams [{teamId, teamName}].
+//   POST /tenant/assignTeam           { uploadedDebtorIdList, teamId } -> {}
 //   POST /tenant/updateNewDebtor      { uploadedDebtorId, ...fields } -> {}
+// Debtors are assigned to a TEAM (not an individual user) on this screen.
 // All authenticated with the raw token. validateDebtorFile can't use the JSON
 // apiPost helper (multipart), so it attaches the token by hand like profile-pic upload.
 import { apiPost, apiUrl } from "./api-client";
@@ -20,6 +23,9 @@ export type DebtorRecord = {
   validRecord?: number;
   invalidAttribute?: InvalidAttribute[];
   assignedTo?: number | null;
+  /** The team this record is assigned to (assigned status only). */
+  assignedTeamId?: number | null;
+  teamName?: string | null;
   [key: string]: string | number | InvalidAttribute[] | null | undefined;
 };
 
@@ -51,11 +57,10 @@ export type ValidateResult = {
   invalidRecords: DebtorRecord[];
 };
 
-export type AssignableUser = {
-  userId: number;
-  firstName: string;
-  role: string;
-  teamName: string | null;
+/** A team a debtor record can be assigned to (from assignTeamList). */
+export type AssignableTeam = {
+  teamId: number;
+  teamName: string;
 };
 
 export async function validateDebtorFile(file: File): Promise<ValidateResult> {
@@ -103,22 +108,25 @@ export function debtorFileDetails(input: {
   });
 }
 
-export function assignUserList(input: {
+/** Teams a debtor record can be assigned to. Backend returns them under `userList`
+ *  (legacy key reused); we surface them as `teamList` for clarity. */
+export async function assignTeamList(input: {
   fileId: number;
   status: "new" | "assigned";
   searchText?: string;
-}): Promise<{ userList: AssignableUser[] }> {
-  return apiPost("/tenant/assignUserList", {
+}): Promise<{ teamList: AssignableTeam[] }> {
+  const res = await apiPost<{ userList?: AssignableTeam[] }>("/tenant/assignTeamList", {
     page: 0,
     size: 100,
     status: input.status,
     searchText: input.searchText ?? "",
     fileId: input.fileId,
   });
+  return { teamList: res.userList ?? [] };
 }
 
-export function assignUser(uploadedDebtorIdList: number[], userId: number): Promise<unknown> {
-  return apiPost("/tenant/assignUser", { uploadedDebtorIdList, userId });
+export function assignTeam(uploadedDebtorIdList: number[], teamId: number): Promise<unknown> {
+  return apiPost("/tenant/assignTeam", { uploadedDebtorIdList, teamId });
 }
 
 export function updateNewDebtor(payload: Record<string, unknown>): Promise<unknown> {

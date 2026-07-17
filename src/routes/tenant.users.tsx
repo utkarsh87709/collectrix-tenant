@@ -32,6 +32,7 @@ import {
   resetUserPassword,
   activateUser,
   disableUser,
+  phoneNoIdsOf,
   type TenantUser,
   type RoleListItem,
   type UserInput,
@@ -64,10 +65,6 @@ function formatDate(iso: string | null) {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
-function teamNameOf(teamId: number | null, teams: TeamListItem[]) {
-  if (!teamId) return "Unassigned";
-  return teams.find((t) => t.teamId === teamId)?.teamName ?? `Team #${teamId}`;
-}
 
 function CalendarLogo({ provider }: { provider: "google" | "outlook" }) {
   if (provider === "google") {
@@ -229,8 +226,6 @@ function TenantUsersPage() {
       .catch(() => {});
   }, []);
 
-  const teamNameById = new Map(teams.map((t) => [t.teamId, t.teamName]));
-
   return (
     <Shell>
       <Topbar
@@ -343,26 +338,25 @@ function TenantUsersPage() {
                         <Pill tone="muted">{u.role}</Pill>
                       </td>
                       <td className="px-4 py-3">
-                        <Pill tone="muted">
-                          {u.teamName ??
-                            teamNameById.get(u.teamId ?? 0) ??
-                            teamNameOf(u.teamId, teams)}
-                        </Pill>
+                        {u.teamList && u.teamList.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {u.teamList.map((t) => (
+                              <Pill key={t.teamId} tone="muted">{t.teamName}</Pill>
+                            ))}
+                          </div>
+                        ) : u.teamName ? (
+                          <Pill tone="muted">{u.teamName}</Pill>
+                        ) : (
+                          <Pill tone="muted">Unassigned</Pill>
+                        )}
                         {(() => {
-                          const assigned = (u.phoneNoList ?? []).filter(
-                            (p) => p.assignedUserId === u.userId,
-                          );
-                          if (assigned.length === 0) return null;
+                          const count = phoneNoIdsOf(u).length;
+                          if (count === 0) return null;
                           return (
                             <div className="mt-1.5 flex flex-wrap gap-1">
-                              {assigned.map((p) => (
-                                <span
-                                  key={p.phoneNoId}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-tenant/10 text-tenant text-[11px] font-medium"
-                                >
-                                  <Phone className="h-3 w-3" /> {formatPhoneNo(p.phoneNo)}
-                                </span>
-                              ))}
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-tenant/10 text-tenant text-[11px] font-medium">
+                                <Phone className="h-3 w-3" /> {count} number{count > 1 ? "s" : ""}
+                              </span>
                             </div>
                           );
                         })()}
@@ -496,16 +490,17 @@ function UserFormModal({
     (user?.phoneNo as PhoneValue) ?? undefined,
   );
   const [roleId, setRoleId] = useState<number>(user?.roleId ?? roles[0]?.roleId ?? 0);
-  // Team is not required; null = unassigned.
-  const [teamId, setTeamId] = useState<number | null>(user?.teamId ?? null);
-  // Phone numbers assignable from the selected team, and the current selection.
+  // Teams are not required; a user can belong to several. Seed from teamList,
+  // falling back to the legacy single teamId for older payloads.
+  const [teamIds, setTeamIds] = useState<number[]>(
+    () => user?.teamList?.map((t) => t.teamId) ?? (user?.teamId != null ? [user.teamId] : []),
+  );
+  // Phone numbers assignable from the selected teams (union), and the current selection.
   const [numberPool, setNumberPool] = useState<TeamPhoneNumber[]>([]);
   const [numbersLoading, setNumbersLoading] = useState(false);
-  const [phoneIds, setPhoneIds] = useState<number[]>(() =>
-    (user?.phoneNoList ?? [])
-      .filter((p) => p.assignedUserId === user?.userId)
-      .map((p) => p.phoneNoId),
-  );
+  // Seed from the user's allotted numbers (getUsers returns them in phoneNoList).
+  // The load-pool effect below prunes any that aren't in the selected teams' pools.
+  const [phoneIds, setPhoneIds] = useState<number[]>(() => (user ? phoneNoIdsOf(user) : []));
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
@@ -517,20 +512,29 @@ function UserFormModal({
     setAccountStatus(user?.status === "active" ? "active" : "disabled");
   }, [user?.userId, user?.status]);
 
-  // Load the selected team's numbers (the pool a user can be assigned from).
+  // Load the selected teams' numbers (the union pool a user can be assigned from).
+  // Dropping a team prunes any of its numbers that were selected.
+  const teamKey = teamIds.join(",");
   useEffect(() => {
-    if (teamId == null) {
+    if (teamIds.length === 0) {
       setNumberPool([]);
       return;
     }
     let cancelled = false;
     setNumbersLoading(true);
-    getTeamPhoneNumber(teamId)
-      .then((res) => {
-        if (!cancelled) setNumberPool(res.phoneNoList ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setNumberPool([]);
+    Promise.all(
+      teamIds.map((id) =>
+        getTeamPhoneNumber(id)
+          .then((res) => res.phoneNoList ?? [])
+          .catch(() => [] as TeamPhoneNumber[]),
+      ),
+    )
+      .then((lists) => {
+        if (cancelled) return;
+        const byId = new Map<number, TeamPhoneNumber>();
+        for (const list of lists) for (const n of list) byId.set(n.phoneNoId, n);
+        setNumberPool([...byId.values()]);
+        setPhoneIds((prev) => prev.filter((id) => byId.has(id)));
       })
       .finally(() => {
         if (!cancelled) setNumbersLoading(false);
@@ -538,13 +542,12 @@ function UserFormModal({
     return () => {
       cancelled = true;
     };
-  }, [teamId]);
+    // teamKey is a stable string derived from teamIds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamKey]);
 
-  // Numbers belong to a team — switching teams clears the current selection.
-  const onTeamChange = (val: number | null) => {
-    setTeamId(val);
-    setPhoneIds([]);
-  };
+  const toggleTeam = (id: number) =>
+    setTeamIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const togglePhone = (id: number) =>
     setPhoneIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -557,13 +560,15 @@ function UserFormModal({
   // Phone is persisted in E.164 form (e.g. +14165550123).
   const buildInput = (): UserInput => ({
     roleId,
-    teamId,
+    // Team membership lives in teamIdList now; teamId is always sent null.
+    teamId: null,
+    teamIdList: teamIds,
     emailId: emailId.trim(),
     phoneNo: phone ?? "",
     firstName: fullName.trim(),
     lastName: "",
-    // Only numbers from the selected team are valid; drop any if team is cleared.
-    phoneNoList: teamId == null ? [] : phoneIds,
+    // Only numbers from the selected teams are valid; drop all if no team is selected.
+    phoneNoList: teamIds.length === 0 ? [] : phoneIds,
   });
 
   const save = async () => {
@@ -710,19 +715,29 @@ function UserFormModal({
                 ))}
               </select>
             </Field>
-            <Field label="Team">
-              <select
-                value={teamId ?? ""}
-                onChange={(e) => onTeamChange(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
-              >
-                <option value="">No team</option>
-                {teams.map((t) => (
-                  <option key={t.teamId} value={t.teamId}>
-                    {t.teamName}
-                  </option>
-                ))}
-              </select>
+            <Field label="Teams">
+              {teams.length === 0 ? (
+                <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border px-3 py-2.5">
+                  No teams available.
+                </p>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-muted p-2">
+                  {teams.map((t) => (
+                    <label
+                      key={t.teamId}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-background cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-tenant"
+                        checked={teamIds.includes(t.teamId)}
+                        onChange={() => toggleTeam(t.teamId)}
+                      />
+                      <span className="text-sm truncate">{t.teamName}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </Field>
           </div>
 
@@ -734,7 +749,7 @@ function UserFormModal({
               )}
             </label>
             <div className="mt-1">
-              {teamId == null ? (
+              {teamIds.length === 0 ? (
                 <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border px-3 py-4 text-center">
                   Select a team to assign phone numbers to this user.
                 </p>
@@ -744,7 +759,7 @@ function UserFormModal({
                 </div>
               ) : numberPool.length === 0 ? (
                 <p className="text-xs text-muted-foreground rounded-lg border border-border px-3 py-4 text-center">
-                  This team has no numbers. Assign numbers to the team first.
+                  These teams have no numbers. Assign numbers to a team first.
                 </p>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-1 max-h-44 overflow-y-auto rounded-lg border border-border p-2">
