@@ -2,8 +2,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { loginRequest, logoutRequest, type AuthUser } from "@/lib/auth-api";
 import { AUTH_USER_KEY, clearSession, getAuthToken, setAuthToken } from "@/lib/auth-token";
 
-// Only tenant admins may use this portal. The backend returns this role value.
-const TENANT_ROLE = "tenantAdmin";
+// Roles are dynamic — the backend can return many different role names, and any
+// of them may sign in here. The only exception is the platform super admin, who
+// belongs on the Collectrix super admin portal instead. (Per-module role-based
+// access control is handled separately, not at login.)
+const SUPER_ADMIN_ROLE = "superAdmin";
 
 type Ctx = {
   user: AuthUser | null;
@@ -33,8 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const { token, user: u } = await loginRequest(email, password);
-    if (u.role !== TENANT_ROLE) {
-      throw new Error("Access denied. This portal is for tenant administrators only.");
+    if (u.role === SUPER_ADMIN_ROLE) {
+      throw new Error("Super admins should sign in to the Collectrix super admin portal instead.");
     }
     setAuthToken(token);
     setUser(u);
