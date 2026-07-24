@@ -12,6 +12,7 @@ import {
   Phone,
   LibraryBig,
   Inbox,
+  Tag,
 } from "lucide-react";
 
 export type NavSubItem = {
@@ -161,6 +162,18 @@ export const tenantGroups: NavGroup[] = [
         icon: Settings,
         description: "Workspace, operating hours and connectors",
         keywords: "settings workspace organization hours timezone email twilio sms connectors",
+      },
+    ],
+  },
+  {
+    label: "System Configuration",
+    items: [
+      {
+        to: "/tenant/settings/statuses",
+        label: "Statuses",
+        icon: Tag,
+        description: "Define the account lifecycle for your firm",
+        keywords: "statuses status lifecycle account codes pills workflow configuration",
       },
     ],
   },

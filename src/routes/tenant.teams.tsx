@@ -16,8 +16,11 @@ import {
   Trash2,
   AlertTriangle,
   Phone,
+  Building2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion, type Variants } from "motion/react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import {
   getTeamsCardView,
@@ -33,6 +36,7 @@ import {
   formatPhoneNo,
   type TeamCard,
   type LeaderGroup,
+  type OrgTeam,
   type SelectableUser,
   type TeamPhoneNumber,
 } from "@/lib/teams-api";
@@ -331,84 +335,189 @@ function TeamsPage() {
   );
 }
 
-function OrgChartView({ leaderGroups }: { leaderGroups: LeaderGroup[] }) {
-  const leaders = [...leaderGroups].sort((a, b) => b.teamList.length - a.teamList.length);
+/** Two-letter initials for an avatar fallback. */
+function initials(u: { firstName?: string | null; lastName?: string | null }) {
+  const f = (u.firstName ?? "").trim();
+  const l = (u.lastName ?? "").trim();
+  const combo = `${f ? f[0] : ""}${l ? l[0] : ""}`.trim();
+  return (combo || f.slice(0, 2) || "?").toUpperCase();
+}
+
+/** Deterministic, accessible tone for an avatar based on user id. */
+const AVATAR_TONES = [
+  "bg-tenant-soft text-tenant",
+  "bg-info/15 text-info-foreground",
+  "bg-success/15 text-success",
+  "bg-warning/20 text-warning-foreground",
+  "bg-destructive/15 text-destructive",
+];
+function toneFor(id: number) {
+  return AVATAR_TONES[Math.abs(id) % AVATAR_TONES.length];
+}
+
+/** Full team roster, rendered inline — every member is always visible, no clicking. */
+function MemberRoster({ team }: { team: OrgTeam }) {
+  const members = team.teamMembers ?? [];
+
+  if (members.length === 0) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-lg border border-dashed border-border/70 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
+        <UsersRound className="h-3.5 w-3.5" aria-hidden="true" /> No members yet
+      </div>
+    );
+  }
 
   return (
-    <section className="px-6 lg:px-10 py-6">
-      <div className="rounded-2xl border border-border bg-card shadow-elegant p-6 overflow-x-auto">
-        <div className="flex flex-col items-center gap-8 min-w-max">
-          {/* Org root */}
-          <div className="px-5 py-3 rounded-xl bg-gradient-tenant text-white shadow-tenant font-display font-bold">
-            Organization
-          </div>
-          <div className="w-px h-6 bg-border" />
+    <ul className="space-y-1" aria-label={`Members of ${team.teamName}`}>
+      {members.map((u) => (
+        <li
+          key={u.userId}
+          className="flex items-center gap-2 rounded-md bg-background/60 px-2 py-1.5"
+        >
+          <Avatar className="h-6 w-6 shrink-0">
+            <AvatarFallback className={`text-[9px] font-bold ${toneFor(u.userId)}`}>
+              {initials(u)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="min-w-0 flex-1 truncate text-[11px] font-medium" title={u.emailId}>
+            {fullName(u) || u.emailId}
+          </span>
+          {u.role && (
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {u.role}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-          {/* Leaders row */}
-          <div className="flex items-start gap-10">
+function OrgChartView({ leaderGroups }: { leaderGroups: LeaderGroup[] }) {
+  const reduce = useReducedMotion();
+  const leaders = [...leaderGroups].sort((a, b) => b.teamList.length - a.teamList.length);
+
+  const container: Variants = {
+    hidden: {},
+    show: { transition: { staggerChildren: reduce ? 0 : 0.06, delayChildren: reduce ? 0 : 0.1 } },
+  };
+  const item: Variants = {
+    hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 14 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+  };
+
+  if (leaders.length === 0) {
+    return (
+      <section className="px-6 py-6 lg:px-10">
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-card px-6 py-16 text-center shadow-elegant">
+          <Network className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm font-semibold">No teams to chart yet</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Create a team and assign a leader to see your organization branch out here.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="px-6 py-6 lg:px-10">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-elegant md:p-8">
+        <div className="flex flex-col items-center">
+          {/* Org root */}
+          <motion.div
+            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-tenant px-5 py-3 font-display font-bold text-white shadow-tenant"
+          >
+            <Building2 className="h-4 w-4" aria-hidden="true" /> Organization
+          </motion.div>
+          <div className="h-6 w-px bg-border" aria-hidden="true" />
+
+          {/* Leader branches — wrap responsively so nothing gets clipped */}
+          <motion.ul
+            variants={container}
+            initial="hidden"
+            animate="show"
+            aria-label="Team leaders and their teams"
+            className="flex w-full flex-wrap justify-center gap-5"
+          >
             {leaders.map((lg) => {
               const leader = fullName({
                 firstName: lg.leaderFirstName,
                 lastName: lg.leaderLastName,
               });
+              const teams = lg.teamList ?? [];
               return (
-                <div key={lg.leaderId} className="flex flex-col items-center gap-4">
-                  {/* Leader node */}
-                  <div className="px-4 py-3 rounded-xl border-2 border-tenant bg-tenant-soft text-center min-w-[180px]">
-                    <div className="inline-flex items-center gap-1.5 text-sm font-bold">
-                      <Crown className="h-3.5 w-3.5 text-warning" /> {leader || "—"}
-                    </div>
-                    <div className="mt-1 text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">
-                      {lg.teamList.length > 1 ? `Leads ${lg.teamList.length} teams` : "Team leader"}
+                <motion.li
+                  key={lg.leaderId}
+                  variants={item}
+                  className="flex w-full max-w-[320px] flex-col rounded-2xl border-2 border-[color:var(--tenant)]/30 bg-tenant-soft/40 p-4 sm:w-[320px]"
+                >
+                  {/* Leader header */}
+                  <div className="flex items-center gap-3">
+                    <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-tenant bg-card text-sm font-bold text-tenant">
+                      {initials({
+                        firstName: lg.leaderFirstName,
+                        lastName: lg.leaderLastName,
+                      })}
+                      <Crown
+                        className="absolute -right-1.5 -top-1.5 h-4 w-4 rounded-full bg-card p-0.5 text-warning"
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-bold">{leader || "—"}</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {teams.length > 1
+                          ? `Leads ${teams.length} teams`
+                          : teams.length === 1
+                            ? "Team leader"
+                            : "No teams"}
+                      </div>
                     </div>
                   </div>
-
-                  {lg.teamList.length > 0 && <div className="w-px h-5 bg-border" />}
 
                   {/* Teams under this leader */}
-                  <div className="flex items-start gap-4">
-                    {lg.teamList.map((t) => {
-                      const members = t.teamMembers ?? [];
-                      return (
-                        <div key={t.teamId} className="flex flex-col items-center gap-3">
-                          <div className="px-3 py-2.5 rounded-lg border border-border bg-card text-center min-w-[160px] shadow-sm">
-                            <div className="text-sm font-semibold">{t.teamName}</div>
-                            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <UsersRound className="h-3 w-3" /> {members.length}{" "}
-                              {members.length === 1 ? "member" : "members"}
+                  {teams.length > 0 ? (
+                    <ul className="mt-3 space-y-2 border-t border-[color:var(--tenant)]/15 pt-3">
+                      {teams.map((t) => {
+                        const members = t.teamMembers ?? [];
+                        return (
+                          <li
+                            key={t.teamId}
+                            className="rounded-xl border border-border bg-card p-3 shadow-sm"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="truncate text-sm font-semibold">{t.teamName}</div>
+                              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+                                <UsersRound className="h-3 w-3" aria-hidden="true" />
+                                {members.length}
+                              </span>
                             </div>
-                          </div>
-                          {members.length > 0 && <div className="w-px h-4 bg-border" />}
-                          <div className="flex flex-col gap-1 items-center">
-                            {members.slice(0, 4).map((u) => (
-                              <div
-                                key={u.userId}
-                                className="px-2.5 py-1 rounded-md bg-muted text-[11px] font-medium"
-                                title={u.emailId}
-                              >
-                                {fullName(u) || u.emailId}
-                              </div>
-                            ))}
-                            {members.length > 4 && (
-                              <div className="text-[10px] text-muted-foreground">
-                                +{members.length - 4} more
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                            <div className="mt-2">
+                              <MemberRoster team={t} />
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="mt-3 border-t border-[color:var(--tenant)]/15 pt-3 text-[11px] text-muted-foreground">
+                      No teams assigned yet.
+                    </p>
+                  )}
+                </motion.li>
               );
             })}
-          </div>
+          </motion.ul>
         </div>
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        A user can lead multiple teams — they appear once as a leader node with all their teams
-        branching beneath.
+        A user can lead multiple teams — they appear once as a leader with all their teams branching
+        beneath. Select a team's member stack to view its full roster.
       </p>
     </section>
   );

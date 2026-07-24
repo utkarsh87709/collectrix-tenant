@@ -62,8 +62,27 @@ function isActivePath(pathname: string, to: string): boolean {
   return pathname === to || pathname.startsWith(to + "/");
 }
 
+// Every nav destination (items + submodules). Used to resolve the *most
+// specific* match so a parent like /tenant/settings doesn't also light up when
+// a nested route like /tenant/settings/statuses is its own nav item.
+const ALL_DESTINATIONS: string[] = tenantGroups.flatMap((g) =>
+  g.items.flatMap((i) => [i.to, ...(i.submodules?.map((s) => s.to) ?? [])]),
+);
+
+function bestMatch(pathname: string): string | null {
+  let best: string | null = null;
+  for (const to of ALL_DESTINATIONS) {
+    if (isActivePath(pathname, to) && (best === null || to.length > best.length)) {
+      best = to;
+    }
+  }
+  return best;
+}
+
 function isActiveFor(pathname: string, item: NavItem): boolean {
-  return isActivePath(pathname, item.to);
+  // Active only when this item is the closest matching destination — prevents a
+  // parent prefix from staying highlighted alongside a more specific child.
+  return isActivePath(pathname, item.to) && bestMatch(pathname) === item.to;
 }
 
 function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
