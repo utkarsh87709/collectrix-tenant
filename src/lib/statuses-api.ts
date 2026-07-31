@@ -1,9 +1,9 @@
 // Status configuration calls to the separately-hosted backend. Tenants define
 // their own account-lifecycle statuses (code, display name, pill colour).
-//   POST /tenant/getAllStatus {}                                          -> { statusList[] } | Status[]
-//   POST /tenant/createStatus { statusCode, status, statusColorCode }     -> {}
-//   POST /tenant/updateStatus { statusId, statusCode, status, statusColorCode } -> {}
-//   POST /tenant/deleteStatus { statusId }                                -> {}
+//   POST /tenant/getAllStatus {}                                                     -> { statusList[] } | Status[]
+//   POST /tenant/createStatus { statusCode, status, statusColorCode, aiContext }      -> {}
+//   POST /tenant/updateStatus { statusId, statusCode, status, statusColorCode, aiContext } -> {}
+//   POST /tenant/deleteStatus { statusId }                                            -> {}
 // updateStatus propagates to any debtor already on that status; deleteStatus
 // fails (meta.status:false) when the status is still assigned to a debtor.
 // All authenticated with the raw token (attached automatically by apiPost).
@@ -17,6 +17,9 @@ export type Status = {
   status: string;
   /** Pill colour, hex (e.g. "#1EC9A0"). */
   statusColorCode: string;
+  /** Free-text guidance handed to the AI agent when a file sits on this status.
+   *  Null/empty when the tenant hasn't written any. */
+  aiContext?: string | null;
   /** 1 when this is the status new debtors start on (set via Status Automation). */
   initialStatusFlag?: number;
 };
@@ -25,6 +28,8 @@ export type StatusInput = {
   statusCode: string;
   status: string;
   statusColorCode: string;
+  /** Optional AI guidance; send "" to clear it. */
+  aiContext?: string;
 };
 
 export async function getAllStatus(): Promise<Status[]> {
@@ -37,11 +42,12 @@ export async function getAllStatus(): Promise<Status[]> {
 }
 
 export function createStatus(input: StatusInput): Promise<unknown> {
-  return apiPost("/tenant/createStatus", { ...input });
+  return apiPost("/tenant/createStatus", { ...input, aiContext: input.aiContext ?? "" });
 }
 
 export function updateStatus(input: StatusInput & { statusId: number }): Promise<unknown> {
-  return apiPost("/tenant/updateStatus", { ...input });
+  // Always send aiContext — omitting it would leave stale guidance in place.
+  return apiPost("/tenant/updateStatus", { ...input, aiContext: input.aiContext ?? "" });
 }
 
 export function deleteStatus(statusId: number): Promise<unknown> {

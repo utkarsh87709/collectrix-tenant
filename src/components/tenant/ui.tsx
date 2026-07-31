@@ -1,4 +1,40 @@
-import type { ReactNode } from "react";
+import type { ReactNode, SelectHTMLAttributes } from "react";
+import { ChevronDown } from "lucide-react";
+
+/**
+ * Native <select> with a predictable box.
+ *
+ * Left to the UA, a select is sized by its own font metrics — Safari and iOS in
+ * particular ignore most of the padding and render a cramped control that
+ * doesn't match the inputs next to it. `appearance-none` plus an explicit height
+ * takes that back, so the chevron has to be drawn by hand.
+ *
+ * "md" matches a standard form input; "sm" is for the dense grids inside cards.
+ */
+export function NativeSelect({
+  size = "md",
+  className = "",
+  ...props
+  // `size` on a native select is a row count; this one is a style token, so the
+  // DOM attribute is deliberately shadowed rather than forwarded.
+}: Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> & { size?: "sm" | "md" }) {
+  const box = size === "md" ? "h-11 pl-3 pr-9 text-sm" : "h-9 pl-2.5 pr-8 text-sm";
+  return (
+    <div className={`relative ${className}`}>
+      <select
+        {...props}
+        className={`w-full ${box} rounded-lg border border-border bg-background cursor-pointer appearance-none truncate focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:cursor-default disabled:opacity-60`}
+      >
+        {props.children}
+      </select>
+      <ChevronDown
+        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground ${
+          size === "md" ? "right-3 h-4 w-4" : "right-2.5 h-3.5 w-3.5"
+        }`}
+      />
+    </div>
+  );
+}
 
 export function PageCard({
   children,

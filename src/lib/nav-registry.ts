@@ -13,6 +13,7 @@ import {
   LibraryBig,
   Inbox,
   Tag,
+  Zap,
 } from "lucide-react";
 
 export type NavSubItem = {
@@ -174,6 +175,14 @@ export const tenantGroups: NavGroup[] = [
         icon: Tag,
         description: "Define the account lifecycle for your firm",
         keywords: "statuses status lifecycle account codes pills workflow configuration",
+      },
+      {
+        to: "/tenant/settings/status-automation",
+        label: "Status Automation",
+        icon: Zap,
+        description: "Automated behaviour per status, for each team and client",
+        keywords:
+          "status automation outreach follow-up initial status team client archive inactivity documents ai voice",
       },
     ],
   },

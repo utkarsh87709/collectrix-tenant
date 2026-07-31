@@ -9,7 +9,16 @@
 // All authenticated with the raw token (attached automatically by apiPost).
 import { apiPost } from "./api-client";
 
-export type TemplateType = "email" | "sms";
+/** Message channels a template can belong to — one client list per type. */
+export type TemplateType = "email" | "sms" | "call";
+
+/**
+ * Every library getClientTemplate can read. "aiPrompt" holds the AI agents
+ * (named system prompts such as "Firm Reminder") that generate message bodies
+ * when a channel's source is AI rather than a fixed template; it has no client
+ * list of its own on getTemplateClients.
+ */
+export type LibraryType = TemplateType | "aiPrompt";
 
 /** A client that can own templates, as returned by getTemplateClients. */
 export type TemplateClient = { clientId: number; clientName: string };
@@ -19,7 +28,7 @@ export type Template = {
   createdAt: string;
   updatedAt: string;
   clientId: number;
-  templateType: TemplateType;
+  templateType: LibraryType;
   templateName: string;
   /** Empty string for SMS templates. */
   templateSubject: string;
@@ -29,13 +38,14 @@ export type Template = {
 export function getTemplateClients(): Promise<{
   emailClientList: TemplateClient[];
   smsClientList: TemplateClient[];
+  callClientList: TemplateClient[];
 }> {
   return apiPost("/tenant/getTemplateClients");
 }
 
 export async function getClientTemplate(input: {
   clientId: number;
-  templateType: TemplateType;
+  templateType: LibraryType;
 }): Promise<Template[]> {
   const res = await apiPost<{ templateList: Template[] }>("/tenant/getClientTemplate", {
     ...input,

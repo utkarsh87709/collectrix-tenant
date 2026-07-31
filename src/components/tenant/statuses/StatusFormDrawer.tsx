@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { StatusPill } from "./StatusPill";
 import { isValidHex, type Status } from "@/lib/statuses-api";
 import { cn } from "@/lib/utils";
@@ -10,9 +11,11 @@ export type StatusDraft = {
   status: string;
   statusCode: string;
   statusColorCode: string;
+  aiContext: string;
 };
 
 const DEFAULT_COLOR = "#1EC9A0";
+const AI_CONTEXT_MAX = 2000;
 
 /**
  * Right-side drawer for creating or editing a status. Purely local — the parent
@@ -40,6 +43,7 @@ export function StatusFormDrawer({
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [color, setColor] = useState(DEFAULT_COLOR);
+  const [aiContext, setAiContext] = useState("");
   const [touched, setTouched] = useState(false);
 
   // Reset the form whenever the drawer opens for a new target.
@@ -48,6 +52,7 @@ export function StatusFormDrawer({
     setName(status?.status ?? "");
     setCode(status?.statusCode ?? "");
     setColor(status?.statusColorCode ?? DEFAULT_COLOR);
+    setAiContext(status?.aiContext ?? "");
     setTouched(false);
   }, [open, status]);
 
@@ -74,7 +79,12 @@ export function StatusFormDrawer({
   const handleSave = () => {
     setTouched(true);
     if (!valid) return;
-    onSave({ status: trimmedName, statusCode: trimmedCode, statusColorCode: color });
+    onSave({
+      status: trimmedName,
+      statusCode: trimmedCode,
+      statusColorCode: color,
+      aiContext: aiContext.trim(),
+    });
   };
 
   return (
@@ -161,6 +171,24 @@ export function StatusFormDrawer({
                 className="h-11 font-mono"
               />
             </div>
+          </Field>
+
+          {/* AI context */}
+          <Field
+            label="AI Context"
+            help="Guidance for the AI agent when a file sits on this status — what it means and how to handle the account. Optional."
+          >
+            <Textarea
+              value={aiContext}
+              onChange={(e) => setAiContext(e.target.value.slice(0, AI_CONTEXT_MAX))}
+              placeholder="e.g. Debtor has agreed to a payment plan. Confirm the next installment date and do not offer a new settlement."
+              rows={5}
+              maxLength={AI_CONTEXT_MAX}
+              className="resize-y"
+            />
+            <p className="text-xs text-muted-foreground text-right">
+              {aiContext.length} / {AI_CONTEXT_MAX}
+            </p>
           </Field>
         </div>
 

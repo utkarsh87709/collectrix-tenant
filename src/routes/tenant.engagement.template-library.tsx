@@ -107,7 +107,13 @@ function TemplateLibraryPage() {
     setClientsError(null);
     try {
       const res = await getTemplateClients();
-      setClients({ email: res.emailClientList ?? [], sms: res.smsClientList ?? [] });
+      // `call` is carried for type completeness — this screen only tabs between
+      // email and SMS; call/AI-prompt templates are managed elsewhere.
+      setClients({
+        email: res.emailClientList ?? [],
+        sms: res.smsClientList ?? [],
+        call: res.callClientList ?? [],
+      });
     } catch (e) {
       setClientsError(e instanceof Error ? e.message : "Failed to load clients.");
     } finally {
@@ -181,10 +187,7 @@ function TemplateLibraryPage() {
   }, [clientList]);
 
   const clientTemplates = useMemo(
-    () =>
-      (templates ?? [])
-        .slice()
-        .sort((a, b) => a.templateName.localeCompare(b.templateName)),
+    () => (templates ?? []).slice().sort((a, b) => a.templateName.localeCompare(b.templateName)),
     [templates],
   );
 
@@ -275,12 +278,9 @@ function TemplateLibraryPage() {
           ) : error ? (
             <ErrorState
               message={error}
-              onRetry={() =>
-                selectedClientId != null && loadTemplates(channel, selectedClientId)
-              }
+              onRetry={() => selectedClientId != null && loadTemplates(channel, selectedClientId)}
             />
-          ) : clientsLoading ||
-            (clientList.length > 0 && (loading || templates === undefined)) ? (
+          ) : clientsLoading || (clientList.length > 0 && (loading || templates === undefined)) ? (
             <div className="flex items-center justify-center py-24 text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>

@@ -1,610 +1,647 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  AlertTriangle,
+  Building2,
+  Loader2,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
-import { PageCard, CardHead, Pill } from "@/components/tenant/ui";
-import { findStatus } from "@/lib/status-mock";
-import { templates as allTemplates } from "@/lib/comms-mock";
+import { NativeSelect, PageCard } from "@/components/tenant/ui";
+import { StatusPill } from "@/components/tenant/statuses/StatusPill";
+import { InitialStatusCard } from "@/components/tenant/statuses/InitialStatusCard";
 import {
-  ChevronLeft,
-  Mail,
-  MessageSquare,
-  Phone,
-  Plus,
-  Trash2,
-  Zap,
-  Save,
-  RotateCcw,
-  X,
-  AlertCircle,
-  Eye,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import { toast } from "sonner";
+  StatusAutomationCard,
+  type MemberOption,
+  type TemplateOption,
+} from "@/components/tenant/statuses/StatusAutomationCard";
+import { getTeamList, type TeamListItem } from "@/lib/teams-api";
+import { getTeamDeckAssignUserList, memberName } from "@/lib/team-deck-api";
+import { getClientTemplate, type LibraryType } from "@/lib/template-library-api";
+import {
+  CHANNEL_LABEL,
+  CHANNEL_ORDER,
+  allowedChannels,
+  configFromDetails,
+  emptyAutomationConfig,
+  formatDuration,
+  getClientList,
+  getClientTeamStatusList,
+  getStatusAutomationDetails,
+  getStatusAutomationList,
+  payloadFromConfig,
+  templateTypeFor,
+  toMinutes,
+  updateAutomation,
+  validateAutomation,
+  type AutomationClient,
+  type ChannelKey,
+  type ClientTeamStatus,
+  type MessageSource,
+  type StatusAutomationConfig,
+  type StatusAutomationRow,
+} from "@/lib/status-automation-api";
 
 export const Route = createFileRoute("/tenant/settings/status-automation")({
   head: () => ({ meta: [{ title: "Status Automation · Tenant Admin" }] }),
   component: StatusAutomationPage,
 });
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-type ChannelKey = "email" | "sms" | "voice";
+/** Every Template Library list the editor can offer, keyed by template type. */
+type TemplateSets = Record<LibraryType, TemplateOption[]>;
 
-type ChannelConfig = {
-  enabled: boolean;
-  startAfterDays: number;
-  templateId: string;
-};
+const EMPTY_TEMPLATE_SETS: TemplateSets = { email: [], sms: [], call: [], aiPrompt: [] };
 
-type FollowUp = {
-  id: string;
-  channel: ChannelKey;
-  afterDays: number;
-  templateId: string;
-};
-
-type StatusRule = {
-  statusCode: string;
-  enabled: boolean;
-  channels: Record<ChannelKey, ChannelConfig>;
-  followUpsEnabled: boolean;
-  followUps: FollowUp[];
-  // Broken Promise only
-  escalateToLegal?: boolean;
-};
-
-const CHANNEL_META: Record<ChannelKey, { label: string; icon: typeof Mail }> = {
-  email: { label: "Email", icon: Mail },
-  sms: { label: "SMS", icon: MessageSquare },
-  voice: { label: "AI Voice Call", icon: Phone },
-};
-
-const STATUS_CODES = ["ACT", "PPD", "BRP", "PPA", "PTP"] as const;
-
-const DEFAULT_RULES: Record<string, StatusRule> = {
-  ACT: {
-    statusCode: "ACT",
-    enabled: true,
-    followUpsEnabled: true,
-    channels: {
-      email: { enabled: true, startAfterDays: 5, templateId: "tpl-001" },
-      sms: { enabled: true, startAfterDays: 15, templateId: "tpl-005" },
-      voice: { enabled: true, startAfterDays: 10, templateId: "tpl-006" },
-    },
-    followUps: [
-      { id: "fu1", channel: "sms", afterDays: 3, templateId: "tpl-005" },
-      { id: "fu2", channel: "email", afterDays: 5, templateId: "tpl-002" },
-      { id: "fu3", channel: "voice", afterDays: 7, templateId: "tpl-006" },
-    ],
-  },
-  PPD: {
-    statusCode: "PPD",
-    enabled: true,
-    followUpsEnabled: true,
-    channels: {
-      email: { enabled: true, startAfterDays: 1, templateId: "tpl-002" },
-      sms: { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
-      voice: { enabled: false, startAfterDays: 3, templateId: "tpl-006" },
-    },
-    followUps: [
-      { id: "fu1", channel: "sms", afterDays: 2, templateId: "tpl-004" },
-      { id: "fu2", channel: "voice", afterDays: 4, templateId: "tpl-006" },
-    ],
-  },
-  BRP: {
-    statusCode: "BRP",
-    enabled: true,
-    followUpsEnabled: true,
-    escalateToLegal: true,
-    channels: {
-      email: { enabled: true, startAfterDays: 1, templateId: "tpl-002" },
-      sms: { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
-      voice: { enabled: true, startAfterDays: 2, templateId: "tpl-006" },
-    },
-    followUps: [
-      { id: "fu1", channel: "voice", afterDays: 3, templateId: "tpl-006" },
-      { id: "fu2", channel: "email", afterDays: 5, templateId: "tpl-003" },
-    ],
-  },
-  PPA: {
-    statusCode: "PPA",
-    enabled: true,
-    followUpsEnabled: true,
-    channels: {
-      email: { enabled: true, startAfterDays: 2, templateId: "tpl-002" },
-      sms: { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
-      voice: { enabled: false, startAfterDays: 3, templateId: "tpl-006" },
-    },
-    followUps: [
-      { id: "fu1", channel: "sms", afterDays: 7, templateId: "tpl-004" },
-      { id: "fu2", channel: "email", afterDays: 14, templateId: "tpl-002" },
-    ],
-  },
-  PTP: {
-    statusCode: "PTP",
-    enabled: true,
-    followUpsEnabled: true,
-    channels: {
-      email: { enabled: true, startAfterDays: 1, templateId: "tpl-002" },
-      sms: { enabled: true, startAfterDays: 1, templateId: "tpl-004" },
-      voice: { enabled: false, startAfterDays: 2, templateId: "tpl-006" },
-    },
-    followUps: [
-      { id: "fu1", channel: "sms", afterDays: 1, templateId: "tpl-004" },
-      { id: "fu2", channel: "email", afterDays: 3, templateId: "tpl-002" },
-    ],
-  },
-};
-
-function cloneDefaults(): Record<string, StatusRule> {
-  return JSON.parse(JSON.stringify(DEFAULT_RULES));
-}
-
-function templatesForChannel(ch: ChannelKey) {
-  const channelFilter = ch === "voice" ? "voice" : ch;
-  return allTemplates.filter((t) => t.channel === channelFilter);
-}
-
-function validateRule(r: StatusRule): string | null {
-  if (!r.enabled) return null;
-  const enabledChannels = (Object.keys(r.channels) as ChannelKey[]).filter(
-    (c) => r.channels[c].enabled,
-  );
-  if (enabledChannels.length === 0) return "Enable at least one channel.";
-  for (const c of enabledChannels) {
-    if (!r.channels[c].templateId) return `Select a template for ${CHANNEL_META[c].label}.`;
-  }
-  if (r.followUpsEnabled) {
-    for (const fu of r.followUps) {
-      if (!fu.templateId) return "All follow-ups must have a template.";
-    }
-  }
-  return null;
-}
-
-// ─── Page ───────────────────────────────────────────────────────────────────
 function StatusAutomationPage() {
-  const [rules, setRules] = useState<Record<string, StatusRule>>(cloneDefaults());
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ ACT: true });
-  const [previewing, setPreviewing] = useState<string | null>(null);
+  // ── Selection ───────────────────────────────────────────────────────────
+  const [teams, setTeams] = useState<TeamListItem[]>([]);
+  const [clients, setClients] = useState<AutomationClient[]>([]);
+  const [teamId, setTeamId] = useState<number | null>(null);
+  const [clientId, setClientId] = useState<number | null>(null);
+  const [pickersLoading, setPickersLoading] = useState(true);
+  const [pickersError, setPickersError] = useState<string | null>(null);
 
-  const update = (code: string, patch: Partial<StatusRule>) =>
-    setRules((p) => ({ ...p, [code]: { ...p[code], ...patch } }));
+  // ── Per-pair data ───────────────────────────────────────────────────────
+  const [statusList, setStatusList] = useState<ClientTeamStatus[]>([]);
+  const [rows, setRows] = useState<StatusAutomationRow[]>([]);
+  const [configs, setConfigs] = useState<Record<number, StatusAutomationConfig>>({});
+  const [templates, setTemplates] = useState<TemplateSets>(EMPTY_TEMPLATE_SETS);
+  const [members, setMembers] = useState<MemberOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  /** Statuses whose getStatusAutomationDetails call is still in flight. */
+  const [detailsLoading, setDetailsLoading] = useState<Record<number, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
 
-  const updateChannel = (code: string, ch: ChannelKey, patch: Partial<ChannelConfig>) =>
-    setRules((p) => ({
-      ...p,
-      [code]: {
-        ...p[code],
-        channels: { ...p[code].channels, [ch]: { ...p[code].channels[ch], ...patch } },
-      },
-    }));
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [previewing, setPreviewing] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const updateFollowUp = (code: string, id: string, patch: Partial<FollowUp>) =>
-    setRules((p) => ({
-      ...p,
-      [code]: {
-        ...p[code],
-        followUps: p[code].followUps.map((f) => (f.id === id ? { ...f, ...patch } : f)),
-      },
-    }));
+  /** Baseline for dirty-checking and "Discard changes". */
+  const [baseline, setBaseline] = useState<Record<number, StatusAutomationConfig>>({});
 
-  const addFollowUp = (code: string) =>
-    setRules((p) => ({
-      ...p,
-      [code]: {
-        ...p[code],
-        followUps: [
-          ...p[code].followUps,
-          {
-            id: `fu${Date.now()}`,
-            channel: "sms",
-            afterDays: 3,
-            templateId: templatesForChannel("sms")[0]?.id ?? "",
-          },
+  const team = useMemo(() => teams.find((t) => t.teamId === teamId) ?? null, [teams, teamId]);
+  const client = useMemo(
+    () => clients.find((c) => c.clientId === clientId) ?? null,
+    [clients, clientId],
+  );
+  const allowed = useMemo(() => allowedChannels(client), [client]);
+
+  /* --------------------------- pickers (once) --------------------------- */
+
+  const loadPickers = useCallback(async () => {
+    setPickersLoading(true);
+    setPickersError(null);
+    try {
+      const [teamRes, clientRes] = await Promise.all([getTeamList(), getClientList()]);
+      const teamList = teamRes?.teamList ?? [];
+      setTeams(teamList);
+      setClients(clientRes);
+      // Teams and clients are independent — default to the first of each so the
+      // page lands on real data instead of an empty state.
+      setTeamId((prev) => prev ?? teamList[0]?.teamId ?? null);
+      setClientId((prev) => prev ?? clientRes[0]?.clientId ?? null);
+    } catch (e) {
+      setPickersError(e instanceof Error ? e.message : "Failed to load teams and clients.");
+    } finally {
+      setPickersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPickers();
+  }, [loadPickers]);
+
+  /* ------------------------- per-pair data load ------------------------- */
+
+  // Guards against a slow response for a previous team+client landing after the
+  // user has already switched selection.
+  const reqId = useRef(0);
+
+  const loadPair = useCallback(async (cId: number, tId: number) => {
+    const id = ++reqId.current;
+    setLoading(true);
+    setError(null);
+    // Superseded detail fetches never reach their finally, so clear the flags
+    // here rather than leaving Save disabled on the new pair.
+    setDetailsLoading({});
+    try {
+      const [statuses, automationRows, assignUsers, email, sms, call, aiPrompt] = await Promise.all(
+        [
+          getClientTeamStatusList({ clientId: cId, teamId: tId }),
+          getStatusAutomationList({ clientId: cId, teamId: tId }),
+          getTeamDeckAssignUserList(tId),
+          getClientTemplate({ clientId: cId, templateType: "email" }),
+          getClientTemplate({ clientId: cId, templateType: "sms" }),
+          // AI voice agents are `call` entries; AI-written email/SMS use aiPrompt.
+          getClientTemplate({ clientId: cId, templateType: "call" }),
+          getClientTemplate({ clientId: cId, templateType: "aiPrompt" }),
         ],
-      },
-    }));
+      );
+      if (reqId.current !== id) return;
 
-  const removeFollowUp = (code: string, id: string) =>
-    setRules((p) => ({
-      ...p,
-      [code]: { ...p[code], followUps: p[code].followUps.filter((f) => f.id !== id) },
-    }));
+      setStatusList(statuses);
+      setRows(automationRows);
+      setTemplates({
+        email: email.map((t) => ({ id: t.templateId, name: t.templateName })),
+        sms: sms.map((t) => ({ id: t.templateId, name: t.templateName })),
+        call: call.map((t) => ({ id: t.templateId, name: t.templateName })),
+        aiPrompt: aiPrompt.map((t) => ({ id: t.templateId, name: t.templateName })),
+      });
+      setMembers(
+        (assignUsers.assignUserList ?? []).map((m) => ({ userId: m.userId, name: memberName(m) })),
+      );
 
-  const handleSave = () => {
-    for (const code of STATUS_CODES) {
-      const err = validateRule(rules[code]);
+      // Seed from the list, then fill in saved settings for the statuses that
+      // have them. A null automationId means this status has never been saved
+      // for the pair, so there is nothing to fetch.
+      const seeded: Record<number, StatusAutomationConfig> = {};
+      for (const row of automationRows) {
+        seeded[row.statusId] = {
+          ...emptyAutomationConfig(row.statusId),
+          automationId: row.automationId,
+          enabled: row.enabledFlag === 1,
+        };
+      }
+      setConfigs(seeded);
+      setBaseline(structuredClone(seeded));
+      setLoading(false);
+
+      const configured = automationRows.filter((r) => r.automationId != null);
+      if (configured.length === 0) return;
+      setDetailsLoading(Object.fromEntries(configured.map((r) => [r.statusId, true])));
+
+      // Details are loaded up front rather than on expand: the toggle in each
+      // collapsed header can save the status, and saving is a full replace, so
+      // an unloaded card would silently wipe what the backend holds.
+      await Promise.all(
+        configured.map(async (row) => {
+          try {
+            const details = await getStatusAutomationDetails(row.automationId as number);
+            if (reqId.current !== id) return;
+            const cfg = configFromDetails(details);
+            setConfigs((prev) => ({ ...prev, [row.statusId]: cfg }));
+            setBaseline((prev) => ({ ...prev, [row.statusId]: structuredClone(cfg) }));
+          } catch (e) {
+            if (reqId.current !== id) return;
+            toast.error(
+              `${row.status}: ${e instanceof Error ? e.message : "could not load saved settings"}`,
+            );
+          } finally {
+            if (reqId.current === id) {
+              setDetailsLoading((prev) => ({ ...prev, [row.statusId]: false }));
+            }
+          }
+        }),
+      );
+    } catch (e) {
+      if (reqId.current !== id) return;
+      setError(e instanceof Error ? e.message : "Failed to load status automation.");
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!clientId || !teamId) return;
+    // Collapse on a pair switch only — a reload after saving keeps cards open.
+    setExpanded({});
+    loadPair(clientId, teamId);
+  }, [clientId, teamId, loadPair]);
+
+  /* ----------------------------- editing -------------------------------- */
+
+  const patchConfig = (statusId: number, patch: Partial<StatusAutomationConfig>) =>
+    setConfigs((prev) => ({ ...prev, [statusId]: { ...prev[statusId], ...patch } }));
+
+  const dirtyIds = useMemo(
+    () =>
+      Object.keys(configs)
+        .map(Number)
+        .filter((id) => JSON.stringify(configs[id]) !== JSON.stringify(baseline[id])),
+    [configs, baseline],
+  );
+
+  const anyDetailsLoading = useMemo(
+    () => Object.values(detailsLoading).some(Boolean),
+    [detailsLoading],
+  );
+
+  const templatesFor = useCallback(
+    (channel: ChannelKey, source: MessageSource): TemplateOption[] =>
+      templates[templateTypeFor(channel, source)] ?? [],
+    [templates],
+  );
+
+  const templateName = useCallback(
+    (id: number | null): string => {
+      if (id == null) return "—";
+      for (const list of Object.values(templates)) {
+        const hit = list.find((t) => t.id === id);
+        if (hit) return hit.name;
+      }
+      // The backend does not check that a template belongs to the client, so a
+      // saved id can point outside this client's library.
+      return `#${id} (not in this client's library)`;
+    },
+    [templates],
+  );
+
+  const handleReset = () => {
+    setConfigs(structuredClone(baseline));
+    toast.info("Reverted to the last saved configuration");
+  };
+
+  const handleSave = async () => {
+    if (!clientId || !teamId || !client) return;
+    // Validate everything before writing anything — a partial save would leave
+    // the pair half-configured.
+    for (const row of rows) {
+      const cfg = configs[row.statusId];
+      if (!cfg) continue;
+      const err = validateAutomation(cfg, allowed);
       if (err) {
-        const s = findStatus(code);
-        toast.error(`${s?.displayName ?? code}: ${err}`);
-        setExpanded((p) => ({ ...p, [code]: true }));
+        toast.error(`${row.status}: ${err}`);
+        setExpanded((p) => ({ ...p, [row.statusId]: true }));
         return;
       }
     }
-    toast.success("Status automation rules saved");
+    if (dirtyIds.length === 0) {
+      toast.info("Nothing to save");
+      return;
+    }
+
+    setSaving(true);
+    const saved: number[] = [];
+    try {
+      for (const statusId of dirtyIds) {
+        // One call per status: updateAutomation upserts a single
+        // (client, team, status) row and replaces its follow-ups wholesale.
+        await updateAutomation(
+          payloadFromConfig(configs[statusId], {
+            clientId,
+            teamId,
+            allowed,
+            documentsAllowed: !!client.documentEnabled,
+          }),
+        );
+        saved.push(statusId);
+      }
+      toast.success(`Saved automation for ${saved.length} status${saved.length === 1 ? "" : "es"}`);
+      setSaving(false);
+      // A first save mints the automationId the details endpoint needs, so read
+      // the pair back rather than trusting the local copy.
+      loadPair(clientId, teamId);
+    } catch (e) {
+      const failed = rows.find((r) => r.statusId === dirtyIds[saved.length])?.status ?? "a status";
+      toast.error(
+        `${failed}: ${e instanceof Error ? e.message : "could not save"}${
+          saved.length ? ` (${saved.length} saved before this)` : ""
+        }`,
+      );
+      // Keep the unsaved edits on screen so they can be fixed and retried; only
+      // the statuses that did go through stop counting as dirty.
+      setBaseline((prev) => {
+        const next = { ...prev };
+        for (const statusId of saved) next[statusId] = structuredClone(configs[statusId]);
+        return next;
+      });
+      setSaving(false);
+    }
   };
 
-  const handleReset = () => {
-    setRules(cloneDefaults());
-    toast.info("Reset to defaults");
-  };
+  /* -------------------------------- render ------------------------------ */
+
+  const ready = !!client && !!team && !loading && !error;
 
   return (
     <Shell>
       <Topbar
         title="Status Automation"
-        subtitle="Configure outreach and follow-up rules per debtor status"
+        subtitle="Automated behaviour per status, for each team and client"
         action={
           <div className="flex items-center gap-2">
-            <Link
-              to="/tenant/settings"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
-            >
-              <ChevronLeft className="h-4 w-4" /> Back
-            </Link>
             <button
               onClick={handleReset}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+              disabled={dirtyIds.length === 0 || saving}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
             >
-              <RotateCcw className="h-4 w-4" /> Reset to default
+              <RotateCcw className="h-4 w-4" /> Discard changes
             </button>
             <button
               onClick={handleSave}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+              disabled={!ready || dirtyIds.length === 0 || saving || anyDetailsLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
             >
-              <Save className="h-4 w-4" /> Save changes
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save changes{dirtyIds.length > 0 ? ` (${dirtyIds.length})` : ""}
             </button>
           </div>
         }
       />
 
       <section className="px-6 lg:px-10 pt-6 pb-12 space-y-5">
+        {/* ── Intro ─────────────────────────────────────────────────────── */}
         <PageCard>
           <div className="px-6 py-5 flex items-start gap-3">
-            <div className="shrink-0 mt-0.5 h-9 w-9 rounded-lg bg-tenant-soft text-tenant flex items-center justify-center">
+            <span className="shrink-0 mt-0.5 h-9 w-9 rounded-lg bg-tenant-soft text-tenant flex items-center justify-center">
               <Zap className="h-4 w-4" />
-            </div>
+            </span>
             <div className="space-y-1">
-              <h2 className="font-display text-lg font-bold">Automated outreach rules</h2>
+              <h2 className="font-display text-lg font-bold">Automated behaviour rules</h2>
               <p className="text-sm text-muted-foreground max-w-3xl">
-                These rules drive automated multi-channel outreach when a debtor's status changes.
-                Each status is independently configurable — pick channels, define when the first
-                message goes out, choose a template from your library, and schedule any follow-ups.
-                Configurations are tenant-specific and audit-logged.
+                Automation follows a hierarchy: <strong>Team → Client → status</strong>. Pick a
+                team, then a client, then configure each status — the status new files land in,
+                outreach and follow-ups, who the file is assigned to, documents to generate,
+                auto-archive and inactivity transitions. Rules bind to your own statuses from the
+                Status Builder, so renames carry over automatically. Every change is audit-logged.
               </p>
             </div>
           </div>
         </PageCard>
 
-        {STATUS_CODES.map((code) => {
-          const status = findStatus(code);
-          if (!status) return null;
-          const rule = rules[code];
-          const isOpen = expanded[code] ?? false;
-          const validationError = validateRule(rule);
-          const isReminderStatus = code === "PPA" || code === "PTP";
-
-          return (
-            <PageCard key={code}>
-              <div className="px-6 py-4 flex items-center gap-4 border-b border-border">
-                <button
-                  onClick={() => setExpanded((p) => ({ ...p, [code]: !p[code] }))}
-                  className="flex items-center gap-3 flex-1 text-left min-w-0"
+        {/* ── Team + client pickers ─────────────────────────────────────── */}
+        <PageCard>
+          {pickersLoading ? (
+            <div className="px-6 py-10 flex items-center justify-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading teams and clients…
+            </div>
+          ) : pickersError ? (
+            <ErrorState message={pickersError} onRetry={loadPickers} />
+          ) : (
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 max-w-3xl">
+                <PickerField
+                  icon={<Users className="h-4 w-4 text-muted-foreground" />}
+                  label="Team"
                 >
-                  {isOpen ? (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <Pill tone={status.tone}>
-                    {status.icon} {status.code}
-                  </Pill>
-                  <div className="min-w-0">
-                    <div className="font-semibold">
-                      {status.displayName}
-                      {isReminderStatus && (
-                        <span className="ml-2 text-[10px] uppercase tracking-wider text-tenant border border-tenant/30 rounded px-1.5 py-0.5">
-                          Reminder mode
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {status.description}
-                    </div>
-                  </div>
-                </button>
-                <div className="flex items-center gap-3 shrink-0">
-                  {validationError && rule.enabled && (
-                    <span className="inline-flex items-center gap-1 text-xs text-warning-foreground bg-warning/15 rounded px-2 py-1">
-                      <AlertCircle className="h-3 w-3" /> {validationError}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setPreviewing(code)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs hover:bg-muted"
+                  <NativeSelect
+                    value={teamId ?? ""}
+                    onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : null)}
                   >
-                    <Eye className="h-3.5 w-3.5" /> Preview
-                  </button>
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <span className="text-xs text-muted-foreground">
-                      {rule.enabled ? "Enabled" : "Disabled"}
-                    </span>
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={rule.enabled}
-                      onChange={(e) => update(code, { enabled: e.target.checked })}
-                    />
-                    <span
-                      className={`relative w-10 h-5 ${rule.enabled ? "bg-tenant" : "bg-muted"} rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5`}
-                    />
-                  </label>
-                </div>
+                    <option value="">Select team…</option>
+                    {teams.map((t) => (
+                      <option key={t.teamId} value={t.teamId}>
+                        {t.teamName}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </PickerField>
+
+                <PickerField
+                  icon={<Building2 className="h-4 w-4 text-muted-foreground" />}
+                  label="Client"
+                >
+                  <NativeSelect
+                    value={clientId ?? ""}
+                    onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">Select client…</option>
+                    {clients.map((c) => (
+                      <option key={c.clientId} value={c.clientId}>
+                        {c.clientName} · {c.clientNumber}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </PickerField>
               </div>
 
-              {isOpen && (
-                <div
-                  className={`px-6 py-5 space-y-6 ${!rule.enabled ? "opacity-50 pointer-events-none" : ""}`}
-                >
-                  {/* Channels */}
-                  <div>
-                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-3">
-                      {isReminderStatus ? "Reminder channels" : "Outreach channels"}
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                      {(Object.keys(CHANNEL_META) as ChannelKey[]).map((ch) => {
-                        const meta = CHANNEL_META[ch];
-                        const cfg = rule.channels[ch];
-                        const Icon = meta.icon;
-                        const tmpls = templatesForChannel(ch);
-                        return (
-                          <div
-                            key={ch}
-                            className={`rounded-lg border p-3 space-y-3 ${cfg.enabled ? "border-tenant/40 bg-tenant-soft/30" : "border-border bg-muted/30"}`}
-                          >
-                            <label className="flex items-center justify-between cursor-pointer">
-                              <span className="inline-flex items-center gap-2 text-sm font-semibold">
-                                <Icon className="h-4 w-4 text-tenant" /> {meta.label}
-                              </span>
-                              <input
-                                type="checkbox"
-                                checked={cfg.enabled}
-                                onChange={(e) =>
-                                  updateChannel(code, ch, { enabled: e.target.checked })
-                                }
-                                className="h-4 w-4 accent-tenant"
-                              />
-                            </label>
-                            {cfg.enabled && (
-                              <div className="space-y-2">
-                                <div>
-                                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
-                                    {isReminderStatus
-                                      ? "First reminder after (days)"
-                                      : "Start outreach after (days)"}
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    value={cfg.startAfterDays}
-                                    onChange={(e) =>
-                                      updateChannel(code, ch, {
-                                        startAfterDays: Number(e.target.value) || 0,
-                                      })
-                                    }
-                                    className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
-                                    First template
-                                  </label>
-                                  <select
-                                    value={cfg.templateId}
-                                    onChange={(e) =>
-                                      updateChannel(code, ch, { templateId: e.target.value })
-                                    }
-                                    className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
-                                  >
-                                    <option value="">Select template…</option>
-                                    {tmpls.map((t) => (
-                                      <option key={t.id} value={t.id}>
-                                        {t.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Follow-ups */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-                        {isReminderStatus ? "Follow-up reminders" : "Follow-ups"}
-                      </div>
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs">
-                        <input
-                          type="checkbox"
-                          checked={rule.followUpsEnabled}
-                          onChange={(e) => update(code, { followUpsEnabled: e.target.checked })}
-                          className="h-3.5 w-3.5 accent-tenant"
-                        />
-                        Enable follow-ups
-                      </label>
-                    </div>
-                    {rule.followUpsEnabled && (
-                      <div className="space-y-2">
-                        {rule.followUps.map((fu, idx) => {
-                          const tmpls = templatesForChannel(fu.channel);
-                          return (
-                            <div
-                              key={fu.id}
-                              className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border border-border bg-card"
-                            >
-                              <div className="col-span-1 text-xs text-muted-foreground font-semibold pb-2">
-                                #{idx + 1}
-                              </div>
-                              <div className="col-span-3">
-                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
-                                  Channel
-                                </label>
-                                <select
-                                  value={fu.channel}
-                                  onChange={(e) => {
-                                    const newCh = e.target.value as ChannelKey;
-                                    updateFollowUp(code, fu.id, {
-                                      channel: newCh,
-                                      templateId: templatesForChannel(newCh)[0]?.id ?? "",
-                                    });
-                                  }}
-                                  className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
-                                >
-                                  {(Object.keys(CHANNEL_META) as ChannelKey[]).map((c) => (
-                                    <option key={c} value={c}>
-                                      {CHANNEL_META[c].label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="col-span-2">
-                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
-                                  After (days)
-                                </label>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={fu.afterDays}
-                                  onChange={(e) =>
-                                    updateFollowUp(code, fu.id, {
-                                      afterDays: Number(e.target.value) || 0,
-                                    })
-                                  }
-                                  className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
-                                />
-                              </div>
-                              <div className="col-span-5">
-                                <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
-                                  Template
-                                </label>
-                                <select
-                                  value={fu.templateId}
-                                  onChange={(e) =>
-                                    updateFollowUp(code, fu.id, { templateId: e.target.value })
-                                  }
-                                  className="w-full px-2 py-1.5 text-sm rounded border border-border bg-background"
-                                >
-                                  <option value="">Select template…</option>
-                                  {tmpls.map((t) => (
-                                    <option key={t.id} value={t.id}>
-                                      {t.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="col-span-1 flex justify-end">
-                                <button
-                                  onClick={() => removeFollowUp(code, fu.id)}
-                                  className="p-2 rounded-lg hover:bg-destructive/10 text-destructive"
-                                  aria-label="Remove follow-up"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        <button
-                          onClick={() => addFollowUp(code)}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-border text-sm hover:bg-muted w-full justify-center"
-                        >
-                          <Plus className="h-4 w-4" /> Add follow-up
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* BRP escalation */}
-                  {code === "BRP" && (
-                    <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
-                      <div className="text-sm font-semibold mb-2">
-                        After all follow-ups complete, send to legal review?
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <label className="inline-flex items-center gap-2 cursor-pointer text-sm">
-                          <input
-                            type="radio"
-                            name={`brp-legal-${code}`}
-                            checked={rule.escalateToLegal === true}
-                            onChange={() => update(code, { escalateToLegal: true })}
-                            className="accent-tenant"
-                          />
-                          Yes, send to legal review
-                        </label>
-                        <label className="inline-flex items-center gap-2 cursor-pointer text-sm">
-                          <input
-                            type="radio"
-                            name={`brp-legal-${code}`}
-                            checked={rule.escalateToLegal === false}
-                            onChange={() => update(code, { escalateToLegal: false })}
-                            className="accent-tenant"
-                          />
-                          No, keep in current workflow
-                        </label>
-                      </div>
-                    </div>
-                  )}
+              {/* What this client permits, as chips — a sentence listing four
+                  on/off flags reads as noise. */}
+              {client && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {CHANNEL_ORDER.map((c) => (
+                    <Capability key={c} label={CHANNEL_LABEL[c]} on={allowed.includes(c)} />
+                  ))}
+                  <Capability label="Documents" on={!!client.documentEnabled} />
+                  <span className="text-xs text-muted-foreground">
+                    Set on the client record — anything off here can&apos;t be automated.
+                  </span>
                 </div>
               )}
-            </PageCard>
-          );
-        })}
+            </div>
+          )}
+        </PageCard>
+
+        {/* ── Per-pair configuration ────────────────────────────────────── */}
+        {!pickersLoading && !pickersError && (!clientId || !teamId) && (
+          <PageCard>
+            <p className="px-6 py-16 text-center text-sm text-muted-foreground">
+              Pick a team and a client to configure their statuses.
+            </p>
+          </PageCard>
+        )}
+
+        {loading && (
+          <PageCard>
+            <div className="px-6 py-16 flex items-center justify-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading configuration…
+            </div>
+          </PageCard>
+        )}
+
+        {error && !loading && (
+          <PageCard>
+            <ErrorState
+              message={error}
+              onRetry={() => clientId && teamId && loadPair(clientId, teamId)}
+            />
+          </PageCard>
+        )}
+
+        {ready && (
+          <>
+            <InitialStatusCard
+              statuses={statusList}
+              teamName={team.teamName}
+              clientName={client.clientName}
+              clientId={client.clientId}
+              teamId={team.teamId}
+              onChanged={() => loadPair(client.clientId, team.teamId)}
+            />
+
+            {rows.length === 0 ? (
+              <PageCard>
+                <p className="px-6 py-16 text-center text-sm text-muted-foreground">
+                  No statuses defined yet. Create statuses first, then automate them here.
+                </p>
+              </PageCard>
+            ) : (
+              rows.map((row) => {
+                const cfg = configs[row.statusId];
+                if (!cfg) return null;
+                return (
+                  <StatusAutomationCard
+                    key={row.statusId}
+                    row={row}
+                    config={cfg}
+                    allowed={allowed}
+                    open={expanded[row.statusId] ?? false}
+                    onToggleOpen={() =>
+                      setExpanded((p) => ({ ...p, [row.statusId]: !p[row.statusId] }))
+                    }
+                    onChange={(patch) => patchConfig(row.statusId, patch)}
+                    onPreview={() => setPreviewing(row.statusId)}
+                    templatesFor={templatesFor}
+                    templateName={templateName}
+                    members={members}
+                    documentsAllowed={!!client.documentEnabled}
+                    otherStatuses={rows.filter((r) => r.statusId !== row.statusId)}
+                    loadingDetails={!!detailsLoading[row.statusId]}
+                  />
+                );
+              })
+            )}
+          </>
+        )}
       </section>
 
-      {previewing && <PreviewModal rule={rules[previewing]} onClose={() => setPreviewing(null)} />}
+      {previewing != null && configs[previewing] && (
+        <PreviewModal
+          row={rows.find((r) => r.statusId === previewing)!}
+          config={configs[previewing]}
+          allowed={allowed}
+          templateName={templateName}
+          statusName={(id) => rows.find((r) => r.statusId === id)?.status ?? "—"}
+          memberLabel={(id) => members.find((m) => m.userId === id)?.name ?? "—"}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
     </Shell>
   );
 }
 
-// ─── Preview Modal ──────────────────────────────────────────────────────────
-function PreviewModal({ rule, onClose }: { rule: StatusRule; onClose: () => void }) {
-  const status = findStatus(rule.statusCode);
+/* -------------------------------- fragments ------------------------------- */
+
+/** Label stacked above its control. The label must be block-level, or an
+ *  inline-block <select> sibling flows onto the same line as the text. */
+function PickerField({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="flex items-center gap-1.5 text-sm font-medium mb-2">
+        {icon} {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+/** One on/off client permission. */
+function Capability({ label, on }: { label: string; on: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+        on
+          ? "border-tenant/30 bg-tenant-soft text-tenant font-medium"
+          : "border-border text-muted-foreground"
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${on ? "bg-tenant" : "bg-muted-foreground/40"}`} />
+      {label}
+    </span>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="px-6 py-16 text-center">
+      <AlertTriangle className="h-6 w-6 text-destructive mx-auto mb-3" />
+      <p className="text-sm text-muted-foreground">{message}</p>
+      <button
+        onClick={onRetry}
+        className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+      >
+        <RefreshCw className="h-4 w-4" /> Try again
+      </button>
+    </div>
+  );
+}
+
+/** Ordered walk-through of what a status will do, for sanity-checking. Every
+ *  step is offset from the moment the file enters the status. */
+function PreviewModal({
+  row,
+  config,
+  allowed,
+  templateName,
+  statusName,
+  memberLabel,
+  onClose,
+}: {
+  row: StatusAutomationRow;
+  config: StatusAutomationConfig;
+  allowed: ChannelKey[];
+  templateName: (id: number | null) => string;
+  statusName: (id: number | null) => string;
+  memberLabel: (id: number | null) => string;
+  onClose: () => void;
+}) {
   const steps = useMemo(() => {
-    const out: { day: number; channel: ChannelKey; templateName: string; kind: string }[] = [];
-    (Object.keys(rule.channels) as ChannelKey[]).forEach((ch) => {
-      const c = rule.channels[ch];
-      if (c.enabled) {
-        const tmpl = allTemplates.find((t) => t.id === c.templateId);
-        out.push({
-          day: c.startAfterDays,
-          channel: ch,
-          templateName: tmpl?.name ?? "—",
-          kind: "First outreach",
-        });
-      }
-    });
-    if (rule.followUpsEnabled) {
-      let acc = 0;
-      rule.followUps.forEach((fu, i) => {
-        acc += fu.afterDays;
-        const tmpl = allTemplates.find((t) => t.id === fu.templateId);
-        out.push({
-          day: acc,
-          channel: fu.channel,
-          templateName: tmpl?.name ?? "—",
-          kind: `Follow-up #${i + 1}`,
-        });
+    const out: { minutes: number; when: string; kind: string; detail: string }[] = [];
+    const push = (minutes: number, when: string, kind: string, detail: string) =>
+      out.push({ minutes, when, kind, detail });
+
+    if (config.assignMember.enabled) {
+      push(0, "On entry", "Assignment", `Assign to ${memberLabel(config.assignMember.userId)}`);
+    }
+    if (config.generateDocuments) {
+      push(0, "On entry", "Documents", "Generate this status' documents");
+    }
+
+    for (const ch of allowed) {
+      const c = config.channels[ch];
+      if (!c.enabled) continue;
+      push(
+        toMinutes(c.startAfter),
+        formatDuration(c.startAfter),
+        "First outreach",
+        `${CHANNEL_LABEL[ch]} · ${c.messageSource === "ai" ? "AI" : "Template"} · ${templateName(c.templateId)}`,
+      );
+    }
+
+    if (config.followUpsEnabled) {
+      config.followUps.forEach((fu, i) => {
+        push(
+          toMinutes(fu.after),
+          formatDuration(fu.after),
+          `Follow-up #${i + 1}`,
+          `${CHANNEL_LABEL[fu.channel]} · ${fu.messageSource === "ai" ? "AI" : "Template"} · ${templateName(fu.templateId)}`,
+        );
       });
     }
-    return out.sort((a, b) => a.day - b.day);
-  }, [rule]);
+
+    if (config.autoArchive.enabled) {
+      push(
+        toMinutes(config.autoArchive.after),
+        formatDuration(config.autoArchive.after),
+        "Auto-archive",
+        "File leaves active workload (recoverable)",
+      );
+    }
+    if (config.inactivity.enabled) {
+      push(
+        toMinutes(config.inactivity.after),
+        `${formatDuration(config.inactivity.after)} idle`,
+        "Inactivity",
+        `Move to ${statusName(config.inactivity.toStatusId)}`,
+      );
+    }
+
+    return out.sort((a, b) => a.minutes - b.minutes);
+  }, [config, allowed, templateName, statusName, memberLabel]);
 
   return (
     <div
@@ -616,55 +653,45 @@ function PreviewModal({ rule, onClose }: { rule: StatusRule; onClose: () => void
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {status && (
-              <Pill tone={status.tone}>
-                {status.icon} {status.code}
-              </Pill>
-            )}
-            <h3 className="font-display text-lg font-bold">Automation flow preview</h3>
+          <div className="flex items-center gap-3 min-w-0">
+            <StatusPill code={row.statusCode} name="" color={row.statusColorCode} />
+            <h3 className="font-display text-lg font-bold truncate">
+              {row.status} — automation preview
+            </h3>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted shrink-0">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="px-6 py-5 overflow-y-auto space-y-3">
+          {!config.enabled && (
+            <p className="text-sm text-warning-foreground bg-warning/15 rounded-lg px-3 py-2">
+              Automation is switched off for this status — nothing below will run.
+            </p>
+          )}
           {steps.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No steps configured.</p>
+            <p className="text-sm text-muted-foreground italic">No behaviours configured.</p>
           ) : (
-            steps.map((s, i) => {
-              const Icon = CHANNEL_META[s.channel].icon;
-              return (
-                <div
-                  key={i}
-                  className="flex items-start gap-3 p-3 rounded-lg border border-border bg-background"
-                >
-                  <div className="shrink-0 h-8 w-8 rounded-full bg-tenant-soft text-tenant flex items-center justify-center text-xs font-bold">
-                    D{s.day}
+            steps.map((s, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3 p-3 rounded-lg border border-border bg-background"
+              >
+                <span className="shrink-0 min-w-20 px-2 py-1 rounded-full bg-tenant-soft text-tenant flex items-center justify-center text-[11px] font-bold text-center">
+                  {s.when}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                    {s.kind}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                      {s.kind}
-                    </div>
-                    <div className="text-sm font-semibold flex items-center gap-1.5">
-                      <Icon className="h-3.5 w-3.5" /> {CHANNEL_META[s.channel].label}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">{s.templateName}</div>
-                  </div>
+                  <div className="text-sm">{s.detail}</div>
                 </div>
-              );
-            })
-          )}
-          {rule.statusCode === "BRP" && rule.escalateToLegal && (
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-warning/30 bg-warning/10">
-              <div className="shrink-0 h-8 w-8 rounded-full bg-warning/20 text-warning-foreground flex items-center justify-center text-xs font-bold">
-                ⚖
               </div>
-              <div className="text-sm">
-                After final follow-up, account is escalated to <strong>Legal Review</strong>.
-              </div>
-            </div>
+            ))
           )}
+          <p className="text-[11px] text-muted-foreground pt-2 border-t border-border">
+            Timings are measured from when a file enters this status.
+          </p>
         </div>
       </div>
     </div>

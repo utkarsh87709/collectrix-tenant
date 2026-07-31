@@ -13,7 +13,7 @@ import {
   deleteStatus,
   type Status,
 } from "@/lib/statuses-api";
-import { AlertTriangle, Loader2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Pencil, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -182,17 +182,29 @@ function StatusesPage() {
               {statuses.map((s) => (
                 <li
                   key={s.statusId}
-                  className="group flex items-center justify-between gap-4 px-6 py-4"
+                  className="group flex items-start justify-between gap-4 px-6 py-4"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <StatusPill code={s.statusCode} name={s.status} color={s.statusColorCode} />
-                    {!!s.initialStatusFlag && (
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-border rounded px-1.5 py-0.5">
-                        Initial
-                      </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <StatusPill code={s.statusCode} name={s.status} color={s.statusColorCode} />
+                      {!!s.initialStatusFlag && (
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                          Initial
+                        </span>
+                      )}
+                      {!!s.aiContext?.trim() && (
+                        <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                          <Sparkles className="h-3 w-3" /> AI Context
+                        </span>
+                      )}
+                    </div>
+                    {!!s.aiContext?.trim() && (
+                      <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">
+                        {s.aiContext}
+                      </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-1">
                     <button
                       onClick={() => openEdit(s)}
                       aria-label={`Edit ${s.status}`}
