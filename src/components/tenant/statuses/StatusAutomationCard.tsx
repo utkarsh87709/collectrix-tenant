@@ -211,7 +211,9 @@ export function StatusAutomationCard({
                             <div>
                               <FieldLabel>Message source</FieldLabel>
                               <div className="flex items-center gap-4">
-                                {(["template", "ai"] as MessageSource[]).map((src) => (
+                                {/* "ai" is hidden for now — Template is the only
+                                    selectable source for text channels. */}
+                                {(["template"] as MessageSource[]).map((src) => (
                                   <label
                                     key={src}
                                     className="inline-flex items-center gap-1.5 cursor-pointer text-sm"
@@ -333,7 +335,9 @@ export function StatusAutomationCard({
                                 const next = e.target.value as ChannelKey;
                                 patchFollowUp(fu.key, {
                                   channel: next,
-                                  messageSource: isAiOnlyChannel(next) ? "ai" : fu.messageSource,
+                                  // Text channels are template-only while the
+                                  // "ai" source is hidden.
+                                  messageSource: isAiOnlyChannel(next) ? "ai" : "template",
                                   templateId: null,
                                 });
                               }}
@@ -369,7 +373,9 @@ export function StatusAutomationCard({
                             <div>
                               <FieldLabel>Message source</FieldLabel>
                               <div className="flex items-center gap-4 py-1">
-                                {(["template", "ai"] as MessageSource[]).map((src) => (
+                                {/* "ai" is hidden for now — Template is the only
+                                    selectable source for text channels. */}
+                                {(["template"] as MessageSource[]).map((src) => (
                                   <label
                                     key={src}
                                     className="inline-flex items-center gap-1.5 cursor-pointer text-sm"

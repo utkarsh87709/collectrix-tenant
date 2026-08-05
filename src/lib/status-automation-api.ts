@@ -421,6 +421,19 @@ export function newFollowUp(channel: ChannelKey): FollowUp {
 
 /* -------------------------------- mapping -------------------------------- */
 
+/**
+ * The "ai" source is hidden in the UI for now, so rows saved as "ai" load as
+ * "template". Their templateId pointed at the aiPrompt library, not the
+ * channel's template library, so it can't carry over.
+ */
+function textChannelSource(
+  saved: MessageSource | null,
+  templateId: number | null,
+): { messageSource: MessageSource; templateId: number | null } {
+  if (saved === "ai") return { messageSource: "template", templateId: null };
+  return { messageSource: saved ?? "template", templateId };
+}
+
 /** Saved row → editor model. */
 export function configFromDetails(d: AutomationDetails): StatusAutomationConfig {
   const base = emptyAutomationConfig(d.statusId);
@@ -430,10 +443,9 @@ export function configFromDetails(d: AutomationDetails): StatusAutomationConfig 
       key: `fu-${followUpSeq}`,
       channel: f.followupChannel,
       after: fromMinutes(f.followupTime, { ...DEFAULT_FOLLOWUP }),
-      messageSource: isAiOnlyChannel(f.followupChannel)
-        ? ("ai" as MessageSource)
-        : (f.followupMsgSource ?? "template"),
-      templateId: f.followupTemplateId ?? null,
+      ...(isAiOnlyChannel(f.followupChannel)
+        ? { messageSource: "ai" as MessageSource, templateId: f.followupTemplateId ?? null }
+        : textChannelSource(f.followupMsgSource, f.followupTemplateId ?? null)),
     };
   });
 
@@ -445,14 +457,12 @@ export function configFromDetails(d: AutomationDetails): StatusAutomationConfig 
       email: {
         enabled: d.initialEmailEnabled === 1,
         startAfter: fromMinutes(d.initialEmailFollowupTime, base.channels.email.startAfter),
-        messageSource: d.initialEmailMsgSource ?? "template",
-        templateId: d.initialEmailTemplateId ?? null,
+        ...textChannelSource(d.initialEmailMsgSource, d.initialEmailTemplateId ?? null),
       },
       sms: {
         enabled: d.initialSmsEnabled === 1,
         startAfter: fromMinutes(d.initialSmsFollowupTime, base.channels.sms.startAfter),
-        messageSource: d.initialSmsMsgSource ?? "template",
-        templateId: d.initialSmsTemplateId ?? null,
+        ...textChannelSource(d.initialSmsMsgSource, d.initialSmsTemplateId ?? null),
       },
       call: {
         enabled: d.initialCallEnabled === 1,

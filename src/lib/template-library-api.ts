@@ -1,11 +1,13 @@
 // Template Library calls to the separately-hosted backend. Stores reusable
-// email and SMS templates, scoped per client.
-//   POST /tenant/getTemplateClients {}                          -> { emailClientList[], smsClientList[] }
+// email, SMS and call (AI voice agent) templates, scoped per client.
+//   POST /tenant/getTemplateClients {}                          -> { emailClientList[], smsClientList[], callClientList[] }
 //   POST /tenant/getClientTemplate { clientId, templateType }   -> { templateList[] }
-//   POST /tenant/createTemplate { clientId, templateType, templateName, templateSubject, templateMessage } -> {}
-//   POST /tenant/updateTemplate { templateId, templateName, templateSubject, templateMessage }             -> {}
+//   POST /tenant/createTemplate { clientId, templateType, templateName, templateSubject, templateMessage, greetingMsg } -> {}
+//   POST /tenant/updateTemplate { templateId, templateType, templateName, templateSubject, templateMessage, greetingMsg } -> {}
 //   POST /tenant/deleteTemplate { templateId }                  -> {}
 // templateSubject is mandatory on create even for SMS — pass an empty string.
+// greetingMsg only applies to "call" templates (null for the rest). On update
+// templateType is accepted but the type itself cannot be changed.
 // All authenticated with the raw token (attached automatically by apiPost).
 import { apiPost } from "./api-client";
 
@@ -33,6 +35,8 @@ export type Template = {
   /** Empty string for SMS templates. */
   templateSubject: string;
   templateMessage: string;
+  /** Call templates only — spoken when the call connects. Null elsewhere. */
+  greetingMsg?: string | null;
 };
 
 export function getTemplateClients(): Promise<{
@@ -59,15 +63,19 @@ export function createTemplate(input: {
   templateName: string;
   templateSubject: string;
   templateMessage: string;
+  greetingMsg?: string | null;
 }): Promise<unknown> {
-  return apiPost("/tenant/createTemplate", { ...input });
+  return apiPost("/tenant/createTemplate", { greetingMsg: null, ...input });
 }
 
 export function updateTemplate(input: {
   templateId: number;
+  /** Accepted by the backend but the stored type can never change. */
+  templateType?: TemplateType;
   templateName: string;
   templateSubject: string;
   templateMessage: string;
+  greetingMsg?: string | null;
 }): Promise<unknown> {
   return apiPost("/tenant/updateTemplate", { ...input });
 }

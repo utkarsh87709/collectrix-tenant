@@ -38,6 +38,7 @@ function StatusesPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Status | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<StatusDraft | null>(null);
 
   const [deleting, setDeleting] = useState<Status | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
@@ -79,7 +80,7 @@ function StatusesPage() {
     setEditing(null);
   };
 
-  const handleSave = async (draft: StatusDraft) => {
+  const persist = async (draft: StatusDraft) => {
     setSaving(true);
     try {
       if (editing) {
@@ -97,6 +98,23 @@ function StatusesPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async (draft: StatusDraft) => {
+    // Edits ripple across the whole tenant, so they need an explicit
+    // "Apply system-wide" confirmation before persisting. Creates don't.
+    if (editing) {
+      setPendingDraft(draft);
+      return;
+    }
+    await persist(draft);
+  };
+
+  const confirmApply = async () => {
+    if (!pendingDraft) return;
+    const draft = pendingDraft;
+    setPendingDraft(null);
+    await persist(draft);
   };
 
   const confirmDelete = async () => {
@@ -235,6 +253,34 @@ function StatusesPage() {
         onClose={closeDrawer}
         onSave={handleSave}
       />
+
+      <AlertDialog open={!!pendingDraft} onOpenChange={(o) => !o && setPendingDraft(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-tenant" />
+              Apply changes system-wide?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Editing this status’s name, code, or color updates it everywhere at once. Every file
+              currently in “{editing?.status}”, plus the customer files, dashboards, communications,
+              automations and reports that show it, will display the new values immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmApply();
+              }}
+              className="bg-gradient-tenant text-white shadow-tenant hover:opacity-90"
+            >
+              Apply system-wide
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && !deletingBusy && setDeleting(null)}>
         <AlertDialogContent>
