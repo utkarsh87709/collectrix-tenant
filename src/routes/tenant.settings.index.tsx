@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Plug,
   Loader2,
+  Table2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DAY_KEYS, DAY_LABELS, type WeeklyHours } from "@/lib/agent-availability-utils";
@@ -27,13 +28,14 @@ import {
 import { getTimezoneList, type TimezoneItem } from "@/lib/profile-api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SettingsSkeleton } from "@/components/admin/Skeletons";
+import { DataFieldsSection } from "@/components/tenant/data-fields/DataFieldsSection";
 
 export const Route = createFileRoute("/tenant/settings/")({
   head: () => ({ meta: [{ title: "Tenant Settings · Tenant Admin" }] }),
   component: SettingsPage,
 });
 
-type TabKey = "organization" | "availability" | "integrations";
+type TabKey = "organization" | "availability" | "integrations" | "dataFields";
 
 // Only Gmail and Outlook are offered. Backend stores the lowercase value
 // ("gmail" | "outlook"); legacy values (e.g. "Google", "Microsoft 365") are
@@ -229,7 +231,7 @@ function SettingsPage() {
           {/* Tabs */}
           <section className="px-6 lg:px-10 py-6">
             <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-              <TabsList className="grid grid-cols-3 w-full max-w-3xl mb-5 bg-muted/60">
+              <TabsList className="grid grid-cols-4 w-full max-w-3xl mb-5 bg-muted/60">
                 <TabsTrigger
                   value="organization"
                   className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
@@ -247,6 +249,12 @@ function SettingsPage() {
                   className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
                 >
                   <Plug className="h-4 w-4 mr-1.5" /> Connectors
+                </TabsTrigger>
+                <TabsTrigger
+                  value="dataFields"
+                  className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                >
+                  <Table2 className="h-4 w-4 mr-1.5" /> Data Fields
                 </TabsTrigger>
               </TabsList>
 
@@ -441,6 +449,11 @@ function SettingsPage() {
                     </div>
                   )}
                 </div>
+              </TabsContent>
+
+              {/* Data Fields */}
+              <TabsContent value="dataFields" className="mt-0">
+                <DataFieldsSection companyName={name} />
               </TabsContent>
             </Tabs>
           </section>
