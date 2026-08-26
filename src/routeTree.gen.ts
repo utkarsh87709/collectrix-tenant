@@ -35,12 +35,14 @@ import { Route as TenantIntakeIndexRouteImport } from './routes/tenant.intake.in
 import { Route as TenantDebtorsIndexRouteImport } from './routes/tenant.debtors.index'
 import { Route as TenantDashboardsIndexRouteImport } from './routes/tenant.dashboards.index'
 import { Route as TenantCommsIndexRouteImport } from './routes/tenant.comms.index'
+import { Route as TenantCaseFilesIndexRouteImport } from './routes/tenant.case-files.index'
 import { Route as TenantSettingsStatusesRouteImport } from './routes/tenant.settings.statuses'
 import { Route as TenantSettingsStatusAutomationRouteImport } from './routes/tenant.settings.status-automation'
 import { Route as TenantSettingsDocumentAutomationRouteImport } from './routes/tenant.settings.document-automation'
 import { Route as TenantPaymentsSettlementsRouteImport } from './routes/tenant.payments.settlements'
 import { Route as TenantPaymentsPlansRouteImport } from './routes/tenant.payments.plans'
 import { Route as TenantIntakeUploadRouteImport } from './routes/tenant.intake.upload'
+import { Route as TenantIntakeMassUpdateRouteImport } from './routes/tenant.intake.mass-update'
 import { Route as TenantIntakeImportRouteImport } from './routes/tenant.intake.import'
 import { Route as TenantIntakeDedupeRouteImport } from './routes/tenant.intake.dedupe'
 import { Route as TenantIntakeClientsRouteImport } from './routes/tenant.intake.clients'
@@ -209,6 +211,11 @@ const TenantCommsIndexRoute = TenantCommsIndexRouteImport.update({
   path: '/tenant/comms/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TenantCaseFilesIndexRoute = TenantCaseFilesIndexRouteImport.update({
+  id: '/tenant/case-files/',
+  path: '/tenant/case-files/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TenantSettingsStatusesRoute = TenantSettingsStatusesRouteImport.update({
   id: '/statuses',
   path: '/statuses',
@@ -240,6 +247,11 @@ const TenantPaymentsPlansRoute = TenantPaymentsPlansRouteImport.update({
 const TenantIntakeUploadRoute = TenantIntakeUploadRouteImport.update({
   id: '/tenant/intake/upload',
   path: '/tenant/intake/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TenantIntakeMassUpdateRoute = TenantIntakeMassUpdateRouteImport.update({
+  id: '/tenant/intake/mass-update',
+  path: '/tenant/intake/mass-update',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TenantIntakeImportRoute = TenantIntakeImportRouteImport.update({
@@ -487,12 +499,14 @@ export interface FileRoutesByFullPath {
   '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
   '/tenant/intake/import': typeof TenantIntakeImportRoute
+  '/tenant/intake/mass-update': typeof TenantIntakeMassUpdateRoute
   '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
   '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
+  '/tenant/case-files/': typeof TenantCaseFilesIndexRoute
   '/tenant/comms/': typeof TenantCommsIndexRoute
   '/tenant/dashboards/': typeof TenantDashboardsIndexRoute
   '/tenant/debtors/': typeof TenantDebtorsIndexRoute
@@ -554,12 +568,14 @@ export interface FileRoutesByTo {
   '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
   '/tenant/intake/import': typeof TenantIntakeImportRoute
+  '/tenant/intake/mass-update': typeof TenantIntakeMassUpdateRoute
   '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
   '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
+  '/tenant/case-files': typeof TenantCaseFilesIndexRoute
   '/tenant/comms': typeof TenantCommsIndexRoute
   '/tenant/dashboards': typeof TenantDashboardsIndexRoute
   '/tenant/debtors': typeof TenantDebtorsIndexRoute
@@ -626,12 +642,14 @@ export interface FileRoutesById {
   '/tenant/intake/clients': typeof TenantIntakeClientsRoute
   '/tenant/intake/dedupe': typeof TenantIntakeDedupeRoute
   '/tenant/intake/import': typeof TenantIntakeImportRoute
+  '/tenant/intake/mass-update': typeof TenantIntakeMassUpdateRoute
   '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
   '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
+  '/tenant/case-files/': typeof TenantCaseFilesIndexRoute
   '/tenant/comms/': typeof TenantCommsIndexRoute
   '/tenant/dashboards/': typeof TenantDashboardsIndexRoute
   '/tenant/debtors/': typeof TenantDebtorsIndexRoute
@@ -699,12 +717,14 @@ export interface FileRouteTypes {
     | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
     | '/tenant/intake/import'
+    | '/tenant/intake/mass-update'
     | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
     | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
+    | '/tenant/case-files/'
     | '/tenant/comms/'
     | '/tenant/dashboards/'
     | '/tenant/debtors/'
@@ -766,12 +786,14 @@ export interface FileRouteTypes {
     | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
     | '/tenant/intake/import'
+    | '/tenant/intake/mass-update'
     | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
     | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
+    | '/tenant/case-files'
     | '/tenant/comms'
     | '/tenant/dashboards'
     | '/tenant/debtors'
@@ -837,12 +859,14 @@ export interface FileRouteTypes {
     | '/tenant/intake/clients'
     | '/tenant/intake/dedupe'
     | '/tenant/intake/import'
+    | '/tenant/intake/mass-update'
     | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
     | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
+    | '/tenant/case-files/'
     | '/tenant/comms/'
     | '/tenant/dashboards/'
     | '/tenant/debtors/'
@@ -899,7 +923,9 @@ export interface RootRouteChildren {
   TenantIntakeClientsRoute: typeof TenantIntakeClientsRoute
   TenantIntakeDedupeRoute: typeof TenantIntakeDedupeRoute
   TenantIntakeImportRoute: typeof TenantIntakeImportRoute
+  TenantIntakeMassUpdateRoute: typeof TenantIntakeMassUpdateRoute
   TenantIntakeUploadRoute: typeof TenantIntakeUploadRoute
+  TenantCaseFilesIndexRoute: typeof TenantCaseFilesIndexRoute
   TenantCommsIndexRoute: typeof TenantCommsIndexRoute
   TenantDebtorsIndexRoute: typeof TenantDebtorsIndexRoute
   TenantIntakeIndexRoute: typeof TenantIntakeIndexRoute
@@ -1093,6 +1119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantCommsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tenant/case-files/': {
+      id: '/tenant/case-files/'
+      path: '/tenant/case-files'
+      fullPath: '/tenant/case-files/'
+      preLoaderRoute: typeof TenantCaseFilesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tenant/settings/statuses': {
       id: '/tenant/settings/statuses'
       path: '/statuses'
@@ -1133,6 +1166,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant/intake/upload'
       fullPath: '/tenant/intake/upload'
       preLoaderRoute: typeof TenantIntakeUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tenant/intake/mass-update': {
+      id: '/tenant/intake/mass-update'
+      path: '/tenant/intake/mass-update'
+      fullPath: '/tenant/intake/mass-update'
+      preLoaderRoute: typeof TenantIntakeMassUpdateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenant/intake/import': {
@@ -1532,7 +1572,9 @@ const rootRouteChildren: RootRouteChildren = {
   TenantIntakeClientsRoute: TenantIntakeClientsRoute,
   TenantIntakeDedupeRoute: TenantIntakeDedupeRoute,
   TenantIntakeImportRoute: TenantIntakeImportRoute,
+  TenantIntakeMassUpdateRoute: TenantIntakeMassUpdateRoute,
   TenantIntakeUploadRoute: TenantIntakeUploadRoute,
+  TenantCaseFilesIndexRoute: TenantCaseFilesIndexRoute,
   TenantCommsIndexRoute: TenantCommsIndexRoute,
   TenantDebtorsIndexRoute: TenantDebtorsIndexRoute,
   TenantIntakeIndexRoute: TenantIntakeIndexRoute,

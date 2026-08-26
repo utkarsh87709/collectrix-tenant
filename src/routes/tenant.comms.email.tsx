@@ -62,7 +62,7 @@ function EmailPage() {
         <PageCard className="lg:col-span-2">
           <CardHead
             title="Preview & send"
-            subtitle="Variables substituted with sample debtor"
+            subtitle="Variables substituted with sample customer"
             action={
               <div className="flex items-center gap-2">
                 <button onClick={() => toast.message("Schedule dialog")} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-xs font-semibold hover:bg-muted">

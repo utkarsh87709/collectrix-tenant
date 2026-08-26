@@ -29,7 +29,7 @@ function SettlementsPage() {
             <thead className="text-xs uppercase tracking-wider text-muted-foreground bg-muted/30">
               <tr>
                 <th className="px-6 py-3 text-left">ID</th>
-                <th className="px-6 py-3 text-left">Debtor</th>
+                <th className="px-6 py-3 text-left">Customer</th>
                 <th className="px-6 py-3 text-right">Original</th>
                 <th className="px-6 py-3 text-right">Settlement</th>
                 <th className="px-6 py-3 text-right">Discount</th>

@@ -121,7 +121,7 @@ export const crmConnections: CrmConnection[] = [
     uptime: 98.5,
     syncDirection: "bi",
     frequency: "realtime",
-    scope: "All debtors",
+    scope: "All customers",
     isPrimary: true,
     isReadOnly: false,
     conflictStrategy: "last_write",
@@ -181,13 +181,13 @@ export type FieldMapping = {
 };
 
 export const fieldMappings: FieldMapping[] = [
-  { id: "fm_01", crmField: "Debtor.Name", crmType: "string", platformField: "full_name", platformType: "text", direction: "bi", required: true, custom: false, sample: "Margaret Chen" },
-  { id: "fm_02", crmField: "Debtor.Balance", crmType: "decimal", platformField: "balance", platformType: "numeric", direction: "bi", required: true, custom: false, sample: "8420.12" },
-  { id: "fm_03", crmField: "Debtor.Status", crmType: "char(1)", platformField: "status", platformType: "enum", direction: "bi", required: true, custom: false, sample: "A → active" },
-  { id: "fm_04", crmField: "Debtor.AccountNumber", crmType: "string", platformField: "external_id", platformType: "text", direction: "bi", required: true, custom: false, sample: "RBC-447821" },
-  { id: "fm_05", crmField: "Debtor.Phone1", crmType: "string", platformField: "phones[0]", platformType: "phone", direction: "bi", required: false, custom: false, sample: "(416) 555-1234" },
-  { id: "fm_06", crmField: "Debtor.VIP_FLAG", crmType: "boolean", platformField: "custom.vip_client", platformType: "boolean", direction: "out", required: false, custom: true, sample: "true" },
-  { id: "fm_07", crmField: "Debtor.Creditor", crmType: "string", platformField: "creditor_client", platformType: "text", direction: "in", required: false, custom: false, sample: "RBC" },
+  { id: "fm_01", crmField: "Customer.Name", crmType: "string", platformField: "full_name", platformType: "text", direction: "bi", required: true, custom: false, sample: "Margaret Chen" },
+  { id: "fm_02", crmField: "Customer.Balance", crmType: "decimal", platformField: "balance", platformType: "numeric", direction: "bi", required: true, custom: false, sample: "8420.12" },
+  { id: "fm_03", crmField: "Customer.Status", crmType: "char(1)", platformField: "status", platformType: "enum", direction: "bi", required: true, custom: false, sample: "A → active" },
+  { id: "fm_04", crmField: "Customer.AccountNumber", crmType: "string", platformField: "external_id", platformType: "text", direction: "bi", required: true, custom: false, sample: "RBC-447821" },
+  { id: "fm_05", crmField: "Customer.Phone1", crmType: "string", platformField: "phones[0]", platformType: "phone", direction: "bi", required: false, custom: false, sample: "(416) 555-1234" },
+  { id: "fm_06", crmField: "Customer.VIP_FLAG", crmType: "boolean", platformField: "custom.vip_client", platformType: "boolean", direction: "out", required: false, custom: true, sample: "true" },
+  { id: "fm_07", crmField: "Customer.Creditor", crmType: "string", platformField: "creditor_client", platformType: "text", direction: "in", required: false, custom: false, sample: "RBC" },
 ];
 
 export type StatusMap = {
@@ -322,7 +322,7 @@ export type SyncError = {
 };
 
 export const syncErrors: SyncError[] = [
-  { id: "er_01", when: "5m ago", connection: "COLLECT! Production", operation: "Update debtor balance", error: "503 Service Unavailable", retries: 2, status: "retrying" },
+  { id: "er_01", when: "5m ago", connection: "COLLECT! Production", operation: "Update customer balance", error: "503 Service Unavailable", retries: 2, status: "retrying" },
   { id: "er_02", when: "18m ago", connection: "COLLECT! Production", operation: "Status PIF push", error: "Invalid transition C → P (COLLECT! rules)", retries: 5, status: "failed" },
   { id: "er_03", when: "1h ago", connection: "Salesforce", operation: "Creditor record sync", error: "401 Unauthorized — token expired", retries: 3, status: "failed" },
   { id: "er_04", when: "2h ago", connection: "COLLECT! Production", operation: "Document upload", error: "Connection timeout (30s)", retries: 1, status: "resolved" },

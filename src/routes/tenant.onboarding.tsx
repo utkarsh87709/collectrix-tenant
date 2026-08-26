@@ -215,7 +215,7 @@ function OnboardingPage() {
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                      <PkgStat icon={Database} label="Debtor accounts" value={assignedPackage.debtorLimit.toLocaleString()} />
+                      <PkgStat icon={Database} label="Customer accounts" value={assignedPackage.debtorLimit.toLocaleString()} />
                       <PkgStat icon={UsersIcon} label="Tenant users" value={assignedPackage.userLimit} />
                       <PkgStat icon={ListChecks} label="Modules" value={assignedPackage.includedModules.length} />
                     </div>
@@ -225,7 +225,7 @@ function OnboardingPage() {
                       ))}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-3">
-                      Overage: +${assignedPackage.overagePerDebtor.toFixed(2)} per extra debtor beyond the included limit.
+                      Overage: +${assignedPackage.overagePerDebtor.toFixed(2)} per extra customer beyond the included limit.
                     </p>
                   </div>
                 </div>

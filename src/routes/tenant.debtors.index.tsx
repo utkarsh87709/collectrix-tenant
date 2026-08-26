@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/tenant/debtors/")({
-  head: () => ({ meta: [{ title: "Debtors · Tenant Admin" }] }),
+  head: () => ({ meta: [{ title: "Customers · Tenant Admin" }] }),
   component: DebtorsPage,
 });
 
@@ -157,15 +157,15 @@ function DebtorsPage() {
   return (
     <Shell>
       <Topbar
-        title="Debtors"
-        subtitle="Search, filter and manage debtor records"
+        title="Customers"
+        subtitle="Search, filter and manage customer records"
         action={
           <div className="flex items-center gap-2">
             <button onClick={() => toast.message("CSV exported")} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
               <Download className="h-4 w-4" /> Export
             </button>
             <button onClick={() => toast.message("Manual entry coming")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant">
-              <Plus className="h-4 w-4" /> Add debtor
+              <Plus className="h-4 w-4" /> Add customer
             </button>
           </div>
         }
@@ -177,14 +177,14 @@ function DebtorsPage() {
 
       <section className="px-6 lg:px-10 py-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-elegant flex flex-col">
-          <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Matching debtors</span>
+          <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Matching customers</span>
           <div className="mt-3 font-display text-3xl font-bold text-tenant">{filtered.length.toLocaleString()}</div>
           <div className="mt-1 text-xs text-muted-foreground">of {debtors.length} total</div>
           <Link
             to="/tenant/intake/dedupe"
             className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant-soft text-tenant text-xs font-semibold border border-[color:var(--tenant)]/20 hover:bg-tenant hover:text-white transition-colors"
           >
-            Review Matching Debtors →
+            Review Matching Customers →
           </Link>
         </div>
         <StatTile label="Total balance" value={`$${(totalBalance / 1000).toFixed(1)}k`} delta="across filter" />
@@ -220,7 +220,7 @@ function DebtorsPage() {
               <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>More filters</SheetTitle>
-                  <SheetDescription>Refine the debtor list by status, ownership, financials and timeline.</SheetDescription>
+                  <SheetDescription>Refine the customer list by status, ownership, financials and timeline.</SheetDescription>
                 </SheetHeader>
                 <div className="mt-4 space-y-4">
                   <FilterGroup label="Status & lifecycle">
@@ -305,7 +305,7 @@ function DebtorsPage() {
             <table className="w-full text-sm">
               <thead className="text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
                 <tr>
-                  <th className="text-left px-6 py-3 font-semibold">Debtor</th>
+                  <th className="text-left px-6 py-3 font-semibold">Customer</th>
                   <th className="text-left px-3 py-3 font-semibold">External ID</th>
                   <th className="text-left px-3 py-3 font-semibold">Creditor / Creditor</th>
                   <th className="text-right px-3 py-3 font-semibold">Balance</th>
@@ -351,13 +351,13 @@ function DebtorsPage() {
                   );
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={9} className="text-center py-12 text-muted-foreground text-sm">No debtors match your filter</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-muted-foreground text-sm">No customers match your filter</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           <div className="px-6 py-3 border-t border-border text-xs text-muted-foreground">
-            Assignment is read-only here. Open a debtor to reassign agent, manager, team, creditor or AI agent.
+            Assignment is read-only here. Open a customer to reassign agent, manager, team, creditor or AI agent.
           </div>
         </PageCard>
       </section>
@@ -367,9 +367,9 @@ function DebtorsPage() {
 
 function ScopeBanner() {
   const labelByRole: Record<typeof currentViewer.role, string> = {
-    tenant_admin: "Tenant Admin — all debtor records in this tenant",
+    tenant_admin: "Tenant Admin — all customer records in this tenant",
     manager: "Manager — assigned teams, creditors or creditors",
-    agent: "Agent — only debtors assigned to you",
+    agent: "Agent — only customers assigned to you",
     client_account_manager: "Client Account Manager — assigned creditors/creditors only",
   };
   return (

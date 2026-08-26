@@ -11,7 +11,7 @@ import { ChevronLeft, Pin, PinOff, Pencil, Trash2, Printer, FileText, Image as I
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/tenant/debtors/$debtorId/notes/$noteId")({
-  head: () => ({ meta: [{ title: "Note · Debtor · Tenant Admin" }] }),
+  head: () => ({ meta: [{ title: "Note · Customer · Tenant Admin" }] }),
   component: NoteDetail,
   notFoundComponent: () => (
     <Shell>
@@ -38,7 +38,7 @@ function NoteDetail() {
       <Shell>
         <div className="px-10 py-20 text-center">
           <h2 className="font-display text-2xl font-bold">Note not found</h2>
-          <Link to="/tenant/debtors/$debtorId" params={{ debtorId }} className="text-tenant text-sm hover:underline mt-2 inline-block">← Back to debtor</Link>
+          <Link to="/tenant/debtors/$debtorId" params={{ debtorId }} className="text-tenant text-sm hover:underline mt-2 inline-block">← Back to customer</Link>
         </div>
       </Shell>
     );
@@ -60,7 +60,7 @@ function NoteDetail() {
         subtitle={`${note.type} · ${debtor?.name ?? debtorId}`}
         action={
           <Link to="/tenant/debtors/$debtorId" params={{ debtorId }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
-            <ChevronLeft className="h-4 w-4" /> Back to debtor
+            <ChevronLeft className="h-4 w-4" /> Back to customer
           </Link>
         }
       />

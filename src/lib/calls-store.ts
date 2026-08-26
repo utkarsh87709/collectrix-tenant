@@ -236,7 +236,7 @@ function buildSummary(debtorName: string, outcome: CallOutcome, balance: number)
     case "cease":
       return {
         ...base,
-        headline: "Debtor requested cease — DNC applied automatically.",
+        headline: "Customer requested cease — DNC applied automatically.",
         overview: `${debtorName} requested that contact stop. The agent acknowledged immediately and ended the call respectfully. DNC flag has been applied to all channels.`,
         keyPoints: ["Cease request detected", "Auto-DNC applied", "Call ended respectfully"],
         nextSteps: ["Verify DNC propagated to dialer", "Notify creditor of cease status", "Compliance review queued"],

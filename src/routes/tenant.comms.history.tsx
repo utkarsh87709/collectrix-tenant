@@ -45,7 +45,7 @@ function HistoryPage() {
           <div className="px-6 py-4 border-b border-border flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-border flex-1 min-w-[200px]">
               <Search className="h-4 w-4 text-muted-foreground" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search debtor or template…" className="bg-transparent text-sm flex-1 outline-none" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search customer or template…" className="bg-transparent text-sm flex-1 outline-none" />
             </div>
             {(["all","email","sms","voice","letter"] as const).map((c) => (
               <button key={c} onClick={() => setFilter(c)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${filter === c ? "bg-gradient-tenant text-white shadow-tenant" : "bg-muted text-muted-foreground hover:bg-tenant-soft hover:text-tenant"}`}>
@@ -71,7 +71,7 @@ function HistoryPage() {
           </ul>
           <div className="px-6 py-3 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
             <HistoryIcon className="h-3.5 w-3.5" />
-            Retention: 7 years · debtor-level timeline visible on debtor profile · webhook-driven status updates
+            Retention: 7 years · customer-level timeline visible on customer profile · webhook-driven status updates
           </div>
         </PageCard>
       </section>

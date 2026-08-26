@@ -52,7 +52,7 @@ export const packages: Package[] = [
   {
     id: "pkg_growth",
     name: "Growth",
-    description: "Mid-market plan with higher debtor capacity and team limits.",
+    description: "Mid-market plan with higher customer capacity and team limits.",
     monthlyPrice: 999,
     annualPrice: 9990,
     billingCycle: "monthly",

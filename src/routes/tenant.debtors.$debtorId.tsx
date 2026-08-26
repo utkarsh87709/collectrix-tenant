@@ -49,13 +49,13 @@ import { notify } from "@/lib/notifications-store";
 
 
 export const Route = createFileRoute("/tenant/debtors/$debtorId")({
-  head: () => ({ meta: [{ title: "Debtor profile · Tenant Admin" }] }),
+  head: () => ({ meta: [{ title: "Customer profile · Tenant Admin" }] }),
   component: DebtorProfile,
   notFoundComponent: () => (
     <Shell>
       <div className="px-10 py-20 text-center">
-        <h2 className="font-display text-2xl font-bold">Debtor not found</h2>
-        <Link to="/tenant/debtors" className="text-tenant hover:underline text-sm mt-2 inline-block">← Back to debtors</Link>
+        <h2 className="font-display text-2xl font-bold">Customer not found</h2>
+        <Link to="/tenant/debtors" className="text-tenant hover:underline text-sm mt-2 inline-block">← Back to customers</Link>
       </div>
     </Shell>
   ),
@@ -162,7 +162,7 @@ function DebtorProfile() {
     setHistory((h) => [event, ...h]);
     setStatusCode(pendingNext);
     setPendingNext(null);
-    toast.success("Debtor status updated successfully.", {
+    toast.success("Customer status updated successfully.", {
       description: `${current.code} → ${next.code}`,
     });
   };
@@ -243,10 +243,10 @@ function DebtorProfile() {
     resumeEngagement(d.id, ACTOR);
     setReengageDialogOpen(false);
     setLifecycleAudit((l) => [
-      { id: `la-${Date.now()}`, when: nowLabel(), actor: ACTOR, action: "Re-engaged debtor", source: "Web UI" },
+      { id: `la-${Date.now()}`, when: nowLabel(), actor: ACTOR, action: "Re-engaged customer", source: "Web UI" },
       ...l,
     ]);
-    toast.success("Engagement resumed", { description: "Debtor returned to active outreach." });
+    toast.success("Engagement resumed", { description: "Customer returned to active outreach." });
   };
 
   const handleArchive = () => {
@@ -258,7 +258,7 @@ function DebtorProfile() {
         ...l,
       ]);
       logAudit({ debtorId: d.id, actor: ACTOR, actorKind: "human", category: "archive", action: "Restored from archive" });
-      toast.success("Debtor restored", { description: "Returned to active debtor lists." });
+      toast.success("Customer restored", { description: "Returned to active customer lists." });
       return;
     }
     setArchiveReasonOpen(true);
@@ -268,11 +268,11 @@ function DebtorProfile() {
     setArchived(true);
     setArchiveReasonOpen(false);
     setLifecycleAudit((l) => [
-      { id: `la-${Date.now()}`, when: nowLabel(), actor: ACTOR, action: "Archived debtor", source: "Web UI" },
+      { id: `la-${Date.now()}`, when: nowLabel(), actor: ACTOR, action: "Archived customer", source: "Web UI" },
       ...l,
     ]);
-    logAudit({ debtorId: d.id, actor: ACTOR, actorKind: "human", category: "archive", action: "Archived debtor", reason });
-    toast.success("Debtor archived", { description: "Hidden from active work views. Recoverable via the Archived filter." });
+    logAudit({ debtorId: d.id, actor: ACTOR, actorKind: "human", category: "archive", action: "Archived customer", reason });
+    toast.success("Customer archived", { description: "Hidden from active work views. Recoverable via the Archived filter." });
   };
 
   const handleExport = () => {
@@ -286,13 +286,13 @@ function DebtorProfile() {
     const csv = ["field,value", ...rows.map(([k, v]) => `${k},"${String(v).replace(/"/g, '""')}"`)].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `debtor_${d.id}.csv`; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `customer_${d.id}.csv`; a.click();
     URL.revokeObjectURL(url);
     setLifecycleAudit((l) => [
-      { id: `la-${Date.now()}`, when: nowLabel(), actor: ACTOR, action: "Exported debtor record", source: "Web UI" },
+      { id: `la-${Date.now()}`, when: nowLabel(), actor: ACTOR, action: "Exported customer record", source: "Web UI" },
       ...l,
     ]);
-    toast.success("Debtor data exported");
+    toast.success("Customer data exported");
   };
 
   const handleRequestDelete = () => {
@@ -309,11 +309,11 @@ function DebtorProfile() {
     setDeletedAt(stamp);
     setDeleteReasonOpen(false);
     setLifecycleAudit((l) => [
-      { id: `la-${Date.now()}`, when: stamp, actor: ACTOR, action: "Deleted debtor record (soft)", source: "Web UI" },
+      { id: `la-${Date.now()}`, when: stamp, actor: ACTOR, action: "Deleted customer record (soft)", source: "Web UI" },
       ...l,
     ]);
-    logAudit({ debtorId: d.id, actor: ACTOR, actorKind: "human", category: "delete", action: "Deleted debtor record (soft)", reason });
-    toast.success("Debtor deleted", { description: "Soft delete — comms, calls, notes and audit are retained." });
+    logAudit({ debtorId: d.id, actor: ACTOR, actorKind: "human", category: "delete", action: "Deleted customer record (soft)", reason });
+    toast.success("Customer deleted", { description: "Soft delete — comms, calls, notes and audit are retained." });
   };
 
   const toggleFlag = (flag: string) => {
@@ -584,7 +584,7 @@ function DebtorProfile() {
         onClose={() => setArchiveReasonOpen(false)}
         onConfirm={confirmArchive}
         kind="archive"
-        label="Archive debtor"
+        label="Archive customer"
       />
 
       <ReasonDialog
@@ -592,13 +592,13 @@ function DebtorProfile() {
         onClose={() => setDeleteReasonOpen(false)}
         onConfirm={confirmDeleteAction}
         kind="delete"
-        label="Delete debtor"
+        label="Delete customer"
       />
 
       <AlertDialog open={reengageDialogOpen} onOpenChange={setReengageDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Re-engage debtor?</AlertDialogTitle>
+            <AlertDialogTitle>Re-engage customer?</AlertDialogTitle>
             <AlertDialogDescription>
               {lastStop ? (
                 <>
@@ -607,7 +607,7 @@ function DebtorProfile() {
                   Duration: {lastStop.duration} · Channels: {lastStop.channels.join(", ")} · Effective {lastStop.effectiveDate}
                 </>
               ) : (
-                "Resume AI calls, SMS, and email outreach for this debtor."
+                "Resume AI calls, SMS, and email outreach for this customer."
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -678,14 +678,14 @@ function OverviewTab({
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <PageCard className="lg:col-span-3">
         <CardHead
-          title="Manage debtor"
+          title="Manage customer"
           subtitle="Manual lifecycle actions — all changes are recorded in the audit trail"
         />
         <div className="px-6 py-4 flex items-center gap-2 flex-wrap">
           <button
             onClick={onExport}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
-            title="Download debtor data as CSV"
+            title="Download customer data as CSV"
           >
             <Download className="h-4 w-4" /> Export
           </button>
@@ -702,7 +702,7 @@ function OverviewTab({
             onClick={onEngagement}
             disabled={!!deletedAt || !canStopEngagement}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-            title={!canStopEngagement ? roleLockReason : (engagementStopped ? "Resume AI/outbound workflows for this debtor" : "Pause AI/outbound workflows for this debtor")}
+            title={!canStopEngagement ? roleLockReason : (engagementStopped ? "Resume AI/outbound workflows for this customer" : "Pause AI/outbound workflows for this customer")}
           >
             {!canStopEngagement && <Lock className="h-3.5 w-3.5" />}
             {engagementStopped
@@ -729,7 +729,7 @@ function OverviewTab({
         </div>
       </PageCard>
       <PageCard className="lg:col-span-2">
-        <CardHead title="Debtor summary" subtitle="Most important non-financial signals" />
+        <CardHead title="Customer summary" subtitle="Most important non-financial signals" />
         <div className="px-6 py-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
           <Field label="Name" value={debtor.name} />
           <Field label="Creditor" value={debtor.creditor} />
@@ -876,7 +876,7 @@ function TimelineTab({ history, lifecycleAudit, debtorId }: { history: StatusEve
       </PageCard>
 
       <PageCard>
-        <CardHead title="Audit trail" subtitle="Every change to this debtor — imports, edits, AI actions, CRM sync, payments, communications, archive/delete" action={<Link to="/tenant/intake/audit" className="text-xs font-semibold text-tenant hover:underline">Full log</Link>} />
+        <CardHead title="Audit trail" subtitle="Every change to this customer — imports, edits, AI actions, CRM sync, payments, communications, archive/delete" action={<Link to="/tenant/intake/audit" className="text-xs font-semibold text-tenant hover:underline">Full log</Link>} />
         <ul className="divide-y divide-border">
           {lifecycleAudit.map((a) => (
             <li key={a.id} className="px-6 py-3 flex items-start gap-3 text-sm bg-warning/5">
@@ -927,10 +927,10 @@ type CommsMessage = {
 
 const SEED_COMMS: CommsMessage[] = [
   { id: "m1", channel: "sms", source: "ai", author: "AI Assistant", when: "2 days ago", body: "Hi Janelle, this is a friendly reminder about your account. You can view your options at the secure link we sent earlier." },
-  { id: "m2", channel: "sms", source: "debtor", author: "Debtor", when: "2 days ago", body: "Can I pay half this week and the rest next month?" },
+  { id: "m2", channel: "sms", source: "debtor", author: "Customer", when: "2 days ago", body: "Can I pay half this week and the rest next month?" },
   { id: "m3", channel: "sms", source: "human", author: "Maya Lindstrom", when: "2 days ago", body: "Absolutely — I'll set up a 2-installment plan and email you the details." },
   { id: "m4", channel: "email", source: "human", author: "Maya Lindstrom", when: "2 days ago", subject: "Your payment plan", body: "Hi Janelle, please find attached the agreed 2-installment plan. Reply if any questions." },
-  { id: "m5", channel: "email", source: "debtor", author: "Debtor", when: "1 day ago", subject: "Your payment plan", body: "Thanks — confirming receipt. I'll send the first payment Friday." },
+  { id: "m5", channel: "email", source: "debtor", author: "Customer", when: "1 day ago", subject: "Your payment plan", body: "Thanks — confirming receipt. I'll send the first payment Friday." },
   { id: "m6", channel: "email", source: "ai", author: "AI Assistant", when: "5 days ago", subject: "Payment options available", body: "Several flexible payment options are available for your account." },
 ];
 
@@ -1192,7 +1192,7 @@ function AICallAnalysisCard({ debtorId }: { debtorId: string }) {
       />
       <div className="px-6 py-4 grid grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
         <Analysis label="Sentiment" value={sentiment} tone={sentiment === "Positive" ? "success" : sentiment === "Negative" ? "danger" : "muted"} />
-        <Analysis label="Debtor intent" value={intent} tone={intent === "Willing to pay" ? "success" : intent === "Refused" ? "danger" : "warning"} />
+        <Analysis label="Customer intent" value={intent} tone={intent === "Willing to pay" ? "success" : intent === "Refused" ? "danger" : "warning"} />
         <Analysis label="Outcome" value={outcomeLabel} tone="info" />
         <Analysis label="Compliance risk" value={risk} tone={risk === "High" ? "danger" : risk === "Medium" ? "warning" : "success"} />
         <Analysis label="Recommended next" value={recommended} tone="tenant" />
@@ -1247,7 +1247,7 @@ function IdentityValidationCard({ debtorId }: { debtorId: string }) {
     <PageCard>
       <CardHead
         title="Identity & debt validation"
-        subtitle="Whether this debtor has been verified before discussing the debt"
+        subtitle="Whether this customer has been verified before discussing the debt"
       />
       <div className="px-6 py-4 space-y-4 text-sm">
         <div className="grid grid-cols-2 gap-3">
@@ -1329,7 +1329,7 @@ function FlagEditor({ flags, onToggle }: { flags: string[]; onToggle: (f: string
           <div className="absolute right-0 z-40 mt-1.5 w-72 rounded-xl border border-border bg-card shadow-tenant overflow-hidden">
             <div className="px-3 py-2 border-b border-border flex items-center justify-between">
               <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-                {showManage ? "Manage flag types" : "Toggle flag on debtor"}
+                {showManage ? "Manage flag types" : "Toggle flag on customer"}
               </span>
               {canManage && (
                 <button
@@ -1931,7 +1931,7 @@ function CallsSection({ debtorId }: { debtorId: string }) {
                 {openCall.transcript.map((t, i) => (
                   <div key={i} className="px-3 py-2 text-sm flex gap-3">
                     <div className={`font-semibold text-xs shrink-0 w-20 ${t.speaker === "agent" ? "text-tenant" : "text-info"}`}>
-                      {t.speakerName ?? (t.speaker === "agent" ? "Agent" : "Debtor")}
+                      {t.speakerName ?? (t.speaker === "agent" ? "Agent" : "Customer")}
                     </div>
                     <div className="flex-1">{t.text}</div>
                   </div>
@@ -2173,7 +2173,7 @@ const ASSIGNMENT_FIELDS: FieldDef[] = [
 ];
 
 const PRIMARY_FIELDS: FieldDef[] = [
-  { label: "Debtor Name (Last, First)", key: "debtor_name_last_first", aliases: ["debtorNameLastFirst", "debtor_name"] },
+  { label: "Customer Name (Last, First)", key: "debtor_name_last_first", aliases: ["debtorNameLastFirst", "debtor_name"] },
   { label: "Address", key: "address", aliases: ["street", "address_line1"] },
   { label: "City", key: "city" },
   { label: "Province", key: "province", aliases: ["state", "region"] },
@@ -2189,7 +2189,7 @@ const PRIMARY_FIELDS: FieldDef[] = [
 ];
 
 const CO_FIELDS: FieldDef[] = [
-  { label: "Co-Debtor (Last, First)", key: "co_debtor_name", aliases: ["coDebtorName", "co_debtor"] },
+  { label: "Co-Customer (Last, First)", key: "co_debtor_name", aliases: ["coDebtorName", "co_debtor"] },
   { label: "Address", key: "co_address", aliases: ["coAddress"] },
   { label: "City", key: "co_city", aliases: ["coCity"] },
   { label: "Province", key: "co_province", aliases: ["coProvince"] },
@@ -2306,7 +2306,7 @@ function DebtorProfileFields({ debtor }: { debtor: AnyDebtor }) {
   return (
     <PageCard>
       <CardHead
-        title="Debtor profile"
+        title="Customer profile"
         subtitle={`Click any field to edit · restricted fields (financial / identity / legal) can only be changed by ${canEditSensitive ? "you — a documented reason is required" : "Admin or Finance"} · viewing as ${role}`}
       />
 
@@ -2314,8 +2314,8 @@ function DebtorProfileFields({ debtor }: { debtor: AnyDebtor }) {
         <EditableSection title="File / Reference" fields={FILE_FIELDS} values={buildValues(FILE_FIELDS)} {...sectionProps} />
         <EditableSection title="Creditor / Client" fields={CREDITOR_FIELDS} values={buildValues(CREDITOR_FIELDS)} {...sectionProps} />
         <EditableSection title="Assignment" fields={ASSIGNMENT_FIELDS} values={buildValues(ASSIGNMENT_FIELDS)} {...sectionProps} />
-        <EditableSection title="Primary Debtor" fields={PRIMARY_FIELDS} values={buildValues(PRIMARY_FIELDS)} {...sectionProps} />
-        <EditableSection title="Co-Debtor" fields={CO_FIELDS} values={buildValues(CO_FIELDS)} {...sectionProps} />
+        <EditableSection title="Primary Customer" fields={PRIMARY_FIELDS} values={buildValues(PRIMARY_FIELDS)} {...sectionProps} />
+        <EditableSection title="Co-Customer" fields={CO_FIELDS} values={buildValues(CO_FIELDS)} {...sectionProps} />
         <EditableSection title="Financial / Balance" fields={FINANCIAL_FIELDS} values={buildValues(FINANCIAL_FIELDS)} {...sectionProps} />
         <EditableSection title="Payment History" fields={PAYMENT_HISTORY_FIELDS} values={buildValues(PAYMENT_HISTORY_FIELDS)} {...sectionProps} />
         <EditableSection title="Communication Preferences" fields={COMMUNICATION_FIELDS} values={buildValues(COMMUNICATION_FIELDS)} {...sectionProps} />
@@ -2341,8 +2341,8 @@ function NoOwnerWarning({ debtorId, onAssignClick }: { debtorId: string; onAssig
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             {isIssue
-              ? `This debtor has a ${a.teamId ? "team" : a.managerId ? "manager" : "creditor"} set but no responsible agent. Resolve ownership before active collection work begins.`
-              : "This debtor has not been assigned to an agent, team, or desk. Please assign ownership before active collection work begins."}
+              ? `This customer has a ${a.teamId ? "team" : a.managerId ? "manager" : "creditor"} set but no responsible agent. Resolve ownership before active collection work begins.`
+              : "This customer has not been assigned to an agent, team, or desk. Please assign ownership before active collection work begins."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

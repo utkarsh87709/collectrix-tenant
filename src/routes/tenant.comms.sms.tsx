@@ -82,7 +82,7 @@ function SmsPage() {
             </div>
 
             <button onClick={send} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant">
-              <Send className="h-4 w-4" /> Send to selected debtors
+              <Send className="h-4 w-4" /> Send to selected customers
             </button>
           </div>
         </PageCard>

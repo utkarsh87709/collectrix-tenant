@@ -109,7 +109,7 @@ export function InitialStatusCard({
               <h2 className="font-display text-lg font-bold">Initial status on assignment</h2>
               <p className="text-sm text-muted-foreground max-w-2xl">
                 Files newly assigned to <span className="font-semibold">{teamName}</span> for{" "}
-                <span className="font-semibold">{clientName}</span> land here. Debtors already in
+                <span className="font-semibold">{clientName}</span> land here. Customers already in
                 another status stay where they are.
               </p>
             </div>

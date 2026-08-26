@@ -46,7 +46,7 @@ export function StatusChangeDialog({
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
               Status change
             </div>
-            <h3 className="font-display text-lg font-bold mt-0.5">Change Debtor Status</h3>
+            <h3 className="font-display text-lg font-bold mt-0.5">Change Customer Status</h3>
           </div>
           <button
             onClick={onClose}
@@ -59,7 +59,7 @@ export function StatusChangeDialog({
 
         <div className="px-6 py-5 space-y-4 text-sm">
           <p className="text-muted-foreground">
-            You are changing the debtor status from{" "}
+            You are changing the customer status from{" "}
             <span className="font-semibold text-foreground">
               {from ? `${from.displayName} (${from.code})` : fromStatus}
             </span>{" "}
@@ -67,7 +67,7 @@ export function StatusChangeDialog({
             <span className="font-semibold text-foreground">
               {to.displayName} ({to.code})
             </span>
-            . This action will be recorded in the debtor activity history.
+            . This action will be recorded in the customer activity history.
           </p>
 
           <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">

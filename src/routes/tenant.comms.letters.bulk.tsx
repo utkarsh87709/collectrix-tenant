@@ -20,7 +20,7 @@ function BulkPage() {
   const [form, setForm] = useState({
     name: `Q2_${new Date().toLocaleString("en-US", { month: "short" })}_Campaign`,
     templateId: LETTER_TEMPLATES.filter((t) => t.status === "active")[0]?.id ?? "",
-    filter: "All legal status debtors in Ontario",
+    filter: "All legal status customers in Ontario",
     output: "print" as "pdf" | "docx" | "print",
     schedule: "now" as "now" | "tonight" | "scheduled",
   });
@@ -123,7 +123,7 @@ function BulkPage() {
         open={open}
         onClose={() => setOpen(false)}
         title="New bulk batch"
-        subtitle="Generate letters for filtered debtor list"
+        subtitle="Generate letters for filtered customer list"
         size="lg"
         footer={
           <>
@@ -141,9 +141,9 @@ function BulkPage() {
               ))}
             </select>
           </Field>
-          <Field label="Recipient filter" hint="Or upload CSV of debtor IDs">
+          <Field label="Recipient filter" hint="Or upload CSV of customer IDs">
             <select className={inputCls} value={form.filter} onChange={(e) => setForm({ ...form, filter: e.target.value })}>
-              <option>All legal status debtors in Ontario</option>
+              <option>All legal status customers in Ontario</option>
               <option>All accounts aged 90+ days</option>
               <option>Balance &gt; $1000 AND no contact in 30 days</option>
               <option>Custom CSV upload</option>

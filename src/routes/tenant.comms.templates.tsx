@@ -33,7 +33,7 @@ const SEED_DOC_TEMPLATES: DocTemplate[] = [
     id: "doc-tpl-1",
     name: "Demand Letter Template",
     category: "Legal",
-    description: "Standard pre-legal demand letter. AI fills debtor, balance, deadline, attorney details.",
+    description: "Standard pre-legal demand letter. AI fills customer, balance, deadline, attorney details.",
     fileName: "demand_letter_template.docx",
     mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     size: 24576,
@@ -379,8 +379,8 @@ function DocumentsTemplatesPanel({
             <Sparkles className="h-4 w-4 text-tenant" /> Document Templates
           </h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-            Upload document templates (DOCX, PDF, TXT). The AI uses these templates and merges the debtor's details
-            to generate documents from the debtor file's Documents tab.
+            Upload document templates (DOCX, PDF, TXT). The AI uses these templates and merges the customer's details
+            to generate documents from the customer file's Documents tab.
           </p>
         </div>
         <button
@@ -501,7 +501,7 @@ function UploadTemplateDialog({
           <h3 className="font-display text-lg font-bold">Upload document template</h3>
         </div>
         <p className="text-xs text-muted-foreground mb-4">
-          AI will use this template to generate documents, replacing merge variables with each debtor's details.
+          AI will use this template to generate documents, replacing merge variables with each customer's details.
         </p>
 
         <div className="space-y-4">
@@ -557,7 +557,7 @@ function UploadTemplateDialog({
             <code className="font-mono">{`{{debtor_full_name}}`}</code>,{" "}
             <code className="font-mono">{`{{balance_due}}`}</code>,{" "}
             <code className="font-mono">{`{{account_number}}`}</code>, etc. in your template — the AI will replace
-            these with the debtor's actual values during generation.
+            these with the customer's actual values during generation.
           </div>
         </div>
 

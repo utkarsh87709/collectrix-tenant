@@ -146,7 +146,7 @@ export type DataExport = {
 };
 
 export const dataExports: DataExport[] = [
-  { id: "e1", name: "Daily Debtor Snapshot",  type: "CSV",     destination: "S3 / s3://apex-bi/daily/", schedule: "Daily 02:00", rows: 18420, lastRun: "2026-04-28 02:01" },
+  { id: "e1", name: "Daily Customer Snapshot",  type: "CSV",     destination: "S3 / s3://apex-bi/daily/", schedule: "Daily 02:00", rows: 18420, lastRun: "2026-04-28 02:01" },
   { id: "e2", name: "Payments Stream",        type: "Webhook", destination: "https://bi.apex.io/hooks/payments", schedule: "Real-time", rows: 234, lastRun: "2026-04-28 09:14" },
   { id: "e3", name: "Snowflake Warehouse",    type: "Parquet", destination: "snowflake://APEX_BI.RAW.DEBTORS", schedule: "Hourly", rows: 18420, lastRun: "2026-04-28 09:00" },
   { id: "e4", name: "Tableau Live Connector", type: "API",     destination: "OAuth — bi-readonly key", schedule: "On-demand" },

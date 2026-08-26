@@ -163,7 +163,7 @@ export const dedupeCandidates: DedupeCandidate[] = [
     tierSignals: ["Same last name + same address", "Shared phone number"],
     matches: { name: 54, dob: "different", address: "exact", postalCode: "exact", phone: "exact", email: "different", creditorRef: "different", govId: "different", employer: "different" },
     mergeHistory: [
-      { id: "h1", when: "auto", actor: "Dedupe engine v3.1", action: "flagged", note: "Low-confidence: likely household members, not same debtor" },
+      { id: "h1", when: "auto", actor: "Dedupe engine v3.1", action: "flagged", note: "Low-confidence: likely household members, not same customer" },
     ],
   },
   {

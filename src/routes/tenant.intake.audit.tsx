@@ -6,7 +6,7 @@ import { ScrollText, Download } from "lucide-react";
 import { debtorAuditTrail } from "@/lib/intake-mock";
 
 export const Route = createFileRoute("/tenant/intake/audit")({
-  head: () => ({ meta: [{ title: "Debtor Audit · Tenant Admin" }] }),
+  head: () => ({ meta: [{ title: "Customer Audit · Tenant Admin" }] }),
   component: AuditPage,
 });
 
@@ -14,8 +14,8 @@ function AuditPage() {
   return (
     <Shell>
       <Topbar
-        title="Debtor Audit Trail"
-        subtitle="Every change to every debtor — immutable record"
+        title="Customer Audit Trail"
+        subtitle="Every change to every customer — immutable record"
         action={<button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"><Download className="h-4 w-4" /> Export CSV</button>}
       />
       <section className="px-6 lg:px-10 py-6">

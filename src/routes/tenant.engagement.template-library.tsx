@@ -852,7 +852,7 @@ function TemplateEditor({
           <div className="flex items-center gap-2 mb-2.5">
             <span className="text-xs font-semibold text-foreground">Insert a variable</span>
             <span className="text-[11px] text-muted-foreground">
-              Click to add it at the cursor — replaced with each debtor's real data when sent.
+              Click to add it at the cursor — replaced with each customer's real data when sent.
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -928,7 +928,7 @@ function PreviewModal({
           <div className="mb-4 rounded-lg border border-[color:var(--tenant)]/20 bg-[color:var(--tenant)]/5 px-3 py-2 text-[11px] text-muted-foreground">
             This is an example. Each <code className="font-mono text-tenant">{`{{variable}}`}</code>{" "}
             is shown with placeholder data (e.g. a sample name and balance) so you can see the layout
-            — real debtor values are merged in when the message is actually sent.
+            — real customer values are merged in when the message is actually sent.
           </div>
           {isEmail && (
             <div className="mb-4">

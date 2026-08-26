@@ -78,7 +78,7 @@ function save<T>(key: string, items: T[]) {
 }
 
 const seedReported: AgentReportedPayment[] = [
-  { id: "ar1", debtorId: "1", amount: 200, method: "card", paymentDate: new Date(Date.now() - 86400000 * 2).toISOString().slice(0,10), reference: "DEBTOR-SAID-VISA", note: "Debtor claims paid via card portal — provided last-4 1234", status: "reported", reportedBy: "Sarah K.", reportedAt: new Date(Date.now() - 86400000 * 2).toISOString(), verificationStatus: "pending_verification" },
+  { id: "ar1", debtorId: "1", amount: 200, method: "card", paymentDate: new Date(Date.now() - 86400000 * 2).toISOString().slice(0,10), reference: "DEBTOR-SAID-VISA", note: "Customer claims paid via card portal — provided last-4 1234", status: "reported", reportedBy: "Sarah K.", reportedAt: new Date(Date.now() - 86400000 * 2).toISOString(), verificationStatus: "pending_verification" },
 ];
 const seedFinance: FinancePostedPayment[] = [
   { id: "fp1", debtorId: "1", amountReceived: 250, method: "card", receivedDate: new Date(Date.now() - 86400000 * 14).toISOString().slice(0,10), postedDate: new Date(Date.now() - 86400000 * 13).toISOString().slice(0,10), bankReference: "STRIPE-9214", appliedToInterest: 80, appliedToPrincipal: 170, remainingBalanceAfter: 0, postedBy: "Finance Team", notes: "Stripe deposit confirmed" },

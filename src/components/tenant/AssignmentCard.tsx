@@ -62,7 +62,7 @@ export function AssignmentCard({ debtorId, canReassign = true, canReassignCredit
     <PageCard>
       <CardHead
         title="Assignment & ownership"
-        subtitle="Who is responsible for this debtor — agent, manager, team, creditor, and AI agent"
+        subtitle="Who is responsible for this customer — agent, manager, team, creditor, and AI agent"
         action={
           <div className="flex items-center gap-2">
             {!a.agentId && <Pill tone="warning">Unassigned</Pill>}

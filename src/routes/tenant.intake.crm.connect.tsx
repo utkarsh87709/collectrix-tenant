@@ -24,17 +24,17 @@ import { connectors, fieldMappings as defaultFieldMappings, statusMaps as defaul
 
 // Dynamically fetched from the CRM in real usage; mocked here.
 const CRM_FIELD_OPTIONS = [
-  "Debtor.Name",
-  "Debtor.Balance",
-  "Debtor.Status",
-  "Debtor.AccountNumber",
-  "Debtor.Phone1",
-  "Debtor.Phone2",
-  "Debtor.Email",
-  "Debtor.Address",
-  "Debtor.VIP_FLAG",
-  "Debtor.Creditor",
-  "Debtor.LastContact",
+  "Customer.Name",
+  "Customer.Balance",
+  "Customer.Status",
+  "Customer.AccountNumber",
+  "Customer.Phone1",
+  "Customer.Phone2",
+  "Customer.Email",
+  "Customer.Address",
+  "Customer.VIP_FLAG",
+  "Customer.Creditor",
+  "Customer.LastContact",
 ];
 
 const PLATFORM_FIELD_OPTIONS = [
@@ -263,7 +263,7 @@ function ConnectCrmPage() {
                 <div className="space-y-3">
                   <div className="rounded-lg border border-tenant/30 bg-tenant-soft/40 p-3 text-xs">
                     <div className="font-semibold text-tenant mb-0.5">Tenant maps CRM fields to Collectrix AI fields</div>
-                    <div className="text-muted-foreground">Please confirm how your CRM fields should connect with Collectrix AI fields. You can map debtor, status, notes, creditor, account, payment, communication, call transcript & summary, assignment, and custom fields.</div>
+                    <div className="text-muted-foreground">Please confirm how your CRM fields should connect with Collectrix AI fields. You can map customer, status, notes, creditor, account, payment, communication, call transcript & summary, assignment, and custom fields.</div>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm text-muted-foreground">

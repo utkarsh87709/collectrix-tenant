@@ -28,12 +28,12 @@ export function ReasonDialog({
           <p className="text-xs text-muted-foreground">
             {isDelete
               ? "Soft delete — the record remains in the audit trail and is recoverable by admins."
-              : "Archiving hides the debtor from active work views. Recoverable via the Archived filter."}
+              : "Archiving hides the customer from active work views. Recoverable via the Archived filter."}
           </p>
           <div>
             <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Reason (required)</label>
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
-              placeholder={isDelete ? "Why is this record being deleted?" : "Why archive this debtor?"}
+              placeholder={isDelete ? "Why is this record being deleted?" : "Why archive this customer?"}
               className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-sm" />
           </div>
         </div>

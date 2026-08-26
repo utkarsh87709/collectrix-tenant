@@ -39,8 +39,8 @@ type FieldGroup =
   | "File"
   | "Creditor"
   | "Assignment"
-  | "Debtor"
-  | "Co-Debtor"
+  | "Customer"
+  | "Co-Customer"
   | "Financial"
   | "Payments"
   | "Communication"
@@ -66,34 +66,34 @@ const SYSTEM_FIELDS: SystemField[] = [
   { key: "assigned_team", label: "Assigned Team", group: "Assignment" },
 
   // Primary debtor
-  { key: "debtor_name", label: "Debtor Name", group: "Debtor", required: true },
-  { key: "address", label: "Address", group: "Debtor" },
-  { key: "city", label: "City", group: "Debtor" },
-  { key: "province", label: "Province", group: "Debtor" },
-  { key: "postal_code", label: "Postal Code", group: "Debtor" },
-  { key: "home_no", label: "Home No.", group: "Debtor" },
-  { key: "cell_no", label: "Cell No.", group: "Debtor" },
-  { key: "email", label: "Email", group: "Debtor" },
-  { key: "dob", label: "DOB", group: "Debtor", notes: "Sensitive — masked at rest" },
-  { key: "sin", label: "SIN", group: "Debtor", notes: "Sensitive — masked / permission-gated" },
-  { key: "dl", label: "DL", group: "Debtor", notes: "Sensitive — masked / permission-gated" },
-  { key: "poe", label: "POE", group: "Debtor" },
-  { key: "poe_no", label: "POE No.", group: "Debtor" },
+  { key: "debtor_name", label: "Customer Name", group: "Customer", required: true },
+  { key: "address", label: "Address", group: "Customer" },
+  { key: "city", label: "City", group: "Customer" },
+  { key: "province", label: "Province", group: "Customer" },
+  { key: "postal_code", label: "Postal Code", group: "Customer" },
+  { key: "home_no", label: "Home No.", group: "Customer" },
+  { key: "cell_no", label: "Cell No.", group: "Customer" },
+  { key: "email", label: "Email", group: "Customer" },
+  { key: "dob", label: "DOB", group: "Customer", notes: "Sensitive — masked at rest" },
+  { key: "sin", label: "SIN", group: "Customer", notes: "Sensitive — masked / permission-gated" },
+  { key: "dl", label: "DL", group: "Customer", notes: "Sensitive — masked / permission-gated" },
+  { key: "poe", label: "POE", group: "Customer" },
+  { key: "poe_no", label: "POE No.", group: "Customer" },
 
   // Co-debtor
-  { key: "co_debtor_name", label: "Co-Debtor Name", group: "Co-Debtor" },
-  { key: "co_address", label: "Co-Debtor Address", group: "Co-Debtor" },
-  { key: "co_city", label: "Co-Debtor City", group: "Co-Debtor" },
-  { key: "co_province", label: "Co-Debtor Province", group: "Co-Debtor" },
-  { key: "co_postal_code", label: "Co-Debtor Postal Code", group: "Co-Debtor" },
-  { key: "co_home_no", label: "Co-Debtor Home No.", group: "Co-Debtor" },
-  { key: "co_cell_no", label: "Co-Debtor Cell No.", group: "Co-Debtor" },
-  { key: "co_email", label: "Co-Debtor Email", group: "Co-Debtor" },
-  { key: "co_dob", label: "Co-Debtor DOB", group: "Co-Debtor" },
-  { key: "co_sin", label: "Co-Debtor SIN", group: "Co-Debtor" },
-  { key: "co_dl", label: "Co-Debtor DL", group: "Co-Debtor" },
-  { key: "co_poe", label: "Co-Debtor POE", group: "Co-Debtor" },
-  { key: "co_poe_no", label: "Co-Debtor POE No.", group: "Co-Debtor" },
+  { key: "co_debtor_name", label: "Co-Customer Name", group: "Co-Customer" },
+  { key: "co_address", label: "Co-Customer Address", group: "Co-Customer" },
+  { key: "co_city", label: "Co-Customer City", group: "Co-Customer" },
+  { key: "co_province", label: "Co-Customer Province", group: "Co-Customer" },
+  { key: "co_postal_code", label: "Co-Customer Postal Code", group: "Co-Customer" },
+  { key: "co_home_no", label: "Co-Customer Home No.", group: "Co-Customer" },
+  { key: "co_cell_no", label: "Co-Customer Cell No.", group: "Co-Customer" },
+  { key: "co_email", label: "Co-Customer Email", group: "Co-Customer" },
+  { key: "co_dob", label: "Co-Customer DOB", group: "Co-Customer" },
+  { key: "co_sin", label: "Co-Customer SIN", group: "Co-Customer" },
+  { key: "co_dl", label: "Co-Customer DL", group: "Co-Customer" },
+  { key: "co_poe", label: "Co-Customer POE", group: "Co-Customer" },
+  { key: "co_poe_no", label: "Co-Customer POE No.", group: "Co-Customer" },
 
   // Financial / balance
   { key: "principal", label: "Principal", group: "Financial", required: true, notes: "Required if Current Outstanding Balance is blank" },
@@ -133,7 +133,7 @@ const SYSTEM_FIELDS: SystemField[] = [
 ];
 
 const FIELD_GROUP_ORDER: FieldGroup[] = [
-  "File", "Creditor", "Assignment", "Debtor", "Co-Debtor",
+  "File", "Creditor", "Assignment", "Customer", "Co-Customer",
   "Financial", "Payments", "Communication", "Vehicle", "Court",
 ];
 
@@ -242,7 +242,7 @@ function downloadSampleCsv() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "debtor_import_sample.csv";
+  a.download = "customer_import_sample.csv";
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -332,7 +332,7 @@ function ImportPage() {
     <Shell>
       <Topbar
         title="Upload & Validate"
-        subtitle="Bulk import debtor creditors from CSV or Excel"
+        subtitle="Bulk import customer creditors from CSV or Excel"
         action={
           <button onClick={() => setShowWizard(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant">
             <Upload className="h-4 w-4" /> New import
@@ -432,7 +432,7 @@ function ImportWizard({ onClose }: { onClose: () => void }) {
     { row: 188, column: "email", reason: "Invalid email: 'maria@@gmail' — imported, phone kept" },
     { row: 314, column: "current_outstanding_balance", reason: "Cannot parse '$N/A' — defaulted to 0, imported" },
     { row: 421, column: "compounding_frequency", reason: "Interest type is Compound but compounding frequency is blank — imported, flagged" },
-    { row: 502, column: "debtor_name", reason: "Missing debtor name AND no contact — BLOCKED" },
+    { row: 502, column: "debtor_name", reason: "Missing customer name AND no contact — BLOCKED" },
     { row: 612, column: "assigned_agent_email", reason: "Agent email does not match an active tenant user — sent to Unassigned" },
     { row: 891, column: "client_file_no", reason: "Duplicate of row 119 — skipped" },
   ]), []);
@@ -518,7 +518,7 @@ function ImportWizard({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="bg-card rounded-2xl shadow-elegant w-full max-w-4xl max-h-[90vh] flex flex-col border border-border" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h3 className="font-display text-lg font-bold">Bulk import debtors</h3>
+          <h3 className="font-display text-lg font-bold">Bulk import customers</h3>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
 
@@ -614,7 +614,7 @@ function ImportWizard({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                 </div>
-                <div className="text-[11px] text-muted-foreground">All records in this file will be assigned to this owner, team and manager. You can reassign individual debtors later.</div>
+                <div className="text-[11px] text-muted-foreground">All records in this file will be assigned to this owner, team and manager. You can reassign individual customers later.</div>
               </div>
 
 
@@ -697,7 +697,7 @@ function ImportWizard({ onClose }: { onClose: () => void }) {
                       <li>· <span className="font-mono text-foreground">{summary.totalUploaded.toLocaleString()}</span> records uploaded</li>
                       <li>· <span className="font-mono text-success">{summary.assigned.toLocaleString()}</span> assigned successfully</li>
                       <li>· <span className="font-mono text-warning">{summary.unassigned.toLocaleString()}</span> records missing owner / team</li>
-                      <li>· Unassigned records are filterable in the debtor listing.</li>
+                      <li>· Unassigned records are filterable in the customer listing.</li>
                     </ul>
                   </div>
                 </div>
@@ -743,7 +743,7 @@ function ImportWizard({ onClose }: { onClose: () => void }) {
               <CheckCircle2 className="h-12 w-12 text-success mx-auto mb-3" />
               <div className="font-display text-lg font-bold">Import complete</div>
               <div className="text-sm text-muted-foreground mt-2">
-                {summary.imported.toLocaleString()} debtors imported under <span className="font-semibold text-foreground">{creditor}</span> · {summary.withWarnings} with warnings · {summary.criticalErrors} blocked
+                {summary.imported.toLocaleString()} customers imported under <span className="font-semibold text-foreground">{creditor}</span> · {summary.withWarnings} with warnings · {summary.criticalErrors} blocked
               </div>
               <div className="text-xs text-muted-foreground mt-1">Job ID: job_{Date.now().toString(36)}</div>
               <button onClick={() => downloadErrorReport({ fileName: filename, creditor, errors })} className="mt-5 inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-border text-xs font-semibold hover:bg-muted">
@@ -921,7 +921,7 @@ function ValidationIssuesSection() {
   const filtered = filter === "all" ? issues : issues.filter((i) => i.status === filter);
 
   const downloadCsv = () => {
-    const header = "file,creditor,row,debtor,field,reason,status";
+    const header = "file,creditor,row,customer,field,reason,status";
     const rows = issues.map((i) =>
       `"${i.fileName}","${i.creditor}",${i.rowNumber},"${i.debtorName}","${i.field}","${i.reason.replace(/"/g, '""')}","${i.status}"`,
     );
@@ -958,7 +958,7 @@ function ValidationIssuesSection() {
               <th className="text-left px-6 py-3 font-semibold">File</th>
               <th className="text-left px-3 py-3 font-semibold">Creditor</th>
               <th className="text-left px-3 py-3 font-semibold">Row</th>
-              <th className="text-left px-3 py-3 font-semibold">Debtor</th>
+              <th className="text-left px-3 py-3 font-semibold">Customer</th>
               <th className="text-left px-3 py-3 font-semibold">Field</th>
               <th className="text-left px-3 py-3 font-semibold">Reason</th>
               <th className="text-left px-3 py-3 font-semibold">Status</th>

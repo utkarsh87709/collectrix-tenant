@@ -291,7 +291,7 @@ function StatusesPage() {
                 <>
                   This removes <span className="font-semibold">{deleting.statusCode}</span> ·{" "}
                   {deleting.status} from your account lifecycle. A status that is still assigned to
-                  a debtor cannot be deleted.
+                  a customer cannot be deleted.
                 </>
               )}
             </AlertDialogDescription>

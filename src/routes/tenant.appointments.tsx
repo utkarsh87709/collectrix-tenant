@@ -126,7 +126,7 @@ function AppointmentsPage() {
         <PageCard>
           <CardHead
             title="Appointments"
-            subtitle="Filter by status, time range, or search by debtor"
+            subtitle="Filter by status, time range, or search by customer"
           />
           <div className="px-6 pb-4 flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[220px]">
@@ -176,7 +176,7 @@ function AppointmentsPage() {
                 <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
                   <tr>
                     <th className="text-left px-4 py-3">When</th>
-                    <th className="text-left px-4 py-3">Debtor</th>
+                    <th className="text-left px-4 py-3">Customer</th>
                     <th className="text-left px-4 py-3">Contact</th>
                     <th className="text-left px-4 py-3">Duration</th>
                     <th className="text-left px-4 py-3">Source</th>

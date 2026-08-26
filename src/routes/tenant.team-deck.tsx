@@ -26,6 +26,7 @@ import {
   getTeamDeckAssignUserList,
   teamDeckAssignUser,
   assignedMemberName,
+  deckDebtorName,
   memberName,
   formatBalance,
   type TeamDeckTeam,
@@ -246,7 +247,7 @@ function TeamDeckPage() {
               <Users2 className="h-10 w-10 mx-auto mb-3 text-tenant" />
               <h3 className="font-display text-lg font-bold">No teams with a deck</h3>
               <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
-                Once debtor files are assigned to a team, that team appears here so its leader can
+                Once customer files are assigned to a team, that team appears here so its leader can
                 hand files to members.
               </p>
             </div>
@@ -409,7 +410,8 @@ function TeamDeckPage() {
                   <tbody className="divide-y divide-border">
                     {shown.map((d, i) => {
                       const checked = selected.has(d.uploadedDebtorId);
-                      const fileNo = d.ourFileNo || d.clientFileNo || `#${d.uploadedDebtorId}`;
+                      const fileNo = d.ourFileNo || `#${d.uploadedDebtorId}`;
+                      const name = deckDebtorName(d);
                       const assignee = assignedMemberName(d);
                       return (
                         <motion.tr
@@ -426,20 +428,13 @@ function TeamDeckPage() {
                                 className="accent-tenant"
                                 checked={checked}
                                 onChange={() => toggleOne(d.uploadedDebtorId)}
-                                aria-label={`Select ${d.debtorName}`}
+                                aria-label={`Select ${name || fileNo}`}
                               />
                             </td>
                           )}
                           <td className={`${isDeckTab ? "px-4" : "px-6"} py-3`}>
-                            <div className="font-semibold">{d.debtorName || "—"}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {fileNo}
-                              {(d.city || d.province) && (
-                                <span className="ml-1">
-                                  · {[d.city, d.province].filter(Boolean).join(", ")}
-                                </span>
-                              )}
-                            </div>
+                            <div className="font-semibold">{name || "—"}</div>
+                            <div className="text-xs text-muted-foreground">{fileNo}</div>
                           </td>
                           <td className="px-4 py-3">
                             <span className="inline-flex items-center gap-1.5">
@@ -619,7 +614,7 @@ function AssignMemberModal({
       );
       toast.success(
         targets.length === 1
-          ? `${targets[0].debtorName} assigned to ${who}`
+          ? `${deckDebtorName(targets[0]) || `#${targets[0].uploadedDebtorId}`} assigned to ${who}`
           : `${targets.length} files assigned to ${who}`,
       );
       await onAssigned();
@@ -647,7 +642,7 @@ function AssignMemberModal({
             <h3 className="font-display font-bold text-lg">Assign to a member</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               {targets.length === 1
-                ? `Hand ${targets[0].debtorName} to a team member`
+                ? `Hand ${deckDebtorName(targets[0]) || `#${targets[0].uploadedDebtorId}`} to a team member`
                 : `Hand ${targets.length} files to a single team member`}
             </p>
           </div>

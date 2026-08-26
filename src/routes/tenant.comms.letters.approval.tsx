@@ -78,7 +78,7 @@ function ApprovalPage() {
               <thead className="text-xs uppercase tracking-wider text-muted-foreground bg-muted/40">
                 <tr>
                   <th className="px-4 py-3 w-8"></th>
-                  <th className="text-left px-3 py-3">Debtor</th>
+                  <th className="text-left px-3 py-3">Customer</th>
                   <th className="text-left px-3 py-3">Template</th>
                   <th className="text-left px-3 py-3">Balance</th>
                   <th className="text-left px-3 py-3">Queue</th>

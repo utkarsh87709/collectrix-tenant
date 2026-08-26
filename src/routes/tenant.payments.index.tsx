@@ -31,7 +31,7 @@ function OverviewPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <StatTile label="Cleared payments" value={`$${ps.totalCleared.toLocaleString()}`} icon={<Wallet className="h-4 w-4" />} tone="success" delta={`${ps.cleared} transactions`} />
         <StatTile label="Plan compliance" value={`${pc.onTimeRate}%`} icon={<Calendar className="h-4 w-4" />} tone="tenant" delta={`${pc.paid}/${pc.total} on-time`} />
-        <StatTile label="Settlements" value={ss.total} icon={<Handshake className="h-4 w-4" />} delta={`Saved $${ss.saved.toLocaleString()} for debtors`} />
+        <StatTile label="Settlements" value={ss.total} icon={<Handshake className="h-4 w-4" />} delta={`Saved $${ss.saved.toLocaleString()} for customers`} />
         <StatTile label="NSF events" value={ns.total} icon={<AlertTriangle className="h-4 w-4" />} tone={ns.total > 0 ? "danger" : "default"} delta={`$${ns.fees} in fees`} />
       </div>
 

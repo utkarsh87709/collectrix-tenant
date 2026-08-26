@@ -5,6 +5,10 @@
 //   POST /tenant/getTeamDeckDebtors        { searchText, page, size, status, teamId }  -> { totalCount, debtorList[] }
 //        status: "inDeck"   -> debtors handed to the team but not yet given to a member (assignedTo === null)
 //        status: "assigned" -> debtors currently being worked by a team member (assignedTo !== null)
+//        Each row is a flat debtor record (same default-field set as upload-debtor-api's
+//        DebtorRecord, but returned flat rather than nested under debtorDetails/customFields
+//        — there is no dedicated "creditor list" or `creditorName` filter param here, so the
+//        creditor dropdown on this screen can only ever reflect the fields already loaded).
 //   POST /tenant/getTeamDeckAssignUserList  { teamId }                                 -> { assignUserList[] }
 //        The members of the team a deck debtor can be handed to.
 //   POST /tenant/teamDeckAssignUser         { userId, uploadedDebtorIdList }           -> {}
@@ -21,22 +25,40 @@ export type TeamDeckTeam = {
 /** "inDeck" = awaiting a member; "assigned" = being worked by a member. */
 export type DeckStatus = "inDeck" | "assigned";
 
-/** A debtor row on the Team Deck. Only the fields the screen reads are typed;
- *  the backend returns the full debtor record (see upload-debtor-api DebtorRecord). */
+/** A debtor row on the Team Deck — the default-field set, flat (verified live;
+ *  there is no `debtorName`/`city`/`province`/`clientFileNo`/`creditorNumber` —
+ *  the name is split into debtorFirstName/debtorMiddleName/debtorLastName). */
 export type TeamDeckDebtor = {
   uploadedDebtorId: number;
   createdAt: string;
   fileId: number;
-  status: string;
+  statusId: number | null;
+  validRecord?: number;
+  invalidAttribute?: { parameterName: string; reason: string }[];
   ourFileNo: string;
-  clientFileNo: string;
   creditorName: string;
-  creditorNumber: string;
-  debtorName: string;
-  city: string;
-  province: string;
+  debtorFirstName: string | null;
+  debtorMiddleName: string | null;
+  debtorLastName: string | null;
+  address: string;
+  homeNo: string;
+  cellNo1: string;
+  cellNo2: string;
+  email: string;
+  dob: string;
+  principal: string;
+  interestRate: string;
+  interestType: string;
+  compoundingFrequency: string;
+  interestStartDate: string;
   currentOutstandingBalance: string;
   currency: string;
+  delinquencyDate: string;
+  dateOfLastPayment: string;
+  lastPaymentAmount: string;
+  lastPaymentMethod: string;
+  totalPaidToDate: string;
+  preferredLanguage: string;
   clientName: string;
   clientNumber: string;
   /** The team this debtor is assigned to. */
@@ -46,8 +68,12 @@ export type TeamDeckDebtor = {
   assignedTo: number | null;
   assignedUserFirstName: string | null;
   assignedUserLastName: string | null;
-  [key: string]: string | number | boolean | null | undefined | unknown[];
 };
+
+/** "First Middle Last" from a deck debtor's split name fields. */
+export function deckDebtorName(d: TeamDeckDebtor): string {
+  return [d.debtorFirstName, d.debtorMiddleName, d.debtorLastName].filter(Boolean).join(" ");
+}
 
 /** A team member a deck debtor can be handed to. */
 export type AssignableMember = {

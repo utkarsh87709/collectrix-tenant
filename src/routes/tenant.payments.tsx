@@ -22,7 +22,7 @@ export function PaymentsShell({ active, children }: { active: string; children: 
     <Shell>
       <Topbar
         title="Payment Status Management"
-        subtitle="Manually track debtor payment status — agents reconcile externally and update here"
+        subtitle="Manually track customer payment status — agents reconcile externally and update here"
         action={<span className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-tenant/15 text-tenant text-xs font-semibold"><Wallet className="h-3.5 w-3.5" /> Status tracker</span>}
       />
       <div className="px-6 lg:px-10 pt-4">

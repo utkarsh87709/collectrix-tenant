@@ -221,7 +221,7 @@ function InboxPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => toast.warning("All follow-ups paused for this debtor")}
+                      onClick={() => toast.warning("All follow-ups paused for this customer")}
                       className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-warning/40 text-warning-foreground bg-warning/10 hover:bg-warning/20"
                     >
                       <PauseCircle className="h-4 w-4" />
@@ -309,7 +309,7 @@ function InboxPage() {
                   <Send className="h-4 w-4" />
                 </button>
               </div>
-              <div className="mt-1.5 px-2 text-[10px] text-muted-foreground">All replies logged to debtor timeline + audit trail</div>
+              <div className="mt-1.5 px-2 text-[10px] text-muted-foreground">All replies logged to customer timeline + audit trail</div>
             </div>
           </div>
         </PageCard>
@@ -337,7 +337,7 @@ function InboxPage() {
                   <AccordionContent className="px-2">
                     <dl className="space-y-2.5 text-sm">
                       <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Debtor</dt>
+                        <dt className="text-muted-foreground">Customer</dt>
                         <dd className="font-semibold text-right">{selected.debtor}</dd>
                       </div>
                       <div className="flex justify-between gap-3">

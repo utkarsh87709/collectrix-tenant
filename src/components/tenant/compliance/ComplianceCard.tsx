@@ -33,7 +33,7 @@ export function ComplianceCard({
       <div className="px-6 py-4 space-y-3 text-sm">
         <Row icon={<Clock className="h-4 w-4 text-tenant" />} label="Calling hours">
           {hours.allowed
-            ? <Pill tone="success">Allowed · debtor local {hours.debtorLocalTime}</Pill>
+            ? <Pill tone="success">Allowed · customer local {hours.debtorLocalTime}</Pill>
             : <span><Pill tone="danger">Blocked</Pill> <span className="text-xs text-muted-foreground ml-1">{hours.reason}</span></span>}
         </Row>
         <Row icon={<ShieldCheck className="h-4 w-4 text-tenant" />} label="Contact frequency">

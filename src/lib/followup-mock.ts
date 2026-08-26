@@ -22,12 +22,12 @@ export type FollowUpAction = {
 };
 
 export const followUpActions: FollowUpAction[] = [
-  { id: "fa_001", type: "callback", debtorId: "d_201", debtorName: "John Smith", account: "AC-9921", due: "2026-04-20T14:00:00Z", priority: "high", assignee: "Maya Lindstrom", status: "due_today", notes: "Debtor requested callback to discuss payment plan", amount: 1240 },
+  { id: "fa_001", type: "callback", debtorId: "d_201", debtorName: "John Smith", account: "AC-9921", due: "2026-04-20T14:00:00Z", priority: "high", assignee: "Maya Lindstrom", status: "due_today", notes: "Customer requested callback to discuss payment plan", amount: 1240 },
   { id: "fa_002", type: "ptp_check", debtorId: "d_202", debtorName: "Hannah Chen", account: "AC-1042", due: "2026-04-20T09:00:00Z", priority: "high", assignee: "Queue: Senior", status: "due_today", notes: "PTP $500 due today — verify payment", amount: 500 },
   { id: "fa_003", type: "settlement_expiry", debtorId: "d_203", debtorName: "Marcus Webb", account: "AC-3380", due: "2026-04-20T23:59:00Z", priority: "high", assignee: "Queue: Recovery", status: "due_today", notes: "Settlement offer 80% ($800) expires tonight", amount: 800 },
   { id: "fa_004", type: "ptp_reminder", debtorId: "d_204", debtorName: "Aisha Patel", account: "AC-7711", due: "2026-04-21T10:00:00Z", priority: "normal", assignee: "Maya Lindstrom", status: "upcoming", notes: "Send reminder 1 day before PTP ($350 due 4/22)", amount: 350 },
   { id: "fa_005", type: "callback", debtorId: "d_205", debtorName: "Diego Ramirez", account: "AC-6650", due: "2026-04-21T16:30:00Z", priority: "normal", assignee: "Maya Lindstrom", status: "upcoming", notes: "Wants to discuss settlement", amount: 2400 },
-  { id: "fa_006", type: "callback", debtorId: "d_206", debtorName: "Linda O'Brien", account: "AC-2208", due: "2026-04-19T11:00:00Z", priority: "high", assignee: "Maya Lindstrom", status: "overdue", notes: "MISSED — debtor expecting call yesterday", amount: 980 },
+  { id: "fa_006", type: "callback", debtorId: "d_206", debtorName: "Linda O'Brien", account: "AC-2208", due: "2026-04-19T11:00:00Z", priority: "high", assignee: "Maya Lindstrom", status: "overdue", notes: "MISSED — customer expecting call yesterday", amount: 980 },
   { id: "fa_007", type: "ptp_check", debtorId: "d_207", debtorName: "Robert Kim", account: "AC-1188", due: "2026-04-19T09:00:00Z", priority: "high", assignee: "Queue: Senior", status: "overdue", notes: "PTP not verified — likely BRP candidate", amount: 1100 },
   { id: "fa_008", type: "no_contact_escalation", debtorId: "d_208", debtorName: "Tara Williams", account: "AC-5544", due: "2026-04-22T12:00:00Z", priority: "normal", assignee: "Queue: Supervisor", status: "upcoming", notes: "5 failed contact attempts — needs supervisor review", amount: 670 },
   { id: "fa_009", type: "brp_followup", debtorId: "d_209", debtorName: "Chris Bennett", account: "AC-8800", due: "2026-04-22T14:00:00Z", priority: "high", assignee: "Maya Lindstrom", status: "upcoming", notes: "2nd broken promise — firmer tone required", amount: 1850 },
@@ -86,7 +86,7 @@ export const brpMetrics = {
   ],
   byEmployment: { employed: 15, unemployed: 35 },
   insights: [
-    "Friday promises break 2× more than Monday — push debtors to commit on Mondays",
+    "Friday promises break 2× more than Monday — push customers to commit on Mondays",
     "Promises >$500 break at 31% — break large amounts into multi-payment plans",
     "Unemployed cohort BRP rate is 35% — require down-payment for high-risk segment",
     "Recovery after 3rd BRP is only 8% — escalate to legal track sooner",

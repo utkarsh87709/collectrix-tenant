@@ -280,7 +280,7 @@ export function RPVCard({ debtorId }: { debtorId: string }) {
 
           <div className="rounded-xl border border-border p-4 space-y-3">
             <div className="text-sm font-semibold flex items-center gap-2"><User className="h-4 w-4 text-tenant" />Human agent — manual verification</div>
-            <p className="text-xs text-muted-foreground">Tick the fields you confirmed and/or record the verification question you asked and the answer the debtor gave.</p>
+            <p className="text-xs text-muted-foreground">Tick the fields you confirmed and/or record the verification question you asked and the answer the customer gave.</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -294,8 +294,8 @@ export function RPVCard({ debtorId }: { debtorId: string }) {
                   value={question} onChange={(e) => setQuestion(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="rpv-answer" className="text-xs">Answer provided by debtor</Label>
-                <Input id="rpv-answer" placeholder="Debtor's response"
+                <Label htmlFor="rpv-answer" className="text-xs">Answer provided by customer</Label>
+                <Input id="rpv-answer" placeholder="Customer's response"
                   value={answer} onChange={(e) => setAnswer(e.target.value)} />
               </div>
               <div className="space-y-1.5">

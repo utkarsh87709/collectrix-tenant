@@ -291,7 +291,7 @@ function PendingClaimRow({
     <li className="py-3 space-y-2 text-xs">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="font-semibold">${claim.amount.toFixed(2)}</span>
-        <span className="text-muted-foreground">{claim.method.replace("_", " ")} · debtor paid {claim.paymentDate}</span>
+        <span className="text-muted-foreground">{claim.method.replace("_", " ")} · customer paid {claim.paymentDate}</span>
         <Pill tone="warning">Pending</Pill>
         <span className="ml-auto text-muted-foreground">Submitted by {claim.reportedBy}</span>
       </div>

@@ -181,7 +181,7 @@ export function StatusFormDrawer({
             <Textarea
               value={aiContext}
               onChange={(e) => setAiContext(e.target.value.slice(0, AI_CONTEXT_MAX))}
-              placeholder="e.g. Debtor has agreed to a payment plan. Confirm the next installment date and do not offer a new settlement."
+              placeholder="e.g. Customer has agreed to a payment plan. Confirm the next installment date and do not offer a new settlement."
               rows={5}
               maxLength={AI_CONTEXT_MAX}
               className="resize-y"

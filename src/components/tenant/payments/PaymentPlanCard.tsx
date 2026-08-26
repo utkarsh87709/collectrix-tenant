@@ -42,7 +42,7 @@ export function PaymentPlanCard({ debtorId }: { debtorId: string }) {
 
   return (
     <PageCard>
-      <CardHead title="Promise to Pay" subtitle="Debtor commits to pay later — no proof required. Use Payment Verification when proof is provided." />
+      <CardHead title="Promise to Pay" subtitle="Customer commits to pay later — no proof required. Use Payment Verification when proof is provided." />
       <div className="px-6 py-4 space-y-4 text-sm">
         <div className="flex items-start gap-2 rounded-lg border border-info/30 bg-info/5 p-2.5 text-xs text-info-foreground">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />

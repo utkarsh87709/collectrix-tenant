@@ -16,7 +16,7 @@ export const Route = createFileRoute("/tenant/intake/crm/mappings")({
 });
 
 const CATEGORIES = [
-  "Debtor",
+  "Customer",
   "Status",
   "Notes",
   "Creditor",
@@ -37,7 +37,7 @@ function defaultCategory(crmField: string): Category {
   if (/Account|Number|Reference/i.test(crmField)) return "Account / Reference";
   if (/Creditor/i.test(crmField)) return "Creditor";
   if (/VIP|Flag|Custom/i.test(crmField)) return "Custom";
-  return "Debtor";
+  return "Customer";
 }
 
 function MappingsPage() {
@@ -152,7 +152,7 @@ function MappingsPage() {
             title={tab === "fields" ? "Map CRM fields to Collectrix AI fields" : "Map your CRM statuses to Collectrix AI statuses"}
             subtitle={
               tab === "fields"
-                ? "Group your mappings by category — debtor, payment, notes, call transcripts, custom, and more."
+                ? "Group your mappings by category — customer, payment, notes, call transcripts, custom, and more."
                 : "Pick the Collectrix AI status that each CRM status should resolve to."
             }
             action={
@@ -204,7 +204,7 @@ function MappingsPage() {
                         <td className="px-3 py-3 font-mono text-xs">{f.platformField}</td>
                         <td className="px-3 py-3">
                           <select
-                            value={categories[f.id] ?? "Debtor"}
+                            value={categories[f.id] ?? "Customer"}
                             onChange={(e) => setCategories((p) => ({ ...p, [f.id]: e.target.value as Category }))}
                             className="px-2 py-1 rounded-md border border-input bg-background text-[11px] font-semibold"
                           >

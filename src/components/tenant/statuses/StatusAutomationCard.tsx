@@ -279,7 +279,7 @@ export function StatusAutomationCard({
                             )}
                             {aiOnly && (
                               <p className="mt-1 text-[11px] text-muted-foreground">
-                                The AI agent places the call and speaks with each debtor at call
+                                The AI agent places the call and speaks with each customer at call
                                 time.
                               </p>
                             )}

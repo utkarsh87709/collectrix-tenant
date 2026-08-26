@@ -117,7 +117,7 @@ function BulkPage() {
         open={open}
         onClose={() => setOpen(false)}
         title="New bulk send"
-        subtitle="Job is queued and respects throttle ceiling and per-debtor frequency caps."
+        subtitle="Job is queued and respects throttle ceiling and per-customer frequency caps."
         footer={
           <>
             <button onClick={() => setOpen(false)} className={btnSecondary}>Cancel</button>

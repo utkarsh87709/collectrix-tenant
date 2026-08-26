@@ -42,7 +42,7 @@ export const LETTER_TEMPLATES: LetterTemplate[] = [
 ];
 
 export const MERGE_VARIABLES = [
-  { group: "Debtor", keys: [
+  { group: "Customer", keys: [
     { key: "{{debtor_full_name}}", sample: "John A. Smith" },
     { key: "{{debtor_first_name}}", sample: "John" },
     { key: "{{debtor_address}}", sample: "123 Main St" },

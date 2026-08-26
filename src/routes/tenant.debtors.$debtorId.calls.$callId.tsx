@@ -12,7 +12,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/tenant/debtors/$debtorId/calls/$callId")({
-  head: () => ({ meta: [{ title: "Call recording · Debtor profile" }] }),
+  head: () => ({ meta: [{ title: "Call recording · Customer profile" }] }),
   component: CallDetailPage,
   notFoundComponent: () => (
     <Shell>
@@ -38,7 +38,7 @@ function CallDetailPage() {
         <div className="px-10 py-20 text-center">
           <h2 className="font-display text-2xl font-bold">Call not found</h2>
           <Link to="/tenant/debtors/$debtorId" params={{ debtorId }} className="text-tenant hover:underline text-sm mt-2 inline-block">
-            ← Back to debtor
+            ← Back to customer
           </Link>
         </div>
       </Shell>
@@ -55,7 +55,7 @@ function CallDetailPage() {
         subtitle={`${call.id} · ${call.startedAt} · ${fmtDur(call.durationSec)} · ${call.channel === "ai_voice" ? "AI Voice" : "Human Agent"}`}
         action={
           <Link to="/tenant/debtors/$debtorId" params={{ debtorId }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
-            <ChevronLeft className="h-4 w-4" /> Back to debtor
+            <ChevronLeft className="h-4 w-4" /> Back to customer
           </Link>
         }
       />
@@ -245,7 +245,7 @@ function CallDetailPage() {
                     <div className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm ${isAgent ? "bg-tenant-soft" : "bg-muted"} ${t.flagged ? "ring-2 ring-warning" : ""}`}>
                       <div className="flex items-center justify-between gap-3 mb-1">
                         <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                          {isAgent ? `Agent · ${call.agentName}` : `Debtor · ${call.debtorName}`} · {t.startSec}s
+                          {isAgent ? `Agent · ${call.agentName}` : `Customer · ${call.debtorName}`} · {t.startSec}s
                         </span>
                         {t.sentiment !== undefined && (
                           <span className={`text-[10px] font-bold ${t.sentiment > 0.2 ? "text-success" : t.sentiment < -0.2 ? "text-destructive" : "text-muted-foreground"}`}>

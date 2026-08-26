@@ -108,7 +108,7 @@ export const ASSIGNMENT_METHODS: { value: AssignmentMethod; label: string; blurb
   { value: "round_robin",  label: "Round-robin",               blurb: "Evenly distribute across eligible agents" },
   { value: "team",         label: "Team-based",                blurb: "Route to a specific team's queue" },
   { value: "creditor",     label: "Creditor-based",            blurb: "Match to creditor owner / specialist team(s)" },
-  { value: "geographic",   label: "Geographic / time-zone",    blurb: "Route by debtor region or agent tz" },
+  { value: "geographic",   label: "Geographic / time-zone",    blurb: "Route by customer region or agent tz" },
   { value: "language",     label: "Language-based",            blurb: "Match preferred language to agent" },
   { value: "skill",        label: "Skill-based",               blurb: "Match required skill tag to agent" },
   { value: "ai_priority",  label: "AI priority",               blurb: "AI ranks best fit by risk & operational signals" },
@@ -125,8 +125,8 @@ export type AssignmentTrigger =
   | "on_workload_imbalance";
 
 export const ASSIGNMENT_TRIGGERS: { value: AssignmentTrigger; label: string }[] = [
-  { value: "on_upload",              label: "On debtor upload" },
-  { value: "on_creation",            label: "On debtor creation" },
+  { value: "on_upload",              label: "On customer upload" },
+  { value: "on_creation",            label: "On customer creation" },
   { value: "on_status_change",       label: "On status change" },
   { value: "on_escalation",          label: "On escalation" },
   { value: "on_missed_ptp",          label: "On missed promise-to-pay" },

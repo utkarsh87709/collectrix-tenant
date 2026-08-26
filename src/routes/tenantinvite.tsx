@@ -291,7 +291,7 @@ function OnboardWizard({ invite, onDone }: { invite: InviteDetails; onDone: () =
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                    <PkgStat icon={Database} label="Debtor accounts" value={invite.debtorLimit.toLocaleString()} />
+                    <PkgStat icon={Database} label="Customer accounts" value={invite.debtorLimit.toLocaleString()} />
                     <PkgStat icon={UsersIcon} label="Tenant users" value={invite.tenantUserLimit} />
                     <PkgStat icon={ListChecks} label="Modules" value={invite.includedModule.length} />
                   </div>

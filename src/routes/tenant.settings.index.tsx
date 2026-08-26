@@ -299,7 +299,7 @@ function SettingsPage() {
               <TabsContent value="availability" className="mt-0">
                 <Section
                   title="Operating hours"
-                  desc="When live agents can take escalated debtor calls"
+                  desc="When live agents can take escalated customer calls"
                   icon={<Clock className="h-5 w-5" />}
                 >
                   <div className="rounded-xl border border-border overflow-hidden">
@@ -353,7 +353,7 @@ function SettingsPage() {
                   <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-tenant/5 border border-tenant/20 text-xs text-muted-foreground">
                     <Calendar className="h-4 w-4 text-tenant shrink-0 mt-0.5" />
                     <div>
-                      Outside these hours, the AI offers a callback at the debtor's preferred time.
+                      Outside these hours, the AI offers a callback at the customer's preferred time.
                     </div>
                   </div>
 

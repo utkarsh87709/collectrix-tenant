@@ -34,12 +34,12 @@ function CompliancePage() {
         <StatTile label="DNC entries" value={dnc.length} delta="across all channels" icon={<Ban className="h-4 w-4" />} tone="tenant" />
         <StatTile label="Events · 7d" value={complianceEvents.length} delta="rate-limit + DNC blocks" icon={<Shield className="h-4 w-4" />} />
         <StatTile label="Critical" value={critical} delta="cease & desist · investigations" tone={critical > 0 ? "danger" : "success"} icon={<ShieldAlert className="h-4 w-4" />} />
-        <StatTile label="Calling window" value="8am–9pm" delta="local debtor time · enforced" icon={<Clock className="h-4 w-4" />} />
+        <StatTile label="Calling window" value="8am–9pm" delta="local customer time · enforced" icon={<Clock className="h-4 w-4" />} />
       </section>
 
       <section className="px-6 lg:px-10 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <PageCard>
-          <CardHead title="Rate limits & windows" subtitle="Per-debtor caps prevent over-contact" />
+          <CardHead title="Rate limits & windows" subtitle="Per-customer caps prevent over-contact" />
           <div className="p-6 space-y-3 text-sm">
             {[
               { label: "Email · max per day", value: "3" },
@@ -87,7 +87,7 @@ function CompliancePage() {
             <table className="w-full text-sm">
               <thead className="text-xs uppercase tracking-wider text-muted-foreground bg-muted/40">
                 <tr>
-                  <th className="text-left px-6 py-3">Debtor</th>
+                  <th className="text-left px-6 py-3">Customer</th>
                   <th className="text-left px-3 py-3">Channel</th>
                   <th className="text-left px-3 py-3">Reason</th>
                   <th className="text-left px-3 py-3">Added</th>

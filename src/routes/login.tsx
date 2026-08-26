@@ -105,7 +105,7 @@ function LoginPage() {
             Recover smarter,<br />stay compliant.
           </h2>
           <p className="mt-4 text-white/80 max-w-sm leading-relaxed">
-            Manage your team, roles and debtor operations from one secure, AI-assisted control center.
+            Manage your team, roles and customer operations from one secure, AI-assisted control center.
           </p>
         </motion.div>
 

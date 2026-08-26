@@ -234,7 +234,7 @@ function DocumentAutomationPage() {
     <Shell>
       <Topbar
         title="AI Document Generation"
-        subtitle="Schedule AI-generated letters by debtor status and time"
+        subtitle="Schedule AI-generated letters by customer status and time"
         action={
           <div className="flex items-center gap-2">
             <Link
@@ -268,7 +268,7 @@ function DocumentAutomationPage() {
             <div className="space-y-1">
               <h2 className="font-display text-lg font-bold">AI document schedules per status</h2>
               <p className="text-sm text-muted-foreground max-w-3xl">
-                Define which letters AI should generate from your template library while a debtor
+                Define which letters AI should generate from your template library while a customer
                 remains in a given status. Set the day offset (counted from when the status was
                 set), pick the template, and choose whether the document is auto-sent or staged for
                 review. Schedules are tenant-specific and every generated document is audit-logged.
@@ -352,7 +352,7 @@ function DocumentAutomationPage() {
                         Document schedule
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        Day offset is counted from when the status was set on the debtor.
+                        Day offset is counted from when the status was set on the customer.
                       </div>
                     </div>
                     <label className="inline-flex items-center gap-2 text-xs cursor-pointer">

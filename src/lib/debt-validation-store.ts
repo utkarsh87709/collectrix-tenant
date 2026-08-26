@@ -21,7 +21,7 @@ let requests: DebtValidationRequest[] = [
     id: "dvr-1", debtorId: "2", requestedAt: new Date(Date.now() - 5 * 86400000).toISOString(),
     status: "documents_sent", collectionsPaused: true,
     responseDeadline: new Date(Date.now() + 25 * 86400000).toISOString(),
-    documents: ["original-contract.pdf", "itemized-statement.pdf"], notes: "Debtor requested via phone on Apr 23.",
+    documents: ["original-contract.pdf", "itemized-statement.pdf"], notes: "Customer requested via phone on Apr 23.",
   },
 ];
 

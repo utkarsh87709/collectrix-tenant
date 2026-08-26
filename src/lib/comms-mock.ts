@@ -35,8 +35,8 @@ export const templates: Template[] = [
 ];
 
 export const VARIABLE_LIBRARY = [
-  { key: "{{debtor_name}}", description: "Full debtor name", sample: "Jordan Reyes" },
-  { key: "{{first_name}}", description: "Debtor first name", sample: "Jordan" },
+  { key: "{{debtor_name}}", description: "Full customer name", sample: "Jordan Reyes" },
+  { key: "{{first_name}}", description: "Customer first name", sample: "Jordan" },
   { key: "{{balance}}", description: "Current outstanding balance", sample: "$2,418.55" },
   { key: "{{account_number}}", description: "Account / file number", sample: "ACC-104822" },
   { key: "{{creditor_client_name}}", description: "Original creditor", sample: "Royal Bank of Canada" },
@@ -145,7 +145,7 @@ export type ComplianceEvent = {
 };
 
 export const complianceEvents: ComplianceEvent[] = [
-  { id: "ce-01", type: "dnc_block", channel: "voice", debtor: "Sara Cohen", ts: "2026-04-20 09:02", detail: "Outbound call blocked — debtor on internal DNC", severity: "warning" },
+  { id: "ce-01", type: "dnc_block", channel: "voice", debtor: "Sara Cohen", ts: "2026-04-20 09:02", detail: "Outbound call blocked — customer on internal DNC", severity: "warning" },
   { id: "ce-02", type: "rate_limit", channel: "email", debtor: "Marcus Wallace", ts: "2026-04-20 08:42", detail: "3rd email today blocked (max 3/day)", severity: "info" },
   { id: "ce-03", type: "outside_hours", channel: "voice", debtor: "Diane Holloway", ts: "2026-04-19 21:14", detail: "Call attempt outside 8am–9pm window — blocked", severity: "warning" },
   { id: "ce-04", type: "cease_request", channel: "letter", debtor: "Rashid Khan", ts: "2026-04-19 14:11", detail: "Written cease & desist received — all channels suspended", severity: "critical" },

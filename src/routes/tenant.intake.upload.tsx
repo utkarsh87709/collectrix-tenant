@@ -11,14 +11,13 @@ import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { getAllClients, type Client } from "@/lib/clients-api";
 import {
-  validateDebtorFile, uploadDebtor, getUploadedDebtor, debtorFileDetails,
-  assignTeamList, assignTeam, updateNewDebtor,
-  type UploadedFile, type ValidateResult, type DebtorRecord, type AssignableTeam,
+  downloadSampleTemplate, validateDebtorFile, uploadDebtor, getUploadedDebtor, debtorFileDetails,
+  assignTeamList, assignTeam, updateNewDebtor, fieldValue,
+  type UploadedFile, type ValidateResult, type DebtorRecord, type ParsedDebtorRow, type AssignableTeam, type FieldValue,
 } from "@/lib/upload-debtor-api";
-import { DEBTOR_FIELDS, DEBTOR_SECTIONS, buildSampleCsv } from "@/lib/debtor-fields";
 
 export const Route = createFileRoute("/tenant/intake/upload")({
-  head: () => ({ meta: [{ title: "Upload Debtor Data · Tenant Admin" }] }),
+  head: () => ({ meta: [{ title: "Upload Customer Data · Tenant Admin" }] }),
   component: UploadDebtorPage,
 });
 
@@ -38,7 +37,13 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-const str = (v: DebtorRecord[string]): string => (v == null || Array.isArray(v) ? "" : String(v));
+const str = (v: string | number | null | undefined): string => (v == null ? "" : String(v));
+
+/** Full display name from a debtor's default fields (first + middle + last). */
+const displayName = (fields: FieldValue[] | undefined): string =>
+  [fieldValue(fields, "debtorFirstName"), fieldValue(fields, "debtorMiddleName"), fieldValue(fields, "debtorLastName")]
+    .filter(Boolean)
+    .join(" ");
 
 /** Minimal CSV parse for the client-side preview (header + first rows). */
 function parseCsvPreview(text: string, maxRows = 5): { headers: string[]; rows: string[][] } {
@@ -102,8 +107,8 @@ function UploadDebtorPage() {
   return (
     <Shell>
       <Topbar
-        title="Upload Debtor Data"
-        subtitle="Import debtor files into this tenant"
+        title="Upload Customer Data"
+        subtitle="Import customer files into this tenant"
         action={
           <button
             onClick={() => setWizardOpen(true)}
@@ -127,7 +132,7 @@ function UploadDebtorPage() {
           ) : files.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">No imports yet. Upload your first debtor file.</p>
+              <p className="text-sm text-muted-foreground">No imports yet. Upload your first customer file.</p>
               <button
                 onClick={() => setWizardOpen(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
@@ -223,6 +228,7 @@ function ImportWizard({ clients, onClose, onComplete }: { clients: Client[]; onC
   const [validating, setValidating] = useState(false);
   const [result, setResult] = useState<ValidateResult | null>(null);
   const [importing, setImporting] = useState(false);
+  const [downloadingSample, setDownloadingSample] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onPickFile = (f: File | null) => {
@@ -234,14 +240,24 @@ function ImportWizard({ clients, onClose, onComplete }: { clients: Client[]; onC
     }
   };
 
-  const downloadSample = () => {
-    const blob = new Blob([buildSampleCsv()], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "debtor_import_sample.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  const downloadSample = async () => {
+    if (clientId === "") return toast.error("Select a client first");
+    setDownloadingSample(true);
+    try {
+      const { customFieldList } = await downloadSampleTemplate(clientId);
+      const headers = (customFieldList ?? []).map((h) => (/[",\n]/.test(h) ? `"${h.replace(/"/g, '""')}"` : h));
+      const blob = new Blob([`${headers.join(",")}\n`], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "customer_import_sample.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not download the sample template.");
+    } finally {
+      setDownloadingSample(false);
+    }
   };
 
   const validate = async () => {
@@ -263,10 +279,7 @@ function ImportWizard({ clients, onClose, onComplete }: { clients: Client[]; onC
     if (!result || clientId === "") return;
     setImporting(true);
     try {
-      const debtorList: DebtorRecord[] = [
-        ...result.validRecords.map((r) => ({ ...r, validRecord: 1, invalidAttribute: [] })),
-        ...result.invalidRecords.map((r) => ({ ...r, validRecord: 0, invalidAttribute: r.invalidAttribute ?? [] })),
-      ];
+      const debtorList: ParsedDebtorRow[] = [...result.validRecords, ...result.invalidRecords];
       await uploadDebtor({
         originalFileName: result.originalFileName,
         newFileName: result.newFileName,
@@ -285,7 +298,7 @@ function ImportWizard({ clients, onClose, onComplete }: { clients: Client[]; onC
     <Overlay onClose={onClose} wide>
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <h2 className="font-display text-2xl font-bold tracking-tight">Upload Debtor Data</h2>
+        <h2 className="font-display text-2xl font-bold tracking-tight">Upload Customer Data</h2>
         <button onClick={onClose} className="p-1 rounded hover:bg-muted" aria-label="Close">
           <X className="h-5 w-5" />
         </button>
@@ -337,12 +350,16 @@ function ImportWizard({ clients, onClose, onComplete }: { clients: Client[]; onC
                 <div>
                   <div className="font-semibold text-sm">Need the expected format?</div>
                   <div className="text-xs text-muted-foreground">
-                    Includes all {DEBTOR_FIELDS.length} system columns across {DEBTOR_SECTIONS.length} sections. Match your file to this layout before uploading.
+                    {clientId === "" ? "Select a client, then download the exact column layout to match." : "Includes every required column for this client. Match your file to this layout before uploading."}
                   </div>
                 </div>
               </div>
-              <button onClick={downloadSample} className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
-                <Download className="h-4 w-4" /> Download sample
+              <button
+                onClick={downloadSample}
+                disabled={clientId === "" || downloadingSample}
+                className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
+              >
+                {downloadingSample ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Download sample
               </button>
             </div>
 
@@ -429,7 +446,7 @@ function ImportWizard({ clients, onClose, onComplete }: { clients: Client[]; onC
                 <div className="max-h-56 overflow-y-auto divide-y divide-border">
                   {result.invalidRecords.map((r, i) => (
                     <div key={i} className="px-4 py-3 text-sm">
-                      <div className="font-medium">{str(r.debtorName) || `Row ${i + 1}`}</div>
+                      <div className="font-medium">{displayName(r.record) || `Row ${i + 1}`}</div>
                       <ul className="mt-1 space-y-0.5">
                         {(r.invalidAttribute ?? []).map((a, j) => (
                           <li key={j} className="text-xs text-muted-foreground">
@@ -452,7 +469,7 @@ function ImportWizard({ clients, onClose, onComplete }: { clients: Client[]; onC
             </div>
             <h3 className="font-display text-xl font-bold mt-4">Import complete</h3>
             <p className="text-sm text-muted-foreground mt-1.5 max-w-sm">
-              {result.totalRecords} debtor record(s) imported. Open the import to review and assign records.
+              {result.totalRecords} customer record(s) imported. Open the import to review and assign records.
             </p>
           </div>
         )}
@@ -629,13 +646,13 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold truncate">
-                        {str(d.debtorName) || "—"}
+                        {displayName(d.debtorDetails) || "—"}
                         <span className="ml-2 font-normal text-xs text-muted-foreground">
-                          #{str(d.ourFileNo) || str(d.clientFileNo) || id}
+                          #{fieldValue(d.debtorDetails, "ourFileNo") || id}
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {[str(d.creditorName), str(d.city), str(d.email)].filter(Boolean).join(" · ")}
+                        {[fieldValue(d.debtorDetails, "creditorName"), fieldValue(d.debtorDetails, "email")].filter(Boolean).join(" · ")}
                       </div>
                     </div>
                     {issues > 0 && (
@@ -774,23 +791,20 @@ function AssignModal({ fileId, ids, onClose, onAssigned }: { fileId: number; ids
 /* ------------------------------- edit modal --------------------------------- */
 
 function EditDebtorModal({ debtor, onClose, onSaved }: { debtor: DebtorRecord; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    for (const f of DEBTOR_FIELDS) init[f.key] = str(debtor[f.key]);
-    return init;
-  });
+  const [debtorFields, setDebtorFields] = useState<FieldValue[]>(() => (debtor.debtorDetails ?? []).map((f) => ({ ...f })));
+  const [customFields, setCustomFields] = useState<FieldValue[]>(() => (debtor.customFields ?? []).map((f) => ({ ...f })));
   const [saving, setSaving] = useState(false);
   const flagged = new Set((debtor.invalidAttribute ?? []).map((a) => a.parameterName));
+
+  const editField = (list: "debtor" | "custom", fieldId: number, value: string) => {
+    const setter = list === "debtor" ? setDebtorFields : setCustomFields;
+    setter((prev) => prev.map((f) => (f.fieldId === fieldId ? { ...f, fieldValue: value } : f)));
+  };
 
   const submit = async () => {
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = { uploadedDebtorId: debtor.uploadedDebtorId };
-      for (const f of DEBTOR_FIELDS) {
-        if (f.omitForUpdate) continue;
-        payload[f.key] = form[f.key] ?? "";
-      }
-      await updateNewDebtor(payload);
+      await updateNewDebtor({ uploadedDebtorId: debtor.uploadedDebtorId, debtorDetails: debtorFields, customFields });
       toast.success("Record updated.");
       onSaved();
     } catch (e) {
@@ -803,41 +817,17 @@ function EditDebtorModal({ debtor, onClose, onSaved }: { debtor: DebtorRecord; o
     <Overlay onClose={onClose} wide>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-display text-xl font-bold tracking-tight">Edit debtor</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">{str(debtor.debtorName) || "Record"} · fix flagged fields and save.</p>
+          <h2 className="font-display text-xl font-bold tracking-tight">Edit customer</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">{displayName(debtor.debtorDetails) || "Record"} · fix flagged fields and save.</p>
         </div>
         <button onClick={onClose} className="p-1 rounded hover:bg-muted" aria-label="Close"><X className="h-5 w-5" /></button>
       </div>
 
       <div className="mt-5 max-h-[60vh] overflow-y-auto space-y-6 pr-1">
-        {DEBTOR_SECTIONS.map((section) => (
-          <div key={section}>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 flex items-center gap-2">
-              <ChevronRight className="h-3.5 w-3.5" /> {section}
-            </div>
-            <div className="grid md:grid-cols-2 gap-3">
-              {DEBTOR_FIELDS.filter((f) => f.section === section).map((f) => {
-                const isFlagged = flagged.has(f.key);
-                return (
-                  <label key={f.key} className="block">
-                    <span className="block text-xs text-muted-foreground mb-1">
-                      {f.label}
-                      {isFlagged && <span className="ml-1.5 text-warning font-semibold">• needs fix</span>}
-                    </span>
-                    <input
-                      value={form[f.key] ?? ""}
-                      onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
-                      disabled={f.omitForUpdate}
-                      className={`w-full px-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-tenant/30 disabled:opacity-60 disabled:cursor-not-allowed ${
-                        isFlagged ? "border-warning" : "border-border"
-                      }`}
-                    />
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+        <EditFieldGroup title="Standard fields" fields={debtorFields} flagged={flagged} onChange={(id, v) => editField("debtor", id, v)} />
+        {customFields.length > 0 && (
+          <EditFieldGroup title="Custom fields" fields={customFields} flagged={flagged} onChange={(id, v) => editField("custom", id, v)} />
+        )}
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-5 border-t border-border mt-2">
@@ -851,6 +841,39 @@ function EditDebtorModal({ debtor, onClose, onSaved }: { debtor: DebtorRecord; o
         </button>
       </div>
     </Overlay>
+  );
+}
+
+function EditFieldGroup({
+  title, fields, flagged, onChange,
+}: { title: string; fields: FieldValue[]; flagged: Set<string>; onChange: (fieldId: number, value: string) => void }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 flex items-center gap-2">
+        <ChevronRight className="h-3.5 w-3.5" /> {title}
+      </div>
+      <div className="grid md:grid-cols-2 gap-3">
+        {fields.map((f) => {
+          const isFlagged = flagged.has(f.fieldName);
+          return (
+            <label key={f.fieldId} className="block">
+              <span className="block text-xs text-muted-foreground mb-1">
+                {f.fieldName}
+                {isFlagged && <span className="ml-1.5 text-warning font-semibold">• needs fix</span>}
+              </span>
+              <input
+                type={f.dataType === "number" ? "number" : f.dataType === "email" ? "email" : "text"}
+                value={f.fieldValue}
+                onChange={(e) => onChange(f.fieldId, e.target.value)}
+                className={`w-full px-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-tenant/30 ${
+                  isFlagged ? "border-warning" : "border-border"
+                }`}
+              />
+            </label>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

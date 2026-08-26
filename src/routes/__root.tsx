@@ -23,9 +23,11 @@ const ENABLED_TENANT_PREFIXES = [
   "/tenant/settings",
   // Demo-only modules (mock data, no API yet).
   "/tenant/analytics",
+  "/tenant/case-files",
   "/tenant/debtors",
   "/tenant/intake/clients",
   "/tenant/intake/upload",
+  "/tenant/intake/mass-update",
   "/tenant/engagement/phone-numbers",
   "/tenant/engagement/template-library",
 ];

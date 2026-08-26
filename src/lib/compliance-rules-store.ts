@@ -35,7 +35,7 @@ const SEED: ComplianceRule[] = [
     title: "Respect calling hours (8am–9pm local)",
     category: "calling_hours",
     severity: "block",
-    instruction: "Do not initiate or continue any outbound contact attempt outside 8:00 AM and 9:00 PM in the debtor's local time zone. If the time falls outside this window, end the call politely and reschedule.",
+    instruction: "Do not initiate or continue any outbound contact attempt outside 8:00 AM and 9:00 PM in the customer's local time zone. If the time falls outside this window, end the call politely and reschedule.",
     appliesTo: ["voice", "sms"],
     enabled: true,
     createdAt: new Date().toISOString(),
@@ -68,7 +68,7 @@ const SEED: ComplianceRule[] = [
     title: "Honor cease & desist immediately",
     category: "escalation",
     severity: "block",
-    instruction: "If the debtor states (in any language) that they want communications to stop, that they have an attorney, or invokes 'cease and desist', record the request, end the interaction politely, and pause all outbound channels.",
+    instruction: "If the customer states (in any language) that they want communications to stop, that they have an attorney, or invokes 'cease and desist', record the request, end the interaction politely, and pause all outbound channels.",
     appliesTo: ["voice", "sms", "email"],
     enabled: true,
     createdAt: new Date().toISOString(),
@@ -90,7 +90,7 @@ const SEED: ComplianceRule[] = [
     title: "Limit contact attempts to 3 per week",
     category: "contact_frequency",
     severity: "block",
-    instruction: "Do not attempt more than 3 contact attempts (across all channels combined) per debtor per 7-day rolling window unless the debtor has opted in to additional contact.",
+    instruction: "Do not attempt more than 3 contact attempts (across all channels combined) per customer per 7-day rolling window unless the customer has opted in to additional contact.",
     appliesTo: ["voice", "sms", "email"],
     enabled: true,
     createdAt: new Date().toISOString(),
@@ -148,8 +148,8 @@ export function toggleComplianceRule(id: string) {
 }
 
 export const CATEGORY_META: Record<ComplianceRuleCategory, { label: string; description: string }> = {
-  calling_hours: { label: "Calling hours", description: "When the AI can / cannot contact debtors" },
-  contact_frequency: { label: "Contact frequency", description: "How often debtors can be contacted" },
+  calling_hours: { label: "Calling hours", description: "When the AI can / cannot contact customers" },
+  contact_frequency: { label: "Contact frequency", description: "How often customers can be contacted" },
   language_tone: { label: "Language & tone", description: "How the AI should speak and write" },
   prohibited_topics: { label: "Prohibited topics", description: "Things the AI must never say or threaten" },
   required_disclosures: { label: "Required disclosures", description: "Statements the AI must always include" },

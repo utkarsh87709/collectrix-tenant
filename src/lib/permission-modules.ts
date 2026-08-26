@@ -16,7 +16,7 @@ import type { ConfiguredRoles, PermissionConfig, PermissionGroup } from "./roles
 export const MODULE_ORDER = [
   "Analytics",
   "Data Intake",
-  "Debtor Management",
+  "Customer Management",
   "Inbound Inbox",
   "Appointments",
 ] as const;

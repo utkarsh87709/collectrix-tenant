@@ -71,14 +71,14 @@ export function AgentReportedPaymentsCard({ debtorId }: { debtorId: string }) {
           <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
           <div>
             <span className="font-semibold text-destructive">Never collect card numbers, CVV, or expiry dates.</span>{" "}
-            Agents are not authorised to handle sensitive cardholder data. Record only what the debtor reports.
+            Agents are not authorised to handle sensitive cardholder data. Record only what the customer reports.
           </div>
         </div>
 
         <div className="space-y-2">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Submit payment claim</div>
           <div className="grid grid-cols-3 gap-2">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Amount debtor claims
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Amount customer claims
               <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="$"
                 className="w-full mt-1 px-2 py-1.5 rounded-md bg-muted border border-border text-sm outline-none focus:ring-2 ring-tenant" />
             </label>
@@ -100,7 +100,7 @@ export function AgentReportedPaymentsCard({ debtorId }: { debtorId: string }) {
               className="w-full mt-1 px-2 py-1.5 rounded-md bg-muted border border-border text-sm outline-none" />
           </label>
           <label className="block text-[10px] uppercase tracking-wider text-muted-foreground">Notes
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did the debtor say? Any context for finance?" rows={2}
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did the customer say? Any context for finance?" rows={2}
               className="w-full mt-1 px-2 py-1.5 rounded-md bg-muted border border-border text-sm outline-none" />
           </label>
           <div className="flex items-center gap-2">

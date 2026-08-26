@@ -86,29 +86,29 @@ export type AuditEntry = {
 
 export const PERMISSION_GROUPS: { label: string; perms: { key: string; label: string }[] }[] = [
   {
-    label: "Debtor File Access",
+    label: "Customer File Access",
     perms: [
-      { key: "debtor.view.assigned", label: "View assigned debtor files" },
-      { key: "debtor.view.all", label: "View all debtor files (not just assigned)" },
-      { key: "debtor.edit.contact", label: "Edit debtor contact information" },
-      { key: "debtor.edit.financial", label: "Edit debtor financial details (balance, interest, fees)" },
+      { key: "debtor.view.assigned", label: "View assigned customer files" },
+      { key: "debtor.view.all", label: "View all customer files (not just assigned)" },
+      { key: "debtor.edit.contact", label: "Edit customer contact information" },
+      { key: "debtor.edit.financial", label: "Edit customer financial details (balance, interest, fees)" },
       { key: "debtor.view.notes_history", label: "View file notes and activity history" },
-      { key: "debtor.notes.add", label: "Add notes to debtor files" },
-      { key: "debtor.edit", label: "Edit debtor file details" },
-      { key: "debtor.upload", label: "Upload files for debtor" },
-      { key: "debtor.data.upload", label: "Access Debtor Data Upload" },
+      { key: "debtor.notes.add", label: "Add notes to customer files" },
+      { key: "debtor.edit", label: "Edit customer file details" },
+      { key: "debtor.upload", label: "Upload files for customer" },
+      { key: "debtor.data.upload", label: "Access Customer Data Upload" },
       { key: "debtor.validation.update", label: "Update validation errors" },
     ],
   },
   {
-    label: "Debtor Lifecycle & Assignment",
+    label: "Customer Lifecycle & Assignment",
     perms: [
-      { key: "debtor.engagement.stop", label: "Stop engagement on a debtor file" },
-      { key: "debtor.engagement.resume", label: "Resume engagement on a debtor file" },
-      { key: "debtor.archive", label: "Archive debtor files" },
-      { key: "debtor.delete", label: "Delete debtor files" },
-      { key: "debtor.export", label: "Export debtor files (CSV / PDF)" },
-      { key: "debtor.assignment.update", label: "Update assignments for each debtor" },
+      { key: "debtor.engagement.stop", label: "Stop engagement on a customer file" },
+      { key: "debtor.engagement.resume", label: "Resume engagement on a customer file" },
+      { key: "debtor.archive", label: "Archive customer files" },
+      { key: "debtor.delete", label: "Delete customer files" },
+      { key: "debtor.export", label: "Export customer files (CSV / PDF)" },
+      { key: "debtor.assignment.update", label: "Update assignments for each customer" },
       { key: "dedupe.manage", label: "Access and manage deduplication queue" },
     ],
   },
@@ -134,7 +134,7 @@ export const PERMISSION_GROUPS: { label: string; perms: { key: string; label: st
   {
     label: "Payments",
     perms: [
-      { key: "pay.post", label: "Post payments to debtor records" },
+      { key: "pay.post", label: "Post payments to customer records" },
       { key: "pay.edit_reverse", label: "Edit or reverse a posted payment" },
       { key: "pay.verify_request", label: "Place Payment Verification Request" },
       { key: "pay.finance_posted", label: "Place Finance Posted Payments" },
@@ -172,13 +172,13 @@ export const PERMISSION_MODULES: { key: string; label: string; description: stri
   {
     key: "mod.data_intake",
     label: "Data Intake",
-    description: "Debtor uploads and deduplication",
+    description: "Customer uploads and deduplication",
     perms: ["debtor.data.upload", "dedupe.manage"],
   },
   {
     key: "mod.debtor_management",
-    label: "Debtor Management",
-    description: "Full debtor file lifecycle, payments and legal actions",
+    label: "Customer Management",
+    description: "Full customer file lifecycle, payments and legal actions",
     perms: [
       "debtor.view.assigned",
       "debtor.view.all",

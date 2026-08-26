@@ -224,13 +224,13 @@ function DedupePage() {
             : action === "manager_review"
               ? "Escalated to manager queue"
               : action === "kept_both"
-                ? "Both records retained as distinct debtors"
+                ? "Both records retained as distinct customers"
                 : "Marked as not a duplicate; will be suppressed in future scans",
     });
     const msg =
       action === "merged" ? "Records merged"
       : action === "deleted" ? `Record ${target} deleted`
-      : action === "kept_both" ? "Both records kept as separate debtors"
+      : action === "kept_both" ? "Both records kept as separate customers"
       : action === "manager_review" ? "Sent to manager review queue"
       : "Marked as not a duplicate";
     toast.success(msg);
@@ -441,7 +441,7 @@ function DedupePage() {
             <AlertDialogDescription>
               {confirm?.action === "merged"
                 ? "Record A keeps its identifiers. Record B is merged in where Record A is missing values. A snapshot of Record B is retained so the merge can be reversed for 30 days."
-                : "This will permanently remove the selected debtor record from this tenant."}
+                : "This will permanently remove the selected customer record from this tenant."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {confirm?.action === "merged" && (() => {

@@ -55,12 +55,12 @@ function TenantBillingPage() {
           <Card className="p-6 lg:col-span-2">
             <SectionHeader title="Subscription overview" description={`Renews ${billing.renewalAt}. Contact support to upgrade or downgrade your plan.`} />
             <div className="grid sm:grid-cols-2 gap-4">
-              <UsageMetric icon={Database} label="Debtor accounts" used={billing.debtorsUsed} limit={billing.debtorLimit} primary />
+              <UsageMetric icon={Database} label="Customer accounts" used={billing.debtorsUsed} limit={billing.debtorLimit} primary />
               <UsageMetric icon={Users} label="Users" used={billing.usersUsed} limit={billing.userLimit} />
             </div>
             {usagePct > 80 && (
               <div className="mt-4 rounded-lg border border-warning/40 bg-warning/5 p-3 text-xs">
-                You're at {usagePct}% of your debtor account limit — consider upgrading to avoid overage fees.
+                You're at {usagePct}% of your customer account limit — consider upgrading to avoid overage fees.
               </div>
             )}
           </Card>

@@ -27,7 +27,7 @@ function PlansPage() {
           return (
             <PageCard key={plan.id}>
               <CardHead
-                title={`Plan ${plan.id} — debtor #${plan.debtorId}`}
+                title={`Plan ${plan.id} — customer #${plan.debtorId}`}
                 subtitle={`${plan.cadence} · $${plan.totalAmount.toLocaleString()} total · started ${new Date(plan.startDate).toLocaleDateString()}`}
                 action={<Pill tone={plan.status === "active" ? "success" : plan.status === "broken" ? "danger" : "muted"}>{plan.status}</Pill>}
               />

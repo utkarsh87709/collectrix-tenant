@@ -49,7 +49,7 @@ export function StopEngagementDialog({
           <div>
             <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Reason (required)</label>
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2}
-              placeholder="e.g. Debtor requested pause, hardship verified, legal hold"
+              placeholder="e.g. Customer requested pause, hardship verified, legal hold"
               className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-sm" />
           </div>
           <div className="grid grid-cols-2 gap-3">

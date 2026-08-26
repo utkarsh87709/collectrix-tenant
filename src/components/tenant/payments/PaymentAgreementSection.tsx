@@ -31,10 +31,10 @@ const TYPE_META: Record<AgreementType, {
   icon: React.ReactNode; desc: string; tone: string; targetStatus: string;
   targetStatusName: string; cta: string;
 }> = {
-  PIF: { icon: <CircleDollarSign className="h-5 w-5" />, desc: "Debtor agrees to pay the full outstanding balance in one payment, including applicable interest.", tone: "from-emerald-500/15 to-emerald-500/0 border-emerald-500/30", targetStatus: "PIF", targetStatusName: "Promised Paid In Full", cta: "Create Payment In Full" },
-  SIF: { icon: <Handshake className="h-5 w-5" />, desc: "Agent and debtor agree on a reduced settlement amount that is less than the total balance. Interest amount is still captured.", tone: "from-blue-500/15 to-blue-500/0 border-blue-500/30", targetStatus: "SIF", targetStatusName: "Settled In Full", cta: "Create Settlement Agreement" },
-  PPA: { icon: <CalendarClock className="h-5 w-5" />, desc: "Debtor agrees to pay the outstanding amount through scheduled installments, with applicable interest.", tone: "from-violet-500/15 to-violet-500/0 border-violet-500/30", targetStatus: "PPA", targetStatusName: "Payment Plan Agreed", cta: "Create Payment Plan" },
-  PTP: { icon: <ScrollText className="h-5 w-5" />, desc: "Debtor promises to make a payment by a specific date, but no detailed plan has been finalized.", tone: "from-amber-500/15 to-amber-500/0 border-amber-500/30", targetStatus: "PTP", targetStatusName: "Promised To Pay", cta: "Create Promise To Pay" },
+  PIF: { icon: <CircleDollarSign className="h-5 w-5" />, desc: "Customer agrees to pay the full outstanding balance in one payment, including applicable interest.", tone: "from-emerald-500/15 to-emerald-500/0 border-emerald-500/30", targetStatus: "PIF", targetStatusName: "Promised Paid In Full", cta: "Create Payment In Full" },
+  SIF: { icon: <Handshake className="h-5 w-5" />, desc: "Agent and customer agree on a reduced settlement amount that is less than the total balance. Interest amount is still captured.", tone: "from-blue-500/15 to-blue-500/0 border-blue-500/30", targetStatus: "SIF", targetStatusName: "Settled In Full", cta: "Create Settlement Agreement" },
+  PPA: { icon: <CalendarClock className="h-5 w-5" />, desc: "Customer agrees to pay the outstanding amount through scheduled installments, with applicable interest.", tone: "from-violet-500/15 to-violet-500/0 border-violet-500/30", targetStatus: "PPA", targetStatusName: "Payment Plan Agreed", cta: "Create Payment Plan" },
+  PTP: { icon: <ScrollText className="h-5 w-5" />, desc: "Customer promises to make a payment by a specific date, but no detailed plan has been finalized.", tone: "from-amber-500/15 to-amber-500/0 border-amber-500/30", targetStatus: "PTP", targetStatusName: "Promised To Pay", cta: "Create Promise To Pay" },
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -88,7 +88,7 @@ export function PaymentAgreementSection({ debtorId, balance, currentStatusCode, 
     <PageCard>
       <CardHead
         title="Payment Agreement"
-        subtitle="Record how the debtor has agreed to pay. Drives debtor status and verification workflow."
+        subtitle="Record how the customer has agreed to pay. Drives customer status and verification workflow."
       />
       <div className="px-6 py-5 space-y-5">
         {active && (

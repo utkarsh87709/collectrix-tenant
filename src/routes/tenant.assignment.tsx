@@ -73,7 +73,7 @@ function AssignmentPage() {
     <Shell>
       <Topbar
         title="Assignment Rules"
-        subtitle="Configure how debtor files are routed to teams, agents, and managers"
+        subtitle="Configure how customer files are routed to teams, agents, and managers"
         action={
           <button onClick={startNew} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant">
             <Plus className="h-4 w-4" /> New rule
@@ -156,9 +156,9 @@ function AssignmentPage() {
 
         {/* ─── AI preview ─── */}
         <PageCard>
-          <CardHead title="AI routing preview" subtitle="Test the AI-priority engine against a real debtor" />
+          <CardHead title="AI routing preview" subtitle="Test the AI-priority engine against a real customer" />
           <div className="px-6 py-4 space-y-3">
-            <label className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Test debtor</label>
+            <label className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Test customer</label>
             <select
               value={previewDebtorId}
               onChange={(e) => setPreviewDebtorId(e.target.value)}

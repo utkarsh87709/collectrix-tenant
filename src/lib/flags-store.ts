@@ -24,7 +24,7 @@ const LS_HISTORY = "collectrix.flags.history.v1";
 
 const DEFAULT_TYPES: FlagType[] = [
   { key: "high-value",     label: "high-value",     tone: "tenant",  system: true, description: "High account balance / priority" },
-  { key: "disputed",       label: "disputed",       tone: "danger",  system: true, description: "Debtor disputed the debt" },
+  { key: "disputed",       label: "disputed",       tone: "danger",  system: true, description: "Customer disputed the debt" },
   { key: "skip-trace",     label: "skip-trace",     tone: "warning", system: true, description: "Address/phone needs locating" },
   { key: "hardship",       label: "hardship",       tone: "info",    system: true, description: "Financial hardship reported" },
   { key: "do-not-contact", label: "do-not-contact", tone: "danger",  system: true, description: "Honored DNC request" },

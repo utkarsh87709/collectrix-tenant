@@ -28,7 +28,7 @@ export function DeleteNoteDialog({
             <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Reason (required)</label>
             <textarea
               value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
-              placeholder="e.g. Contains incorrect information / wrong debtor / superseded by newer note"
+              placeholder="e.g. Contains incorrect information / wrong customer / superseded by newer note"
               className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-sm"
             />
           </div>

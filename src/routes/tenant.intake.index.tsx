@@ -12,9 +12,9 @@ export const Route = createFileRoute("/tenant/intake/")({
 
 const tiles = [
   { to: "/tenant/intake/import", icon: Upload, label: "Upload & Validate", desc: "Excel / CSV import wizard with field mapping", color: "from-sky-500/10 to-sky-500/0" },
-  { to: "/tenant/debtors", icon: Users, label: "Debtor Search & Profile", desc: "Search and inspect debtor records", color: "from-emerald-500/10 to-emerald-500/0" },
+  { to: "/tenant/debtors", icon: Users, label: "Customer Search & Profile", desc: "Search and inspect customer records", color: "from-emerald-500/10 to-emerald-500/0" },
   { to: "/tenant/intake/dedupe", icon: GitMerge, label: "Deduplication Queue", desc: "Review duplicate records side-by-side", color: "from-amber-500/10 to-amber-500/0" },
-  { to: "/tenant/intake/audit", icon: ScrollText, label: "Debtor Audit Trail", desc: "Who changed what, when", color: "from-fuchsia-500/10 to-fuchsia-500/0" },
+  { to: "/tenant/intake/audit", icon: ScrollText, label: "Customer Audit Trail", desc: "Who changed what, when", color: "from-fuchsia-500/10 to-fuchsia-500/0" },
   { to: "/tenant/intake/crm", icon: Plug, label: "CRM Integration", desc: "COLLECT!, Salesforce sync", color: "from-violet-500/10 to-violet-500/0" },
 ] as const;
 
@@ -23,10 +23,10 @@ function IntakeHub() {
   const lastImport = importJobs[0];
   return (
     <Shell>
-      <Topbar title="Data Intake" subtitle="Import creditors with on-the-fly field mapping and manage debtor records" />
+      <Topbar title="Data Intake" subtitle="Import creditors with on-the-fly field mapping and manage customer records" />
       <section className="px-6 lg:px-10 py-6 grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatTile label="Last import" value={lastImport.imported.toLocaleString()} delta={`${lastImport.filename} · ${lastImport.startedAt}`} icon={<Upload className="h-4 w-4" />} />
-        <StatTile label="Active debtors" value={totalDebtors.toLocaleString()} delta="across all creditors" icon={<Database className="h-4 w-4" />} tone="success" />
+        <StatTile label="Active customers" value={totalDebtors.toLocaleString()} delta="across all creditors" icon={<Database className="h-4 w-4" />} tone="success" />
         <StatTile label="Dedupe queue" value="3" delta="awaiting review" icon={<GitMerge className="h-4 w-4" />} tone="warning" />
       </section>
 

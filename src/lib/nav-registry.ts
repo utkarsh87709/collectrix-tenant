@@ -14,6 +14,8 @@ import {
   Inbox,
   Tag,
   Zap,
+  FileText,
+  FolderOpen,
 } from "lucide-react";
 
 export type NavSubItem = {
@@ -59,66 +61,15 @@ export const tenantGroups: NavGroup[] = [
         description: "Performance insights (demo data)",
         keywords: "analytics insights performance reports charts",
       },
-    ],
-  },
-  {
-    label: "Collections",
-    items: [
       {
-        to: "/tenant/debtors",
-        label: "Debtors",
-        icon: Wallet,
-        description: "Debtor accounts (demo data)",
-        keywords: "debtors accounts collections balances",
-      },
-      {
-        to: "/tenant/team-deck",
-        label: "Team Deck",
-        icon: Inbox,
-        description: "Files handed to teams, awaiting a member",
-        keywords: "team deck assign member debtor files queue in deck assigned",
-      },
-    ],
-  },
-  {
-    label: "Access Control",
-    items: [
-      {
-        to: "/tenant/users",
-        label: "Users",
-        icon: Users,
-        description: "Members and invitations",
-        keywords: "users members invite",
-      },
-      {
-        to: "/tenant/roles",
-        label: "Roles & Permissions",
-        icon: ShieldCheck,
-        description: "Custom roles and permissions",
-        keywords: "roles permissions access",
-      },
-      {
-        to: "/tenant/teams",
-        label: "Teams",
-        icon: UsersRound,
-        description: "Team hierarchy and membership",
-        keywords: "teams leaders members hierarchy org chart",
-      },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      {
-        to: "/tenant/intake",
-        label: "Data Intake",
-        icon: Database,
-        description: "Client list, debtor uploads and CRM sync",
-        keywords: "data intake import upload debtor crm integration clients",
+        to: "/tenant/case-files",
+        label: "Case Files",
+        icon: FolderOpen,
+        description: "Customer accounts and team file queues",
+        keywords: "case files debtors customers accounts collections balances team deck queue",
         submodules: [
-          { to: "/tenant/intake/clients", label: "Client List" },
-          { to: "/tenant/intake/upload", label: "Upload Debtor Data" },
-          { to: "/tenant/intake/crm", label: "CRM Integration", disabled: true },
+          { to: "/tenant/debtors", label: "Customers" },
+          { to: "/tenant/team-deck", label: "Team Deck" },
         ],
       },
     ],
@@ -143,14 +94,57 @@ export const tenantGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Operations",
+    items: [
+      {
+        to: "/tenant/intake",
+        label: "Data Intake",
+        icon: Database,
+        description: "Client list, customer uploads and CRM sync",
+        keywords: "data intake import upload debtor crm integration clients",
+        submodules: [
+          { to: "/tenant/intake/clients", label: "Client List" },
+          { to: "/tenant/intake/upload", label: "Upload Customer Data" },
+          { to: "/tenant/intake/mass-update", label: "Mass Update" },
+        ],
+      },
+    ],
+  },
+  {
     label: "Compliance",
     items: [
       {
         to: "/tenant/audit",
-        label: "Audit",
+        label: "Activity & Audit",
         icon: ScrollText,
         description: "Account and security event log",
         keywords: "audit log compliance activity events security",
+      },
+    ],
+  },
+  {
+    label: "Access Control",
+    items: [
+      {
+        to: "/tenant/users",
+        label: "Users",
+        icon: Users,
+        description: "Members and invitations",
+        keywords: "users members invite",
+      },
+      {
+        to: "/tenant/teams",
+        label: "Teams",
+        icon: UsersRound,
+        description: "Team hierarchy and membership",
+        keywords: "teams leaders members hierarchy org chart",
+      },
+      {
+        to: "/tenant/roles",
+        label: "Roles & Permissions",
+        icon: ShieldCheck,
+        description: "Custom roles and permissions",
+        keywords: "roles permissions access",
       },
     ],
   },
@@ -183,6 +177,13 @@ export const tenantGroups: NavGroup[] = [
         description: "Automated behaviour per status, for each team and client",
         keywords:
           "status automation outreach follow-up initial status team client archive inactivity documents ai voice",
+      },
+      {
+        to: "/tenant/settings/document-automation",
+        label: "Document Automation",
+        icon: FileText,
+        description: "AI-generated letters scheduled by status and time",
+        keywords: "document automation ai generated letters schedule status",
       },
     ],
   },

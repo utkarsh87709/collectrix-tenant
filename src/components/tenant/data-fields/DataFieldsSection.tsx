@@ -134,7 +134,7 @@ export function DataFieldsSection({ companyName }: { companyName: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "debtor_import_sample.csv";
+    a.download = "customer_import_sample.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -143,7 +143,7 @@ export function DataFieldsSection({ companyName }: { companyName: string }) {
     <div className="rounded-2xl border border-border bg-card shadow-elegant overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-5 border-b border-border">
         <div>
-          <h2 className="font-display text-lg font-bold tracking-tight">Debtor data fields</h2>
+          <h2 className="font-display text-lg font-bold tracking-tight">Customer data fields</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             These fields define the customer import template for {companyName || "your tenant"} and
             apply to every client in this tenant.

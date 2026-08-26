@@ -64,7 +64,7 @@ function CampaignsPage() {
       <section className="px-6 lg:px-10 py-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile label="Total campaigns" value={list.length} icon={<Megaphone className="h-4 w-4" />} tone="tenant" />
         <StatTile label="Running" value={running} delta="auto-progressing steps" tone="success" />
-        <StatTile label="Audience reached · 30d" value="4,234" delta="unique debtors" icon={<Users className="h-4 w-4" />} />
+        <StatTile label="Audience reached · 30d" value="4,234" delta="unique customers" icon={<Users className="h-4 w-4" />} />
         <StatTile label="Avg response rate" value="29%" delta="across multi-channel sequences" />
       </section>
 
@@ -92,7 +92,7 @@ function CampaignsPage() {
                       <Pill tone={STATUS_TONE[c.status]}>{c.status}</Pill>
                       <Pill tone="muted">{c.channel}</Pill>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">Audience: {c.audience} · {c.audienceCount.toLocaleString()} debtors</div>
+                    <div className="text-xs text-muted-foreground mt-1">Audience: {c.audience} · {c.audienceCount.toLocaleString()} customers</div>
                     {c.step && <div className="text-xs text-muted-foreground mt-0.5">Current step: <span className="font-semibold text-foreground">{c.step}</span></div>}
                     {c.scheduledFor && <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><Calendar className="h-3 w-3" /> Scheduled: {c.scheduledFor}</div>}
                   </div>

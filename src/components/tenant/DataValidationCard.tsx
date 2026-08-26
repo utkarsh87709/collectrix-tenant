@@ -112,7 +112,7 @@ function EmptyState() {
   return (
     <div className="px-6 py-10 text-center">
       <ShieldCheck className="h-7 w-7 mx-auto text-success" />
-      <p className="mt-2 text-sm font-semibold">No validation issues for this debtor</p>
+      <p className="mt-2 text-sm font-semibold">No validation issues for this customer</p>
       <p className="text-xs text-muted-foreground">
         Intake completed without flagging any fields. New issues will appear here automatically.
       </p>
