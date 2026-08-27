@@ -373,9 +373,9 @@ export function StatusAutomationCard({
                             <div>
                               <FieldLabel>Message source</FieldLabel>
                               <div className="flex items-center gap-4 py-1">
-                                {/* "ai" is hidden for now — Template is the only
-                                    selectable source for text channels. */}
-                                {(["template"] as MessageSource[]).map((src) => (
+                                {/* Unlike outreach channels, follow-ups offer AI
+                                    as a real option for email/SMS, not just call. */}
+                                {(["template", "ai"] as MessageSource[]).map((src) => (
                                   <label
                                     key={src}
                                     className="inline-flex items-center gap-1.5 cursor-pointer text-sm"

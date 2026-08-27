@@ -24,6 +24,7 @@ import {
   getTeamDeckTeamList,
   getTeamDeckDebtors,
   getTeamDeckAssignUserList,
+  getCreditorList,
   teamDeckAssignUser,
   assignedMemberName,
   deckDebtorName,
@@ -57,6 +58,7 @@ function TeamDeckPage() {
   const [q, setQ] = useState("");
   const [searchText, setSearchText] = useState("");
   const [creditor, setCreditor] = useState("all");
+  const [creditorOptions, setCreditorOptions] = useState<string[]>([]);
 
   // Counts shown on the two tabs — refreshed on team change and after an assign.
   const [counts, setCounts] = useState<{ inDeck: number; assigned: number }>({
@@ -83,6 +85,15 @@ function TeamDeckPage() {
       .finally(() => setTeamsLoading(false));
   }, []);
 
+  // Load the tenant-wide creditor list once, for the "All creditors" filter.
+  useEffect(() => {
+    getCreditorList()
+      .then((res) => setCreditorOptions([...(res.creditorList ?? [])].sort()))
+      .catch(() => {
+        /* dropdown is a filter convenience — leave it at "All creditors" on failure */
+      });
+  }, []);
+
   // Debounce the search box.
   useEffect(() => {
     const t = setTimeout(() => setSearchText(q.trim()), 400);
@@ -93,7 +104,7 @@ function TeamDeckPage() {
   useEffect(() => {
     setPage(0);
     setSelected(new Set());
-  }, [teamId, tab, searchText]);
+  }, [teamId, tab, searchText, creditor]);
 
   const fetchDebtors = useCallback(async () => {
     if (teamId == null) return;
@@ -104,6 +115,7 @@ function TeamDeckPage() {
         teamId,
         status: tab,
         searchText,
+        creditorName: creditor === "all" ? undefined : creditor,
         page,
         size: PAGE_SIZE,
       });
@@ -116,7 +128,7 @@ function TeamDeckPage() {
     } finally {
       setLoading(false);
     }
-  }, [teamId, tab, searchText, page]);
+  }, [teamId, tab, searchText, creditor, page]);
 
   useEffect(() => {
     fetchDebtors();
@@ -140,24 +152,7 @@ function TeamDeckPage() {
     fetchCounts();
   }, [fetchCounts]);
 
-  // Creditor options are derived from the loaded page and applied client-side —
-  // the deck endpoint has no creditor param, so this narrows the current view.
-  const creditorOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const d of debtors) if (d.creditorName) s.add(d.creditorName);
-    return [...s].sort();
-  }, [debtors]);
-
-  useEffect(() => {
-    if (creditor !== "all" && !creditorOptions.includes(creditor)) setCreditor("all");
-  }, [creditorOptions, creditor]);
-
-  const shown = useMemo(
-    () => (creditor === "all" ? debtors : debtors.filter((d) => d.creditorName === creditor)),
-    [debtors, creditor],
-  );
-
-  const selectableIds = useMemo(() => shown.map((d) => d.uploadedDebtorId), [shown]);
+  const selectableIds = useMemo(() => debtors.map((d) => d.uploadedDebtorId), [debtors]);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
@@ -170,8 +165,8 @@ function TeamDeckPage() {
     });
 
   const selectedDebtors = useMemo(
-    () => shown.filter((d) => selected.has(d.uploadedDebtorId)),
-    [shown, selected],
+    () => debtors.filter((d) => selected.has(d.uploadedDebtorId)),
+    [debtors, selected],
   );
 
   const team = teams.find((t) => t.teamId === teamId) ?? null;
@@ -324,7 +319,7 @@ function TeamDeckPage() {
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               </button>
               <span className="text-xs text-muted-foreground ml-auto">
-                {shown.length} of {totalCount} shown
+                {debtors.length} of {totalCount} shown
               </span>
             </div>
 
@@ -364,7 +359,7 @@ function TeamDeckPage() {
                   <RefreshCw className="h-4 w-4" /> Try again
                 </button>
               </div>
-            ) : shown.length === 0 ? (
+            ) : debtors.length === 0 ? (
               <div className="px-6 py-16 text-center text-sm text-muted-foreground">
                 {isDeckTab ? (
                   <>
@@ -408,7 +403,7 @@ function TeamDeckPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {shown.map((d, i) => {
+                    {debtors.map((d, i) => {
                       const checked = selected.has(d.uploadedDebtorId);
                       const fileNo = d.ourFileNo || `#${d.uploadedDebtorId}`;
                       const name = deckDebtorName(d);

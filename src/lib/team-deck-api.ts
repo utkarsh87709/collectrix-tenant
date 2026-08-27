@@ -2,13 +2,16 @@
 //   POST /tenant/getTeamDeckTeamList       {}                                          -> { teamList: [{teamId, teamName}] }
 //        Teams the caller can act on: teams the user belongs to (and ALL of them for
 //        tenantAdmin), restricted to teams that have at least one debtor assigned.
-//   POST /tenant/getTeamDeckDebtors        { searchText, page, size, status, teamId }  -> { totalCount, debtorList[] }
+//   POST /tenant/getTeamDeckDebtors        { searchText, creditorName, page, size, status, teamId } -> { totalCount, debtorList[] }
 //        status: "inDeck"   -> debtors handed to the team but not yet given to a member (assignedTo === null)
 //        status: "assigned" -> debtors currently being worked by a team member (assignedTo !== null)
+//        creditorName: exact match against the debtor's creditor field — the "All
+//        creditors" filter (per backend dev, 2026-08-27; NOT YET live on devapi as of
+//        that date — sending it has no effect until the backend deploys support).
 //        Each row is a flat debtor record (same default-field set as upload-debtor-api's
-//        DebtorRecord, but returned flat rather than nested under debtorDetails/customFields
-//        — there is no dedicated "creditor list" or `creditorName` filter param here, so the
-//        creditor dropdown on this screen can only ever reflect the fields already loaded).
+//        DebtorRecord, but returned flat rather than nested under debtorDetails/customFields).
+//   POST /tenant/getCreditorList            {}                                         -> { creditorList: string[] }
+//        Every creditor name across the tenant, for the "All creditors" filter dropdown.
 //   POST /tenant/getTeamDeckAssignUserList  { teamId }                                 -> { assignUserList[] }
 //        The members of the team a deck debtor can be handed to.
 //   POST /tenant/teamDeckAssignUser         { userId, uploadedDebtorIdList }           -> {}
@@ -88,6 +91,8 @@ export type GetTeamDeckDebtorsParams = {
   teamId: number;
   status: DeckStatus;
   searchText?: string;
+  /** Exact match against a debtor's creditor name — the "All creditors" filter. */
+  creditorName?: string;
   page?: number;
   size?: number;
 };
@@ -102,6 +107,11 @@ export function getTeamDeckTeamList(): Promise<{ teamList: TeamDeckTeam[] }> {
   return apiPost<{ teamList: TeamDeckTeam[] }>("/tenant/getTeamDeckTeamList");
 }
 
+/** Every creditor name across the tenant, for the "All creditors" filter dropdown. */
+export function getCreditorList(): Promise<{ creditorList: string[] }> {
+  return apiPost<{ creditorList: string[] }>("/tenant/getCreditorList");
+}
+
 export function getTeamDeckDebtors(
   params: GetTeamDeckDebtorsParams,
 ): Promise<GetTeamDeckDebtorsResult> {
@@ -109,6 +119,7 @@ export function getTeamDeckDebtors(
     teamId: params.teamId,
     status: params.status,
     searchText: params.searchText ?? "",
+    creditorName: params.creditorName ?? "",
     page: params.page ?? 0,
     size: params.size ?? 10,
   });

@@ -215,7 +215,7 @@ export function Sidebar() {
           <img
             src={logo}
             alt="Collectrix Ai"
-            className="select-none"
+            className="select-none dark:brightness-0 dark:invert"
             style={
               collapsed
                 ? {
@@ -223,9 +223,8 @@ export function Sidebar() {
                     width: 44,
                     objectFit: "cover",
                     objectPosition: "left center",
-                    filter: "brightness(0) invert(1)",
                   }
-                : { height: 46, width: "auto", filter: "brightness(0) invert(1)" }
+                : { height: 46, width: "auto" }
             }
             draggable={false}
           />

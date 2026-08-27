@@ -104,14 +104,14 @@
   --chart-4: oklch(0.78 0.16 75);
   --chart-5: oklch(0.6 0.22 25);
 
-  /* Sidebar — deep, saturated navy panel (light mode) */
-  --sidebar: oklch(0.17 0.05 264);
-  --sidebar-foreground: oklch(0.9 0.012 235);
-  --sidebar-primary: oklch(0.78 0.13 215);
-  --sidebar-primary-foreground: oklch(0.18 0.05 255);
-  --sidebar-accent: oklch(0.3 0.075 260);
-  --sidebar-accent-foreground: oklch(0.99 0.005 230);
-  --sidebar-border: oklch(0.32 0.06 260);
+  /* Sidebar — soft muted panel, lets the logo show in its native colors (light mode) */
+  --sidebar: oklch(0.93 0.012 240);
+  --sidebar-foreground: oklch(0.22 0.05 255);
+  --sidebar-primary: oklch(0.32 0.11 258);
+  --sidebar-primary-foreground: oklch(0.99 0.005 230);
+  --sidebar-accent: oklch(0.88 0.02 235);
+  --sidebar-accent-foreground: oklch(0.22 0.05 255);
+  --sidebar-border: oklch(0.85 0.015 240);
   --sidebar-ring: oklch(0.78 0.13 215);
 
   /* Tenant Admin accent — brand cyan/azure (logo "Ai" + X mark gradient) */

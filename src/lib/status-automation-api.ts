@@ -422,9 +422,11 @@ export function newFollowUp(channel: ChannelKey): FollowUp {
 /* -------------------------------- mapping -------------------------------- */
 
 /**
- * The "ai" source is hidden in the UI for now, so rows saved as "ai" load as
- * "template". Their templateId pointed at the aiPrompt library, not the
- * channel's template library, so it can't carry over.
+ * Outreach (initial-contact) channels only: "ai" is hidden in that part of the
+ * UI for now, so a row saved as "ai" loads as "template". Its templateId
+ * pointed at the aiPrompt library, not the channel's template library, so it
+ * can't carry over. Follow-ups support "ai" directly and skip this conversion
+ * — see configFromDetails.
  */
 function textChannelSource(
   saved: MessageSource | null,
@@ -443,9 +445,12 @@ export function configFromDetails(d: AutomationDetails): StatusAutomationConfig 
       key: `fu-${followUpSeq}`,
       channel: f.followupChannel,
       after: fromMinutes(f.followupTime, { ...DEFAULT_FOLLOWUP }),
-      ...(isAiOnlyChannel(f.followupChannel)
-        ? { messageSource: "ai" as MessageSource, templateId: f.followupTemplateId ?? null }
-        : textChannelSource(f.followupMsgSource, f.followupTemplateId ?? null)),
+      messageSource: isAiOnlyChannel(f.followupChannel)
+        ? "ai"
+        : (f.followupMsgSource ?? "template"),
+      // Same field regardless of source: an aiPrompt id when AI-generated, a
+      // template id otherwise (or the call agent id for voice).
+      templateId: f.followupTemplateId ?? null,
     };
   });
 
