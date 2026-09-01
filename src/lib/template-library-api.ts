@@ -59,7 +59,7 @@ export async function getClientTemplate(input: {
 
 export function createTemplate(input: {
   clientId: number;
-  templateType: TemplateType;
+  templateType: LibraryType;
   templateName: string;
   templateSubject: string;
   templateMessage: string;
@@ -71,7 +71,7 @@ export function createTemplate(input: {
 export function updateTemplate(input: {
   templateId: number;
   /** Accepted by the backend but the stored type can never change. */
-  templateType?: TemplateType;
+  templateType?: LibraryType;
   templateName: string;
   templateSubject: string;
   templateMessage: string;

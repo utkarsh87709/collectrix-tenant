@@ -63,14 +63,6 @@ type DocTemplate = {
   status: "active" | "archived";
 };
 
-/** Session-only AI messaging prompt — no backend API confirmed yet. */
-type AiPromptSetting = {
-  id: string;
-  clientId: number;
-  name: string;
-  prompt: string;
-};
-
 const SEED_DOC_TEMPLATES: Omit<DocTemplate, "clientId">[] = [
   {
     id: "doc-tpl-1",
@@ -218,10 +210,52 @@ function TemplateLibraryPage() {
     return list;
   }, []);
 
+  /* ------------------- AI messaging prompts (per designClients) -------------- */
+  // aiPrompt has no client list of its own on getTemplateClients, so — like
+  // Documents — it's fetched per client across the deduped `designClients` set
+  // rather than through the cache/prefetchType machinery above.
+
+  const [aiPromptCache, setAiPromptCache] = useState<Record<number, Template[]>>({});
+  const [aiPromptLoading, setAiPromptLoading] = useState(true);
+  const [aiPromptError, setAiPromptError] = useState<string | null>(null);
+  const aiPromptPrefetched = useRef(false);
+
+  const prefetchAiPrompts = useCallback(async (clients: TemplateClient[]) => {
+    setAiPromptLoading(true);
+    setAiPromptError(null);
+    try {
+      const lists = await Promise.all(
+        clients.map((c) => getClientTemplate({ clientId: c.clientId, templateType: "aiPrompt" })),
+      );
+      setAiPromptCache((prev) => {
+        const next = { ...prev };
+        clients.forEach((c, i) => {
+          next[c.clientId] = lists[i];
+        });
+        return next;
+      });
+    } catch (e) {
+      setAiPromptError(e instanceof Error ? e.message : "Failed to load.");
+    } finally {
+      setAiPromptLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (aiPromptPrefetched.current || designClients.length === 0) return;
+    aiPromptPrefetched.current = true;
+    prefetchAiPrompts(designClients);
+  }, [designClients, prefetchAiPrompts]);
+
+  const refreshOneAiPrompt = useCallback(async (clientId: number): Promise<Template[]> => {
+    const list = await getClientTemplate({ clientId, templateType: "aiPrompt" });
+    setAiPromptCache((prev) => ({ ...prev, [clientId]: list }));
+    return list;
+  }, []);
+
   /* --------------------------------- counts ---------------------------------- */
 
   const [docTemplates, setDocTemplates] = useState<DocTemplate[]>([]);
-  const [aiPrompts, setAiPrompts] = useState<AiPromptSetting[]>([]);
 
   // Seed the sample document template onto the first real client once known.
   const docsSeeded = useRef(false);
@@ -236,7 +270,7 @@ function TemplateLibraryPage() {
     sms: Object.values(cache.sms).reduce((n, l) => n + l.length, 0),
     call: Object.values(cache.call).reduce((n, l) => n + l.length, 0),
     documents: docTemplates.length,
-    aiPrompt: aiPrompts.length,
+    aiPrompt: Object.values(aiPromptCache).reduce((n, l) => n + l.length, 0),
   };
 
   const TABS: { id: Tab; label: string; icon: typeof Mail }[] = [
@@ -309,8 +343,13 @@ function TemplateLibraryPage() {
             <AiPromptsPanel
               clients={designClients}
               clientsLoading={clientsLoading}
-              prompts={aiPrompts}
-              setPrompts={setAiPrompts}
+              clientsError={clientsError}
+              onRetryClients={loadClients}
+              byClient={aiPromptCache}
+              loading={aiPromptLoading}
+              error={aiPromptError}
+              onRetry={() => prefetchAiPrompts(designClients)}
+              refreshOne={refreshOneAiPrompt}
             />
           )}
         </div>
@@ -1133,21 +1172,37 @@ function VoiceAgentEditor({
   );
 }
 
-/* ------------- AI Messaging Prompt Setting panel (design, no API) ----------- */
+/* ----------------------- AI Messaging Prompt Setting panel ------------------ */
+// Backed by the same createTemplate/updateTemplate/deleteTemplate/getClientTemplate
+// endpoints as email/sms/call, just with templateType "aiPrompt". Client list is
+// `designClients` (the deduped union from getTemplateClients) since aiPrompt has
+// no per-channel client list of its own.
 
 function AiPromptsPanel({
   clients,
   clientsLoading,
-  prompts,
-  setPrompts,
+  clientsError,
+  onRetryClients,
+  byClient,
+  loading,
+  error,
+  onRetry,
+  refreshOne,
 }: {
   clients: TemplateClient[];
   clientsLoading: boolean;
-  prompts: AiPromptSetting[];
-  setPrompts: React.Dispatch<React.SetStateAction<AiPromptSetting[]>>;
+  clientsError: string | null;
+  onRetryClients: () => void;
+  byClient: Record<number, Template[]>;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  refreshOne: (clientId: number) => Promise<Template[]>;
 }) {
   const [clientId, setClientId] = useState<number | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ kind: "item"; id: number } | { kind: "draft" } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (clients.length === 0) {
@@ -1159,21 +1214,23 @@ function AiPromptsPanel({
     );
   }, [clients]);
 
-  const clientPrompts = prompts.filter((p) => p.clientId === clientId);
-  const pillCounts = Object.fromEntries(
-    clients.map((c) => [c.clientId, prompts.filter((p) => p.clientId === c.clientId).length]),
+  const items = useMemo(
+    () => (clientId != null ? (byClient[clientId] ?? []) : []),
+    [byClient, clientId],
   );
+  const pillCounts = Object.fromEntries(clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]));
 
+  // Reset the selection when the client changes.
   useEffect(() => {
-    if (!clientPrompts.some((p) => p.id === selectedId)) {
-      setSelectedId(clientPrompts[0]?.id ?? null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, prompts]);
+    setSelected(null);
+  }, [clientId]);
 
-  const selected = clientPrompts.find((p) => p.id === selectedId) ?? null;
+  const selectedItem =
+    selected?.kind === "item" ? (items.find((t) => t.templateId === selected.id) ?? null) : null;
 
-  if (clientsLoading) return <PanelSpinner />;
+  if (clientsError) return <PanelError message={clientsError} onRetry={onRetryClients} />;
+  if (clientsLoading || loading) return <PanelSpinner />;
+  if (error) return <PanelError message={error} onRetry={onRetry} />;
   if (clients.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-24 text-center">
@@ -1183,25 +1240,6 @@ function AiPromptsPanel({
     );
   }
 
-  const createPrompt = () => {
-    if (clientId == null) return;
-    const p: AiPromptSetting = { id: `ai-prompt-${Date.now()}`, clientId, name: "New Prompt", prompt: "" };
-    setPrompts((prev) => [p, ...prev]);
-    setSelectedId(p.id);
-  };
-
-  const updatePrompt = (patch: Partial<AiPromptSetting>) => {
-    if (!selected) return;
-    setPrompts((prev) => prev.map((p) => (p.id === selected.id ? { ...p, ...patch } : p)));
-  };
-
-  const removePrompt = () => {
-    if (!selected) return;
-    setPrompts((prev) => prev.filter((p) => p.id !== selected.id));
-    setSelectedId(null);
-    toast.success("Prompt deleted");
-  };
-
   return (
     <>
       <ClientPills clients={clients} counts={pillCounts} value={clientId} onChange={setClientId} />
@@ -1209,24 +1247,36 @@ function AiPromptsPanel({
         {/* Left list */}
         <aside className="border-b lg:border-b-0 lg:border-r border-border bg-muted/20 p-3 space-y-2">
           <button
-            onClick={createPrompt}
+            onClick={() => setSelected({ kind: "draft" })}
             className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90"
           >
             <Plus className="h-4 w-4" /> New Prompt
           </button>
           <ul className="space-y-2">
-            {clientPrompts.length === 0 && (
+            {selected?.kind === "draft" && (
+              <li>
+                <div className="rounded-lg px-3 py-2.5 border border-[color:var(--tenant)]/40 bg-[color:var(--tenant)]/10">
+                  <div className="text-sm font-semibold truncate text-tenant">New Prompt</div>
+                  <div className="mt-1">
+                    <span className="inline-flex items-center text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-warning/15 text-warning-foreground">
+                      Unsaved draft
+                    </span>
+                  </div>
+                </div>
+              </li>
+            )}
+            {items.length === 0 && selected?.kind !== "draft" && (
               <li className="flex flex-col items-center gap-1.5 text-muted-foreground px-3 py-10 text-center">
                 <Bot className="h-6 w-6 opacity-50" />
                 <span className="text-xs">No AI messaging prompts for this client yet.</span>
               </li>
             )}
-            {clientPrompts.map((p) => {
-              const active = selected?.id === p.id;
+            {items.map((p) => {
+              const active = selectedItem?.templateId === p.templateId;
               return (
-                <li key={p.id}>
+                <li key={p.templateId}>
                   <button
-                    onClick={() => setSelectedId(p.id)}
+                    onClick={() => setSelected({ kind: "item", id: p.templateId })}
                     className={cn(
                       "w-full text-left cursor-pointer rounded-lg px-3 py-2.5 border transition-colors",
                       active
@@ -1235,10 +1285,7 @@ function AiPromptsPanel({
                     )}
                   >
                     <div className={cn("text-sm font-semibold truncate", active ? "text-tenant" : "text-foreground")}>
-                      {p.name || "Untitled Prompt"}
-                    </div>
-                    <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-tenant">
-                      <Bot className="h-3 w-3" /> {clients.find((c) => c.clientId === p.clientId)?.clientName}
+                      {p.templateName || "Untitled Prompt"}
                     </div>
                   </button>
                 </li>
@@ -1249,55 +1296,186 @@ function AiPromptsPanel({
 
         {/* Right editor */}
         <div className="flex flex-col">
-          {!selected ? (
+          {!selected || clientId == null ? (
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-12 text-center">
               Select a prompt from the left or create a new one.
             </div>
           ) : (
-            <div className="flex flex-col flex-1 p-6">
-              <div className="space-y-5 flex-1">
-                <label className="block">
-                  <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                    Prompt Name
-                  </div>
-                  <input
-                    value={selected.name}
-                    onChange={(e) => updatePrompt({ name: e.target.value })}
-                    placeholder="e.g. Firm Reminder"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-tenant"
-                  />
-                </label>
-
-                <label className="block">
-                  <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                    Prompt
-                  </div>
-                  <textarea
-                    value={selected.prompt}
-                    onChange={(e) => updatePrompt({ prompt: e.target.value })}
-                    rows={13}
-                    placeholder="Write the prompt content here…"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-mono outline-none focus:border-tenant resize-y"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-border flex items-center justify-between gap-3 flex-wrap">
-                <span className="text-xs text-muted-foreground">
-                  Changes are saved automatically for this session.
-                </span>
-                <button
-                  onClick={removePrompt}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-4 w-4" /> Delete
-                </button>
-              </div>
-            </div>
+            <AiPromptEditor
+              key={selected.kind === "draft" ? `draft-${clientId}` : `prompt-${selected.id}`}
+              prompt={selected.kind === "item" ? selectedItem : null}
+              clientId={clientId}
+              onCancelDraft={() => setSelected(null)}
+              onCreated={async () => {
+                const list = await refreshOne(clientId);
+                const newest = list.reduce<Template | null>(
+                  (max, t) => (!max || t.templateId > max.templateId ? t : max),
+                  null,
+                );
+                setSelected(newest ? { kind: "item", id: newest.templateId } : null);
+              }}
+              onUpdated={async () => {
+                await refreshOne(clientId);
+              }}
+              onDeleted={async () => {
+                await refreshOne(clientId);
+                setSelected(null);
+              }}
+            />
           )}
         </div>
       </div>
     </>
+  );
+}
+
+function AiPromptEditor({
+  prompt,
+  clientId,
+  onCancelDraft,
+  onCreated,
+  onUpdated,
+  onDeleted,
+}: {
+  prompt: Template | null;
+  clientId: number;
+  onCancelDraft: () => void;
+  onCreated: () => void | Promise<void>;
+  onUpdated: () => void | Promise<void>;
+  onDeleted: () => void | Promise<void>;
+}) {
+  const isNew = prompt === null;
+  const [name, setName] = useState(prompt?.templateName ?? "New Prompt");
+  const [message, setMessage] = useState(prompt?.templateMessage ?? "");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const dirty = isNew || name !== prompt.templateName || message !== prompt.templateMessage;
+
+  const save = async () => {
+    if (!name.trim()) {
+      toast.error("Prompt name is required.");
+      return;
+    }
+    if (!message.trim()) {
+      toast.error("Prompt content is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      if (isNew) {
+        await createTemplate({
+          clientId,
+          templateType: "aiPrompt",
+          templateName: name.trim(),
+          templateSubject: "",
+          templateMessage: message,
+        });
+        toast.success("AI prompt created.");
+        await onCreated();
+      } else {
+        await updateTemplate({
+          templateId: prompt.templateId,
+          templateType: "aiPrompt",
+          templateName: name.trim(),
+          templateSubject: prompt.templateSubject ?? "",
+          templateMessage: message,
+        });
+        toast.success("AI prompt updated.");
+        await onUpdated();
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save the AI prompt.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!prompt) return;
+    setDeleting(true);
+    try {
+      await deleteTemplate(prompt.templateId);
+      toast.success("AI prompt deleted.");
+      await onDeleted();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete the AI prompt.");
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col flex-1 p-6">
+      <div className="space-y-5 flex-1">
+        <label className="block">
+          <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+            Prompt Name
+          </div>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Firm Reminder"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-tenant"
+          />
+        </label>
+
+        <label className="block">
+          <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+            Prompt
+          </div>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={13}
+            placeholder="Write the prompt content here…"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-mono outline-none focus:border-tenant resize-y"
+          />
+        </label>
+      </div>
+
+      <div className="mt-6 pt-4 border-t border-border flex items-center justify-between gap-3 flex-wrap">
+        <span className="text-xs text-muted-foreground">
+          {dirty ? "Unsaved changes — save to apply." : "All changes saved."}
+        </span>
+        <div className="flex items-center gap-2">
+          {isNew ? (
+            <button
+              onClick={onCancelDraft}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:bg-muted"
+            >
+              <X className="h-4 w-4" /> Discard
+            </button>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4" /> Delete
+            </button>
+          )}
+          <button
+            onClick={save}
+            disabled={saving || !dirty}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
+            {isNew ? "Create Prompt" : "Save Changes"}
+          </button>
+        </div>
+      </div>
+
+      {confirmDelete && prompt && (
+        <ConfirmDeleteDialog
+          title="Delete AI Prompt"
+          name={prompt.templateName}
+          busy={deleting}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={remove}
+        />
+      )}
+    </div>
   );
 }
 
