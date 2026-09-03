@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useParams, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/admin/Shell";
@@ -7,6 +7,15 @@ import { PageCard, CardHead } from "@/components/tenant/ui";
 import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoveToTeamDialog } from "@/components/tenant/customers/MoveToTeamDialog";
+import {
   ChevronLeft,
   ClipboardList,
   MessageSquare,
@@ -14,6 +23,9 @@ import {
   Headphones,
   StickyNote,
   Archive,
+  ArrowLeftRight,
+  Download,
+  MoreHorizontal,
   PauseCircle,
   PlayCircle,
   Send,
@@ -25,7 +37,7 @@ import {
   Pencil,
   PhoneCall,
 } from "lucide-react";
-import { useCustomerPermissions } from "@/lib/customer-permissions";
+import { useCustomerPermissions, type CustomerPermissions } from "@/lib/customer-permissions";
 import {
   getCustomerDetails,
   customerDisplayName,
@@ -100,12 +112,16 @@ function DebtorProfile() {
   const { debtorId } = useParams({ from: "/tenant/debtors/$debtorId" });
   const id = Number(debtorId);
   if (!Number.isFinite(id)) throw notFound();
+  const navigate = useNavigate();
 
   const perms = useCustomerPermissions();
   const [details, setDetails] = useState<CustomerDetails | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [activeTab, setActiveTab] = useState("dataprofile");
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [engagementBusy, setEngagementBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,23 +198,41 @@ function DebtorProfile() {
   const isArchived = details.archivedFlag === 1;
   const isEngaged = details.engagementStatus === 1;
 
+  const toggleEngagement = async () => {
+    setEngagementBusy(true);
+    try {
+      if (isEngaged) {
+        await stopEngagement(id);
+        toast.success("Engagement stopped.");
+      } else {
+        await startEngagement(id);
+        toast.success("Engagement resumed.");
+      }
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update engagement.");
+    } finally {
+      setEngagementBusy(false);
+    }
+  };
+
   return (
     <Shell>
       <Topbar
         title={customerDisplayName(details)}
         action={
           <div className="flex items-center gap-2 flex-wrap">
-            {perms.canArchive && !isArchived && (
-              <ArchiveButton uploadedDebtorId={id} onDone={refresh} />
-            )}
-            {(perms.canStopEngagement || perms.canResumeEngagement) && (
-              <EngagementButton
-                uploadedDebtorId={id}
-                isEngaged={isEngaged}
-                perms={perms}
-                onDone={refresh}
-              />
-            )}
+            <ManageMenu
+              details={details}
+              perms={perms}
+              isArchived={isArchived}
+              isEngaged={isEngaged}
+              engagementBusy={engagementBusy}
+              onExported={() => toast.success("Customer exported.")}
+              onArchive={() => setArchiveConfirmOpen(true)}
+              onMoveToTeam={() => setMoveDialogOpen(true)}
+              onToggleEngagement={toggleEngagement}
+            />
             <Link
               to="/tenant/debtors"
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
@@ -286,6 +320,29 @@ function DebtorProfile() {
           </TabsContent>
         </Tabs>
       </section>
+
+      {archiveConfirmOpen && (
+        <ArchiveConfirmDialog
+          uploadedDebtorId={id}
+          onClose={() => setArchiveConfirmOpen(false)}
+          onDone={() => {
+            setArchiveConfirmOpen(false);
+            refresh();
+          }}
+        />
+      )}
+      {moveDialogOpen && (
+        <MoveToTeamDialog
+          count={1}
+          uploadedDebtorIdList={[id]}
+          onClose={() => setMoveDialogOpen(false)}
+          onMoved={() => {
+            // The file loses its assignment and drops off this agent's book on
+            // a successful move — nothing left here to refresh into.
+            navigate({ to: "/tenant/debtors" });
+          }}
+        />
+      )}
     </Shell>
   );
 }
@@ -1163,16 +1220,146 @@ function NoteDialog({
   );
 }
 
-/* --------------------------- Lifecycle header buttons ------------------------ */
+/* ------------------------------ Manage menu -------------------------------- */
 
-function ArchiveButton({
+function csvCell(v: string): string {
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+function downloadTextFile(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Exports the already-loaded profile as CSV — no backend export endpoint
+ *  exists yet, so this reads from what's on screen rather than faking a call. */
+function exportCustomerCsv(details: CustomerDetails, isArchived: boolean, isEngaged: boolean) {
+  const rows: [string, string][] = [
+    ["Our file no.", details.ourFileNo],
+    ["Client number", details.clientNumber],
+    ["Creditor", details.creditorName],
+    ["Debtor name", customerDisplayName(details)],
+    ["Address", details.address || ""],
+    ["Cell no. 1", details.cellNo1 || ""],
+    ["Cell no. 2", details.cellNo2 || ""],
+    ["Email", details.email || ""],
+    ["Date of birth", details.dob || ""],
+    ["Principal", details.principal],
+    ["Interest rate", details.interestRate],
+    ["Current outstanding balance", details.currentOutstandingBalance],
+    ["Delinquency date", details.delinquencyDate || ""],
+    ["Status", details.status || ""],
+    ["Team", details.teamName || ""],
+    [
+      "Assigned agent",
+      fullName({ firstName: details.assignedUserFirstName, lastName: details.assignedUserLastName }),
+    ],
+    ["Engagement status", isEngaged ? "Active" : "Stopped"],
+    ["Archived", isArchived ? "Yes" : "No"],
+    ...details.customFields.map((f): [string, string] => [f.fieldName, f.fieldValue || ""]),
+  ];
+  const csv = rows.map(([k, v]) => `${csvCell(k)},${csvCell(v)}`).join("\n");
+  downloadTextFile(`${details.ourFileNo || "customer"}.csv`, csv, "text/csv;charset=utf-8;");
+}
+
+function ManageMenu({
+  details,
+  perms,
+  isArchived,
+  isEngaged,
+  engagementBusy,
+  onExported,
+  onArchive,
+  onMoveToTeam,
+  onToggleEngagement,
+}: {
+  details: CustomerDetails;
+  perms: CustomerPermissions;
+  isArchived: boolean;
+  isEngaged: boolean;
+  engagementBusy: boolean;
+  onExported: () => void;
+  onArchive: () => void;
+  onMoveToTeam: () => void;
+  onToggleEngagement: () => void;
+}) {
+  const showArchive = perms.canArchive && !isArchived;
+  const showEngagementToggle = isEngaged ? perms.canStopEngagement : perms.canResumeEngagement;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
+          <MoreHorizontal className="h-4 w-4" /> Manage
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel>
+          <div className="text-sm font-bold font-display">Manage customer</div>
+          <div className="mt-1 text-xs font-normal leading-snug text-muted-foreground">
+            Manual lifecycle actions — all changes are recorded in the audit trail.
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => {
+            exportCustomerCsv(details, isArchived, isEngaged);
+            onExported();
+          }}
+        >
+          <Download className="h-4 w-4" /> Export
+        </DropdownMenuItem>
+        {perms.canBulkManage && (
+          <DropdownMenuItem onSelect={onMoveToTeam}>
+            <ArrowLeftRight className="h-4 w-4" /> Move to team
+          </DropdownMenuItem>
+        )}
+        {showArchive && (
+          <DropdownMenuItem onSelect={onArchive}>
+            <Archive className="h-4 w-4" /> Archive
+          </DropdownMenuItem>
+        )}
+        {showEngagementToggle && (
+          <DropdownMenuItem disabled={engagementBusy} onSelect={onToggleEngagement}>
+            {engagementBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isEngaged ? (
+              <PauseCircle className="h-4 w-4" />
+            ) : (
+              <PlayCircle className="h-4 w-4" />
+            )}
+            {isEngaged ? "Stop engagement" : "Resume engagement"}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled
+          title="Not available yet — there is no delete API for customer files."
+          className="text-destructive"
+        >
+          <Trash2 className="h-4 w-4" /> Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ArchiveConfirmDialog({
   uploadedDebtorId,
+  onClose,
   onDone,
 }: {
   uploadedDebtorId: number;
+  onClose: () => void;
   onDone: () => void;
 }) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const confirm = async () => {
@@ -1180,7 +1367,6 @@ function ArchiveButton({
     try {
       await archiveCustomer(uploadedDebtorId);
       toast.success("Customer archived.");
-      setConfirmOpen(false);
       onDone();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't archive this customer.");
@@ -1190,92 +1376,31 @@ function ArchiveButton({
   };
 
   return (
-    <>
-      <button
-        onClick={() => setConfirmOpen(true)}
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
-      >
-        <Archive className="h-4 w-4" /> Archive
-      </button>
-      {confirmOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl shadow-elegant w-full max-w-sm">
-            <div className="px-5 py-4 border-b border-border font-display font-bold text-base">
-              Archive this customer?
-            </div>
-            <div className="px-5 py-4 text-sm text-muted-foreground">
-              This can't be undone from here — there is no unarchive action available yet.
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
-              <button
-                onClick={() => setConfirmOpen(false)}
-                className="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirm}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-50"
-              >
-                {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Archive
-              </button>
-            </div>
-          </div>
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl shadow-elegant w-full max-w-sm">
+        <div className="px-5 py-4 border-b border-border font-display font-bold text-base">
+          Archive this customer?
         </div>
-      )}
-    </>
-  );
-}
-
-function EngagementButton({
-  uploadedDebtorId,
-  isEngaged,
-  perms,
-  onDone,
-}: {
-  uploadedDebtorId: number;
-  isEngaged: boolean;
-  perms: { canStopEngagement: boolean; canResumeEngagement: boolean };
-  onDone: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const allowed = isEngaged ? perms.canStopEngagement : perms.canResumeEngagement;
-  if (!allowed) return null;
-
-  const toggle = async () => {
-    setBusy(true);
-    try {
-      if (isEngaged) {
-        await stopEngagement(uploadedDebtorId);
-        toast.success("Engagement stopped.");
-      } else {
-        await startEngagement(uploadedDebtorId);
-        toast.success("Engagement resumed.");
-      }
-      onDone();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't update engagement.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <button
-      onClick={toggle}
-      disabled={busy}
-      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
-    >
-      {busy ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : isEngaged ? (
-        <PauseCircle className="h-4 w-4" />
-      ) : (
-        <PlayCircle className="h-4 w-4" />
-      )}
-      {isEngaged ? "Stop engagement" : "Resume engagement"}
-    </button>
+        <div className="px-5 py-4 text-sm text-muted-foreground">
+          This can't be undone from here — there is no unarchive action available yet.
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={confirm}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-50"
+          >
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Archive
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
