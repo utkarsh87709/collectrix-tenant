@@ -35,10 +35,32 @@ export type CustomerPermissions = {
   canAddNotes: boolean;
 };
 
-async function loadAllowedConfiguration(): Promise<Set<number>> {
-  const [profile, roles] = await Promise.all([getMyProfile(), getAllRoles()]);
-  const role = roles.roles.find((r) => r.roleId === profile.roleId);
-  return new Set(role?.allowedConfiguration ?? []);
+// Shared across every mount of useCustomerPermissions (list page, detail page,
+// its Notes tab, ...) so navigating between Customers screens doesn't re-fire
+// myProfile + getAllRole on every remount. Cleared on login/logout (see
+// invalidateCustomerPermissions) so a new session never inherits a stale grant
+// set from whoever was signed in before.
+let cachedAllowedConfiguration: Promise<Set<number>> | null = null;
+
+function loadAllowedConfiguration(): Promise<Set<number>> {
+  if (!cachedAllowedConfiguration) {
+    cachedAllowedConfiguration = Promise.all([getMyProfile(), getAllRoles()])
+      .then(([profile, roles]) => {
+        const role = roles.roles.find((r) => r.roleId === profile.roleId);
+        return new Set(role?.allowedConfiguration ?? []);
+      })
+      .catch((err) => {
+        cachedAllowedConfiguration = null; // don't cache a failure — let the next mount retry
+        throw err;
+      });
+  }
+  return cachedAllowedConfiguration;
+}
+
+/** Drop the cached permission set. Call on login/logout so a new session's
+ *  grants can't be shadowed by whichever user was previously signed in. */
+export function invalidateCustomerPermissions(): void {
+  cachedAllowedConfiguration = null;
 }
 
 export function useCustomerPermissions(): CustomerPermissions {

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
-import { Wallet, Inbox, ArrowRight } from "lucide-react";
+import { Wallet, Inbox, ArrowRightLeft, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/tenant/case-files/")({
   head: () => ({ meta: [{ title: "Case Files · Tenant Admin" }] }),
@@ -23,13 +23,20 @@ const tiles = [
     desc: "Files handed to teams, awaiting a member",
     color: "from-sky-500/10 to-sky-500/0",
   },
+  {
+    to: "/tenant/moved-files",
+    icon: ArrowRightLeft,
+    label: "Moved Files",
+    desc: "Files transferred from another team, awaiting take-on",
+    color: "from-amber-500/10 to-amber-500/0",
+  },
 ] as const;
 
 function CaseFilesHub() {
   return (
     <Shell>
       <Topbar title="Case Files" subtitle="Customer accounts and team file queues" />
-      <section className="px-6 lg:px-10 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <section className="px-6 lg:px-10 py-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         {tiles.map((t) => (
           <Link key={t.to} to={t.to} className="group">
             <div

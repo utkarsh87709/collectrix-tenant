@@ -23,12 +23,12 @@ import { Route as TenantSecurityRouteImport } from './routes/tenant.security'
 import { Route as TenantRolesRouteImport } from './routes/tenant.roles'
 import { Route as TenantPaymentsRouteImport } from './routes/tenant.payments'
 import { Route as TenantOnboardingRouteImport } from './routes/tenant.onboarding'
+import { Route as TenantMovedFilesRouteImport } from './routes/tenant.moved-files'
 import { Route as TenantDashboardsRouteImport } from './routes/tenant.dashboards'
 import { Route as TenantBillingRouteImport } from './routes/tenant.billing'
 import { Route as TenantAuditRouteImport } from './routes/tenant.audit'
 import { Route as TenantAssignmentRouteImport } from './routes/tenant.assignment'
 import { Route as TenantAppointmentsRouteImport } from './routes/tenant.appointments'
-import { Route as TenantAnalyticsRouteImport } from './routes/tenant.analytics'
 import { Route as TenantSettingsIndexRouteImport } from './routes/tenant.settings.index'
 import { Route as TenantPaymentsIndexRouteImport } from './routes/tenant.payments.index'
 import { Route as TenantIntakeIndexRouteImport } from './routes/tenant.intake.index'
@@ -151,6 +151,11 @@ const TenantOnboardingRoute = TenantOnboardingRouteImport.update({
   path: '/tenant/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TenantMovedFilesRoute = TenantMovedFilesRouteImport.update({
+  id: '/tenant/moved-files',
+  path: '/tenant/moved-files',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TenantDashboardsRoute = TenantDashboardsRouteImport.update({
   id: '/tenant/dashboards',
   path: '/tenant/dashboards',
@@ -174,11 +179,6 @@ const TenantAssignmentRoute = TenantAssignmentRouteImport.update({
 const TenantAppointmentsRoute = TenantAppointmentsRouteImport.update({
   id: '/tenant/appointments',
   path: '/tenant/appointments',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TenantAnalyticsRoute = TenantAnalyticsRouteImport.update({
-  id: '/tenant/analytics',
-  path: '/tenant/analytics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TenantSettingsIndexRoute = TenantSettingsIndexRouteImport.update({
@@ -457,12 +457,12 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/resetpassword': typeof ResetpasswordRoute
   '/tenantinvite': typeof TenantinviteRoute
-  '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
   '/tenant/dashboards': typeof TenantDashboardsRouteWithChildren
+  '/tenant/moved-files': typeof TenantMovedFilesRoute
   '/tenant/onboarding': typeof TenantOnboardingRoute
   '/tenant/payments': typeof TenantPaymentsRouteWithChildren
   '/tenant/roles': typeof TenantRolesRoute
@@ -530,11 +530,11 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/resetpassword': typeof ResetpasswordRoute
   '/tenantinvite': typeof TenantinviteRoute
-  '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
+  '/tenant/moved-files': typeof TenantMovedFilesRoute
   '/tenant/onboarding': typeof TenantOnboardingRoute
   '/tenant/roles': typeof TenantRolesRoute
   '/tenant/security': typeof TenantSecurityRoute
@@ -600,12 +600,12 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/resetpassword': typeof ResetpasswordRoute
   '/tenantinvite': typeof TenantinviteRoute
-  '/tenant/analytics': typeof TenantAnalyticsRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
   '/tenant/dashboards': typeof TenantDashboardsRouteWithChildren
+  '/tenant/moved-files': typeof TenantMovedFilesRoute
   '/tenant/onboarding': typeof TenantOnboardingRoute
   '/tenant/payments': typeof TenantPaymentsRouteWithChildren
   '/tenant/roles': typeof TenantRolesRoute
@@ -675,12 +675,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/resetpassword'
     | '/tenantinvite'
-    | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
     | '/tenant/audit'
     | '/tenant/billing'
     | '/tenant/dashboards'
+    | '/tenant/moved-files'
     | '/tenant/onboarding'
     | '/tenant/payments'
     | '/tenant/roles'
@@ -748,11 +748,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/resetpassword'
     | '/tenantinvite'
-    | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
     | '/tenant/audit'
     | '/tenant/billing'
+    | '/tenant/moved-files'
     | '/tenant/onboarding'
     | '/tenant/roles'
     | '/tenant/security'
@@ -817,12 +817,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/resetpassword'
     | '/tenantinvite'
-    | '/tenant/analytics'
     | '/tenant/appointments'
     | '/tenant/assignment'
     | '/tenant/audit'
     | '/tenant/billing'
     | '/tenant/dashboards'
+    | '/tenant/moved-files'
     | '/tenant/onboarding'
     | '/tenant/payments'
     | '/tenant/roles'
@@ -891,12 +891,12 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   ResetpasswordRoute: typeof ResetpasswordRoute
   TenantinviteRoute: typeof TenantinviteRoute
-  TenantAnalyticsRoute: typeof TenantAnalyticsRoute
   TenantAppointmentsRoute: typeof TenantAppointmentsRoute
   TenantAssignmentRoute: typeof TenantAssignmentRoute
   TenantAuditRoute: typeof TenantAuditRoute
   TenantBillingRoute: typeof TenantBillingRoute
   TenantDashboardsRoute: typeof TenantDashboardsRouteWithChildren
+  TenantMovedFilesRoute: typeof TenantMovedFilesRoute
   TenantOnboardingRoute: typeof TenantOnboardingRoute
   TenantPaymentsRoute: typeof TenantPaymentsRouteWithChildren
   TenantRolesRoute: typeof TenantRolesRoute
@@ -1035,6 +1035,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantOnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tenant/moved-files': {
+      id: '/tenant/moved-files'
+      path: '/tenant/moved-files'
+      fullPath: '/tenant/moved-files'
+      preLoaderRoute: typeof TenantMovedFilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tenant/dashboards': {
       id: '/tenant/dashboards'
       path: '/tenant/dashboards'
@@ -1068,13 +1075,6 @@ declare module '@tanstack/react-router' {
       path: '/tenant/appointments'
       fullPath: '/tenant/appointments'
       preLoaderRoute: typeof TenantAppointmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tenant/analytics': {
-      id: '/tenant/analytics'
-      path: '/tenant/analytics'
-      fullPath: '/tenant/analytics'
-      preLoaderRoute: typeof TenantAnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenant/settings/': {
@@ -1540,12 +1540,12 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   ResetpasswordRoute: ResetpasswordRoute,
   TenantinviteRoute: TenantinviteRoute,
-  TenantAnalyticsRoute: TenantAnalyticsRoute,
   TenantAppointmentsRoute: TenantAppointmentsRoute,
   TenantAssignmentRoute: TenantAssignmentRoute,
   TenantAuditRoute: TenantAuditRoute,
   TenantBillingRoute: TenantBillingRoute,
   TenantDashboardsRoute: TenantDashboardsRouteWithChildren,
+  TenantMovedFilesRoute: TenantMovedFilesRoute,
   TenantOnboardingRoute: TenantOnboardingRoute,
   TenantPaymentsRoute: TenantPaymentsRouteWithChildren,
   TenantRolesRoute: TenantRolesRoute,

@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   X,
   SlidersHorizontal,
   PanelLeftClose,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Building2,
   UsersRound,
   Tag,
@@ -20,9 +22,9 @@ import { toast } from "sonner";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
 import { PageCard, NativeSelect, Pill } from "@/components/tenant/ui";
+import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { useCustomerPermissions } from "@/lib/customer-permissions";
 import {
-  getAllCustomers,
   getCustomerList,
   getAssignableTeams,
   changeCustomerTeam,
@@ -30,31 +32,35 @@ import {
   formatMoney,
   toMoney,
   type CustomerListItem,
+  type CustomerListFilters,
   type AssignableTeam,
 } from "@/lib/customers-api";
 import { getAllStatus, type Status } from "@/lib/statuses-api";
+import { getTeamList, type TeamListItem } from "@/lib/teams-api";
+import { getClientList, type MassUpdateClient } from "@/lib/mass-update-api";
 
 export const Route = createFileRoute("/tenant/debtors/")({
   head: () => ({ meta: [{ title: "Customers · Tenant Admin" }] }),
   component: DebtorsPage,
 });
 
+const PAGE_SIZE = 20;
+
 /* -------------------------------- Row shape --------------------------------- */
-// getCustomerList's row has no clientId/teamId/statusId/statusColorCode/dates to
-// filter or color by precisely. We deliberately do NOT cross-reference these rows'
-// name strings against getAllClients/getTeamList/getAllStatus to fake those fields
-// back in — that join is fragile (matches by display name, not a stable id) and
-// papers over a real gap. Filtering below matches directly on the raw strings
-// getCustomerList already returns, and the Status column renders a plain
-// (uncoloured) pill. Flagged to backend: add clientId/teamId/statusId/
-// statusColorCode/statusCode/delinquencyDate/dateOfLastPayment to each row.
+// getCustomerList's row has no clientId/teamId/statusId of its own (name strings
+// only), but that's no longer a filtering problem: the filter rail's option lists
+// come from the real master-data endpoints (getTeamList, getClientList,
+// getAllStatus), and the chosen id is passed straight through to getCustomerList's
+// own clientId/teamId/statusId params — verified live to do real server-side
+// filtering. No client-side name matching involved.
+// There's deliberately no "Unassigned team" / "No status" option here — the
+// backend's filter only does equality-to-a-real-id, with no value meaning "is
+// empty" (see customers-api.ts's header note). Add those back once the backend
+// exposes a way to ask for it.
 
 type DisplayRow = CustomerListItem & {
   balanceNum: number;
   displayName: string;
-  /** clientNumber+clientName composite — the closest thing to a stable client key
-   *  without a real clientId on this endpoint. */
-  clientKey: string;
 };
 
 function toDisplayRows(rows: CustomerListItem[]): DisplayRow[] {
@@ -62,7 +68,6 @@ function toDisplayRows(rows: CustomerListItem[]): DisplayRow[] {
     ...r,
     balanceNum: toMoney(r.currentOutstandingBalance),
     displayName: customerDisplayName(r),
-    clientKey: `${r.clientNumber}::${r.clientName}`,
   }));
 }
 
@@ -70,12 +75,9 @@ function toDisplayRows(rows: CustomerListItem[]): DisplayRow[] {
 
 type Filters = {
   search: string;
-  /** "all" or a clientKey (see DisplayRow). */
-  client: string;
-  /** "all" | "unassigned" | a raw teamName. */
-  team: string;
-  /** "all" | "none" | a raw status display name. */
-  status: string;
+  client: number | "all";
+  team: number | "all";
+  status: number | "all";
   delinquencyFrom: string;
   delinquencyTo: string;
   lastPaymentFrom: string;
@@ -112,132 +114,99 @@ function activeFilterCount(f: Filters): number {
 function DebtorsPage() {
   const perms = useCustomerPermissions();
 
-  const [book, setBook] = useState<CustomerListItem[] | null>(null);
-  // Fetched only to populate the "Assign status..." bulk-action dropdown — not
-  // used to enrich/color list rows (see the row-shape note above).
+  // Filter-rail reference data — the real master lists, fetched once.
+  const [clients, setClients] = useState<MassUpdateClient[]>([]);
+  const [teams, setTeams] = useState<TeamListItem[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-
   useEffect(() => {
-    let cancelled = false;
-    setLoadError(null);
-    Promise.all([getAllCustomers(), getAllStatus()])
-      .then(([debtors, statusList]) => {
-        if (cancelled) return;
-        setBook(debtors);
-        setStatuses(statusList);
+    Promise.all([getClientList(), getTeamList(), getAllStatus()])
+      .then(([cl, tm, st]) => {
+        setClients(cl.clientList ?? []);
+        setTeams(tm.teamList ?? []);
+        setStatuses(st);
       })
-      .catch((err) => {
-        if (!cancelled)
-          setLoadError(err instanceof Error ? err.message : "Failed to load customers.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [reloadKey]);
-
-  const rows = useMemo(() => toDisplayRows(book ?? []), [book]);
+      .catch(() => toast.error("Failed to load filter options."));
+  }, []);
+  const statusByName = useMemo(() => {
+    const m = new Map<string, Status>();
+    for (const s of statuses) m.set(s.status, s);
+    return m;
+  }, [statuses]);
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((f) => ({ ...f, [key]: value }));
 
-  // Delinquency/last-payment date ranges aren't in the row payload to filter
-  // against locally, so those two are delegated to the backend via
-  // getCustomerList's own filter params; the matching ids are intersected with
-  // every other (client-side) filter below.
-  const [dateFilteredIds, setDateFilteredIds] = useState<Set<number> | null>(null);
-  const [dateFilterLoading, setDateFilterLoading] = useState(false);
+  // Debounce the search box so every keystroke doesn't fire a request.
+  const [q, setQ] = useState("");
+  const [searchText, setSearchText] = useState("");
   useEffect(() => {
-    const hasDelinquency = filters.delinquencyFrom || filters.delinquencyTo;
-    const hasLastPayment = filters.lastPaymentFrom || filters.lastPaymentTo;
-    if (!hasDelinquency && !hasLastPayment) {
-      setDateFilteredIds(null);
-      return;
-    }
-    let cancelled = false;
-    setDateFilterLoading(true);
-    getCustomerList({
-      size: 2000,
-      delinquencyStartDate: filters.delinquencyFrom || null,
-      delinquencyEndDate: filters.delinquencyTo || null,
-      dateOfLastPaymentStart: filters.lastPaymentFrom || null,
-      dateOfLastPaymentEnd: filters.lastPaymentTo || null,
-    })
-      .then(({ debtorList }) => {
-        if (cancelled) return;
-        setDateFilteredIds(new Set(debtorList.map((r) => r.uploadedDebtorId)));
-      })
-      .catch(() => {
-        if (!cancelled) setDateFilteredIds(new Set()); // fail closed — show nothing rather than the wrong rows
-      })
-      .finally(() => {
-        if (!cancelled) setDateFilterLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    const t = setTimeout(() => setSearchText(q.trim()), 400);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const [page, setPage] = useState(0);
+  const [rowsRaw, setRowsRaw] = useState<CustomerListItem[] | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Reset to page 1 whenever the scope changes.
+  useEffect(() => {
+    setPage(0);
   }, [
+    searchText,
+    filters.client,
+    filters.team,
+    filters.status,
     filters.delinquencyFrom,
     filters.delinquencyTo,
     filters.lastPaymentFrom,
     filters.lastPaymentTo,
+    filters.balanceMin,
+    filters.balanceMax,
   ]);
 
-  const displayed = useMemo(() => {
-    const q = filters.search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (dateFilteredIds && !dateFilteredIds.has(r.uploadedDebtorId)) return false;
-      if (q && !r.displayName.toLowerCase().includes(q) && !r.ourFileNo.toLowerCase().includes(q))
-        return false;
-      if (filters.client !== "all" && r.clientKey !== filters.client) return false;
-      if (filters.team === "unassigned") {
-        if (r.teamName) return false;
-      } else if (filters.team !== "all" && r.teamName !== filters.team) return false;
-      if (filters.status === "none") {
-        if (r.status) return false;
-      } else if (filters.status !== "all" && r.status !== filters.status) return false;
-      const min = filters.balanceMin.trim() === "" ? null : Number(filters.balanceMin);
-      const max = filters.balanceMax.trim() === "" ? null : Number(filters.balanceMax);
-      if (min !== null && !Number.isNaN(min) && r.balanceNum < min) return false;
-      if (max !== null && !Number.isNaN(max) && r.balanceNum > max) return false;
-      return true;
-    });
-  }, [rows, filters, dateFilteredIds]);
+  const fetchRows = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    const balanceMin = filters.balanceMin.trim() === "" ? null : Number(filters.balanceMin);
+    const balanceMax = filters.balanceMax.trim() === "" ? null : Number(filters.balanceMax);
+    const params: CustomerListFilters = {
+      page,
+      size: PAGE_SIZE,
+      searchText,
+      clientId: filters.client === "all" ? null : filters.client,
+      teamId: filters.team === "all" ? null : filters.team,
+      statusId: filters.status === "all" ? null : filters.status,
+      currentOutstandingBalanceMin:
+        balanceMin !== null && Number.isNaN(balanceMin) ? null : balanceMin,
+      currentOutstandingBalanceMax:
+        balanceMax !== null && Number.isNaN(balanceMax) ? null : balanceMax,
+      delinquencyStartDate: filters.delinquencyFrom || null,
+      delinquencyEndDate: filters.delinquencyTo || null,
+      dateOfLastPaymentStart: filters.lastPaymentFrom || null,
+      dateOfLastPaymentEnd: filters.lastPaymentTo || null,
+    };
+    try {
+      const res = await getCustomerList(params);
+      setRowsRaw(res.debtorList ?? []);
+      setTotalCount(res.totalCount ?? 0);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Failed to load customers.");
+      setRowsRaw([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, searchText, filters]);
 
-  // Dropdown options come from the user's own unfiltered book, never tenant master
-  // data — built straight off the raw fields already in each row (no join).
-  const clientOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    rows.forEach((r) => {
-      if (!seen.has(r.clientKey)) seen.set(r.clientKey, r.clientName);
-    });
-    return Array.from(seen, ([key, label]) => ({ key, label })).sort((a, b) =>
-      a.label.localeCompare(b.label),
-    );
-  }, [rows]);
+  useEffect(() => {
+    fetchRows();
+  }, [fetchRows]);
 
-  const teamOptions = useMemo(() => {
-    const seen = new Set<string>();
-    let hasUnassigned = false;
-    rows.forEach((r) => {
-      if (r.teamName) seen.add(r.teamName);
-      else hasUnassigned = true;
-    });
-    return { hasUnassigned, teams: Array.from(seen).sort() };
-  }, [rows]);
-
-  const statusOptions = useMemo(() => {
-    const seen = new Set<string>();
-    let hasNone = false;
-    rows.forEach((r) => {
-      if (r.status) seen.add(r.status);
-      else hasNone = true;
-    });
-    return { hasNone, statuses: Array.from(seen).sort() };
-  }, [rows]);
-
+  const displayed = useMemo(() => toDisplayRows(rowsRaw ?? []), [rowsRaw]);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const activeCount = activeFilterCount(filters);
   const [railOpen, setRailOpen] = useState(true);
 
@@ -268,8 +237,7 @@ function DebtorsPage() {
 
   const reload = () => {
     setSelected(new Set());
-    setBook(null);
-    setReloadKey((k) => k + 1);
+    fetchRows();
   };
 
   const showCheckboxes = !perms.loading && perms.canBulkManage;
@@ -314,12 +282,17 @@ function DebtorsPage() {
               <FilterRail
                 filters={filters}
                 setFilter={setFilter}
-                onClearAll={() => setFilters(EMPTY_FILTERS)}
+                search={q}
+                setSearch={setQ}
+                onClearAll={() => {
+                  setFilters(EMPTY_FILTERS);
+                  setQ("");
+                }}
                 activeCount={activeCount}
                 onCollapse={() => setRailOpen(false)}
-                clientOptions={clientOptions}
-                teamOptions={teamOptions}
-                statusOptions={statusOptions}
+                clients={clients}
+                teams={teams}
+                statuses={statuses}
               />
             )}
 
@@ -390,13 +363,7 @@ function DebtorsPage() {
                     </div>
                   ) : (
                     <h2 className="font-display text-lg font-bold tracking-tight">
-                      Customers ({displayed.length})
-                      {activeCount > 0 && (
-                        <span className="text-sm font-normal text-muted-foreground">
-                          {" "}
-                          of {rows.length}
-                        </span>
-                      )}
+                      Customers ({totalCount})
                     </h2>
                   )}
                 </div>
@@ -429,7 +396,7 @@ function DebtorsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {book === null &&
+                      {loading &&
                         Array.from({ length: 4 }).map((_, i) => (
                           <tr key={i} className="border-b border-border/60">
                             <td colSpan={showCheckboxes ? 7 : 6} className="px-6 py-4">
@@ -438,65 +405,73 @@ function DebtorsPage() {
                           </tr>
                         ))}
 
-                      {book !== null &&
-                        displayed.map((row) => (
-                          <tr
-                            key={row.uploadedDebtorId}
-                            className="border-b border-border/60 hover:bg-muted/30"
-                          >
-                            {showCheckboxes && (
-                              <td className="px-6 py-3">
-                                <input
-                                  type="checkbox"
-                                  checked={selected.has(row.uploadedDebtorId)}
-                                  onChange={() => toggleRow(row.uploadedDebtorId)}
-                                  className="h-4 w-4 rounded border-border"
-                                />
+                      {!loading &&
+                        displayed.map((row) => {
+                          const st = row.status ? statusByName.get(row.status) : undefined;
+                          return (
+                            <tr
+                              key={row.uploadedDebtorId}
+                              className="border-b border-border/60 hover:bg-muted/30"
+                            >
+                              {showCheckboxes && (
+                                <td className="px-6 py-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={selected.has(row.uploadedDebtorId)}
+                                    onChange={() => toggleRow(row.uploadedDebtorId)}
+                                    className="h-4 w-4 rounded border-border"
+                                  />
+                                </td>
+                              )}
+                              <td className={`py-3 ${showCheckboxes ? "px-3" : "px-6"}`}>
+                                <Link
+                                  to="/tenant/debtors/$debtorId"
+                                  params={{ debtorId: String(row.uploadedDebtorId) }}
+                                  className="font-semibold hover:text-tenant hover:underline"
+                                >
+                                  {row.displayName}
+                                </Link>
                               </td>
-                            )}
-                            <td className={`py-3 ${showCheckboxes ? "px-3" : "px-6"}`}>
-                              <Link
-                                to="/tenant/debtors/$debtorId"
-                                params={{ debtorId: String(row.uploadedDebtorId) }}
-                                className="font-semibold hover:text-tenant hover:underline"
-                              >
-                                {row.displayName}
-                              </Link>
-                            </td>
-                            <td className="px-3 py-3 font-mono text-xs">{row.ourFileNo}</td>
-                            <td className="px-3 py-3">
-                              <div className="font-medium">{row.clientName}</div>
-                              {row.creditorName && (
-                                <div className="text-xs text-muted-foreground">
-                                  {row.creditorName}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-3 py-3">
-                              {/* No statusColorCode on this endpoint — plain pill until
-                                  backend adds it; see the row-shape note above. */}
-                              {row.status ? (
-                                <Pill tone="muted">{row.status}</Pill>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-right font-mono">
-                              {formatMoney(row.currentOutstandingBalance)}
-                            </td>
-                            {/* Flags aren't in getCustomerList/getCustomerDetails yet — left blank
-                                rather than fabricated; see the customers-api.ts header note. */}
-                            <td className="px-6 py-3" />
-                          </tr>
-                        ))}
+                              <td className="px-3 py-3 font-mono text-xs">{row.ourFileNo}</td>
+                              <td className="px-3 py-3">
+                                <div className="font-medium">{row.clientName}</div>
+                                {row.creditorName && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {row.creditorName}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-3">
+                                {st ? (
+                                  <StatusPill
+                                    code={st.statusCode}
+                                    name={st.status}
+                                    color={st.statusColorCode}
+                                    className="text-xs px-2 py-0.5"
+                                  />
+                                ) : row.status ? (
+                                  <Pill tone="muted">{row.status}</Pill>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 text-right font-mono">
+                                {formatMoney(row.currentOutstandingBalance)}
+                              </td>
+                              {/* Flags aren't in getCustomerList/getCustomerDetails yet — left blank
+                                  rather than fabricated; see the customers-api.ts header note. */}
+                              <td className="px-6 py-3" />
+                            </tr>
+                          );
+                        })}
 
-                      {book !== null && displayed.length === 0 && (
+                      {!loading && displayed.length === 0 && (
                         <tr>
                           <td
                             colSpan={showCheckboxes ? 7 : 6}
                             className="text-center py-12 text-muted-foreground text-sm"
                           >
-                            {rows.length === 0
+                            {activeCount === 0
                               ? "You have no customer files assigned to you yet."
                               : "No customers match your filters."}
                           </td>
@@ -506,8 +481,32 @@ function DebtorsPage() {
                   </table>
                 </div>
 
+                {!loading && totalCount > 0 && (
+                  <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                    <span>
+                      Page {page + 1} of {totalPages} · {totalCount} total
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        disabled={page === 0}
+                        onClick={() => setPage((p) => Math.max(0, p - 1))}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border hover:bg-muted disabled:opacity-40"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                      </button>
+                      <button
+                        disabled={page >= totalPages - 1}
+                        onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border hover:bg-muted disabled:opacity-40"
+                      >
+                        Next <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="px-6 py-3 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
-                  {dateFilterLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {loading && <Loader2 className="h-3 w-3 animate-spin" />}
                   {showCheckboxes
                     ? "Select customers to bulk-assign a status or move them to another team. Open a customer to reassign agent, manager, team, creditor or AI agent. This is your own book — only the files assigned to you. Parked files, files moved to another team and imported files still waiting for a team are listed on their own screens."
                     : "Assignment is read-only here."}
@@ -538,21 +537,25 @@ function DebtorsPage() {
 function FilterRail({
   filters,
   setFilter,
+  search,
+  setSearch,
   onClearAll,
   activeCount,
   onCollapse,
-  clientOptions,
-  teamOptions,
-  statusOptions,
+  clients,
+  teams,
+  statuses,
 }: {
   filters: Filters;
   setFilter: <K extends keyof Filters>(key: K, value: Filters[K]) => void;
+  search: string;
+  setSearch: (v: string) => void;
   onClearAll: () => void;
   activeCount: number;
   onCollapse: () => void;
-  clientOptions: { key: string; label: string }[];
-  teamOptions: { hasUnassigned: boolean; teams: string[] };
-  statusOptions: { hasNone: boolean; statuses: string[] };
+  clients: MassUpdateClient[];
+  teams: TeamListItem[];
+  statuses: Status[];
 }) {
   return (
     <aside className="w-80 shrink-0">
@@ -589,14 +592,14 @@ function FilterRail({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
-              value={filters.search}
-              onChange={(e) => setFilter("search", e.target.value)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Name or file number"
               className="w-full pl-9 pr-8 py-2.5 rounded-lg border border-border bg-background text-sm"
             />
-            {filters.search && (
+            {search && (
               <button
-                onClick={() => setFilter("search", "")}
+                onClick={() => setSearch("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted"
                 aria-label="Clear search"
               >
@@ -615,12 +618,14 @@ function FilterRail({
             <NativeSelect
               size="sm"
               value={filters.client}
-              onChange={(e) => setFilter("client", e.target.value)}
+              onChange={(e) =>
+                setFilter("client", e.target.value === "all" ? "all" : Number(e.target.value))
+              }
             >
               <option value="all">All clients</option>
-              {clientOptions.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}
+              {clients.map((c) => (
+                <option key={c.clientId} value={c.clientId}>
+                  {c.clientName}
                 </option>
               ))}
             </NativeSelect>
@@ -630,15 +635,16 @@ function FilterRail({
             <NativeSelect
               size="sm"
               value={filters.team}
-              onChange={(e) => setFilter("team", e.target.value)}
+              onChange={(e) =>
+                setFilter("team", e.target.value === "all" ? "all" : Number(e.target.value))
+              }
             >
               <option value="all">All teams</option>
-              {teamOptions.teams.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {teams.map((t) => (
+                <option key={t.teamId} value={t.teamId}>
+                  {t.teamName}
                 </option>
               ))}
-              {teamOptions.hasUnassigned && <option value="unassigned">Unassigned</option>}
             </NativeSelect>
           </FilterSection>
 
@@ -646,15 +652,16 @@ function FilterRail({
             <NativeSelect
               size="sm"
               value={filters.status}
-              onChange={(e) => setFilter("status", e.target.value)}
+              onChange={(e) =>
+                setFilter("status", e.target.value === "all" ? "all" : Number(e.target.value))
+              }
             >
               <option value="all">All statuses</option>
-              {statusOptions.statuses.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {statuses.map((s) => (
+                <option key={s.statusId} value={s.statusId}>
+                  {s.status}
                 </option>
               ))}
-              {statusOptions.hasNone && <option value="none">No status</option>}
             </NativeSelect>
           </FilterSection>
 

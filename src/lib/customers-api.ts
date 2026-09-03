@@ -9,18 +9,19 @@
 //                                -> { totalCount, debtorList[] }
 //     Date filters are yyyy-mm-dd (verified against the identical param shape on
 //     getMassUpdateDebtorList — dd/mm/yyyy 500s with "Server Error"; ISO works).
+//     clientId/teamId/statusId are real server-side equality filters — verified
+//     live (2026-09-02): passing a real id narrows totalCount correctly, a
+//     non-matching id returns 0 rows. The filter rail gets its option lists from
+//     the real master-data endpoints (teams-api's getTeamList, mass-update-api's
+//     getClientList, statuses-api's getAllStatus) and passes the chosen id straight
+//     through here — no client-side name matching involved. There's no "is
+//     unassigned" / "has no status" equality value, so the filter rail doesn't
+//     offer those two options at all (rather than fake them client-side against
+//     just the current page) — ask backend for a sentinel/flag before adding them.
 //     IMPORTANT: each row here is much thinner than getCustomerDetails — no
-//     delinquencyDate, dateOfLastPayment, statusColorCode/statusId, clientId/teamId,
-//     or any flags field. Balance/search/client/team/status filtering is done
-//     client-side against this row's raw strings (clientName+clientNumber, teamName,
-//     status); delinquency/last-payment DATE filtering is delegated to the backend
-//     via the request params above, since the raw dates aren't in the row payload to
-//     filter against locally. We deliberately do NOT cross-reference these rows'
-//     name strings against getAllStatus()/getAllClients()/getTeamList() to recover
-//     statusColorCode/statusId/clientId/teamId — that join is fragile (name matching,
-//     not a stable id) and just papers over the gap. Flagged to backend instead: add
-//     those fields directly to each row. Until then, the Status column renders
-//     uncoloured and the list filters match on the raw display strings.
+//     delinquencyDate, dateOfLastPayment, statusColorCode/statusId, or clientId/
+//     teamId of its own (name strings only) — fine for display and for the
+//     equality filters above, but not enough to recover a stable id per row.
 //   POST /tenant/getCustomerDetails { uploadedDebtorId } -> full profile, incl.
 //     archivedFlag, engagementStatus (1 active / 0 stopped), statusColorCode, customFields[].
 //     Date fields on this endpoint (dob, delinquencyDate, dateOfLastPayment,
@@ -122,21 +123,6 @@ export function getCustomerList(
     page: filters.page ?? 0,
     size: filters.size ?? 200,
   });
-}
-
-/** Fetch every page of the signed-in user's own book (unfiltered). Used to build
- *  filter-rail option sets and the "of N" denominator — never for a tenant-wide view. */
-export async function getAllCustomers(pageSize = 200): Promise<CustomerListItem[]> {
-  const out: CustomerListItem[] = [];
-  let page = 0;
-  // Sane upper bound so a backend bug can't spin this into an infinite loop.
-  for (let guard = 0; guard < 50; guard++) {
-    const { totalCount, debtorList } = await getCustomerList({ page, size: pageSize });
-    out.push(...debtorList);
-    if (out.length >= totalCount || debtorList.length < pageSize) break;
-    page += 1;
-  }
-  return out;
 }
 
 /* ----------------------------- Details ------------------------------ */

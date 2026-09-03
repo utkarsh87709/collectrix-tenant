@@ -6,8 +6,6 @@ import { cn } from "@/lib/utils";
 import logo from "@/assets/collectrix-logo.png";
 import { useAuth } from "@/lib/auth-context";
 import { tenantGroups, type NavItem } from "@/lib/nav-registry";
-import { useDemoRole } from "@/lib/demo-role";
-import { canSeeAnalyticsModule } from "@/lib/analytics-permissions";
 import {
   Sidebar as UiSidebar,
   SidebarContent,
@@ -195,13 +193,7 @@ export function Sidebar() {
       .toUpperCase() || "TA";
   const email = user?.emailId ?? "";
 
-  const role = useDemoRole();
-  const groups = tenantGroups
-    .map((g) => ({
-      ...g,
-      items: g.items.filter((i) => i.to !== "/tenant/analytics" || canSeeAnalyticsModule(role)),
-    }))
-    .filter((g) => g.items.length > 0);
+  const groups = tenantGroups;
 
   return (
     <UiSidebar
@@ -215,7 +207,7 @@ export function Sidebar() {
           <img
             src={logo}
             alt="Collectrix Ai"
-            className="select-none dark:brightness-0 dark:invert"
+            className="select-none brightness-0 invert"
             style={
               collapsed
                 ? {

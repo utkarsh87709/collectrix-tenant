@@ -10,15 +10,9 @@ import {
   ChevronLeft,
   ClipboardList,
   MessageSquare,
+  Mail,
   Headphones,
-  FileText,
   StickyNote,
-  CreditCard,
-  LayoutGrid,
-  UsersRound,
-  History as HistoryIcon,
-  ShieldCheck,
-  ArrowLeftRight,
   Archive,
   PauseCircle,
   PlayCircle,
@@ -53,15 +47,12 @@ import {
   archiveCustomer,
   stopEngagement,
   startEngagement,
-  changeCustomerTeam,
-  getAssignableTeams,
   type CustomerDetails,
   type CustomerNote,
   type CustomerEmailMessage,
   type CustomerSmsMessage,
   type CustomerCall,
   type CustomerCallDetails,
-  type AssignableTeam,
 } from "@/lib/customers-api";
 
 export const Route = createFileRoute("/tenant/debtors/$debtorId")({
@@ -275,33 +266,9 @@ function DebtorProfile() {
               <Headphones className="h-3.5 w-3.5 mr-1.5" />
               Calls
             </TabsTrigger>
-            <TabsTrigger value="documents">
-              <FileText className="h-3.5 w-3.5 mr-1.5" />
-              Documents
-            </TabsTrigger>
             <TabsTrigger value="notes">
               <StickyNote className="h-3.5 w-3.5 mr-1.5" />
               Notes
-            </TabsTrigger>
-            <TabsTrigger value="payments">
-              <CreditCard className="h-3.5 w-3.5 mr-1.5" />
-              Payments
-            </TabsTrigger>
-            <TabsTrigger value="overview">
-              <LayoutGrid className="h-3.5 w-3.5 mr-1.5" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="assignment">
-              <UsersRound className="h-3.5 w-3.5 mr-1.5" />
-              Assignment
-            </TabsTrigger>
-            <TabsTrigger value="timeline">
-              <HistoryIcon className="h-3.5 w-3.5 mr-1.5" />
-              Timeline
-            </TabsTrigger>
-            <TabsTrigger value="rpv">
-              <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
-              RPV
             </TabsTrigger>
           </TabsList>
 
@@ -316,24 +283,6 @@ function DebtorProfile() {
           </TabsContent>
           <TabsContent value="notes" className="mt-4">
             <NotesTab details={details} />
-          </TabsContent>
-          <TabsContent value="overview" className="mt-4">
-            <OverviewTab details={details} />
-          </TabsContent>
-          <TabsContent value="assignment" className="mt-4">
-            <AssignmentTab details={details} onChanged={refresh} />
-          </TabsContent>
-          <TabsContent value="documents" className="mt-4">
-            <NotConnectedTab label="Documents" />
-          </TabsContent>
-          <TabsContent value="payments" className="mt-4">
-            <NotConnectedTab label="Payments" />
-          </TabsContent>
-          <TabsContent value="timeline" className="mt-4">
-            <NotConnectedTab label="Timeline" />
-          </TabsContent>
-          <TabsContent value="rpv" className="mt-4">
-            <NotConnectedTab label="RPV" />
           </TabsContent>
         </Tabs>
       </section>
@@ -357,17 +306,6 @@ function AssignmentPill({ label }: { label: string }) {
     <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-tenant-soft text-tenant border border-[color:var(--tenant)]/20">
       {label}
     </span>
-  );
-}
-
-function NotConnectedTab({ label }: { label: string }) {
-  return (
-    <PageCard className="p-10 text-center">
-      <p className="text-sm text-muted-foreground">
-        {label} isn't connected to live data yet — no backend endpoint has been delivered for this
-        tab.
-      </p>
-    </PageCard>
   );
 }
 
@@ -461,68 +399,6 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-/* -------------------------------- Overview -------------------------------- */
-
-function OverviewTab({ details }: { details: CustomerDetails }) {
-  const [notes, setNotes] = useState<CustomerNote[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getCustomerNotes(details.uploadedDebtorId)
-      .then((r) => {
-        if (!cancelled) setNotes(r.noteList);
-      })
-      .catch(() => {
-        if (!cancelled) setNotes([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [details.uploadedDebtorId]);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <PageCard>
-        <CardHead title="Customer summary" subtitle="Most important non-financial signals" />
-        <div className="p-6 grid grid-cols-2 gap-4">
-          <Field label="Name" value={customerDisplayName(details)} />
-          <Field label="Creditor" value={details.creditorName} />
-          <Field label="Client" value={details.clientName} />
-          <Field label="Team" value={details.teamName || "Unassigned"} />
-          <Field label="Placed" value={daysAgo(details.createdAt)} />
-          <Field
-            label="Assigned agent"
-            value={
-              fullName({
-                firstName: details.assignedUserFirstName,
-                lastName: details.assignedUserLastName,
-              }) || "Unassigned"
-            }
-          />
-        </div>
-      </PageCard>
-      <PageCard>
-        <CardHead title="Latest notes" subtitle={notes ? `${notes.length} total` : "Loading…"} />
-        <div className="p-6">
-          {notes === null && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          {notes?.length === 0 && <p className="text-sm text-muted-foreground">No notes yet.</p>}
-          <ul className="space-y-3">
-            {notes?.slice(0, 3).map((n) => (
-              <li key={n.notesId} className="text-sm">
-                <div className="font-semibold">{n.title}</div>
-                <div className="text-muted-foreground text-xs mt-0.5">
-                  {timeAgo(n.createdAt)} ·{" "}
-                  {fullName({ firstName: n.createUserFirstName, lastName: n.createdUserLastName })}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </PageCard>
-    </div>
-  );
-}
-
 /* ----------------------------- Communication ------------------------------ */
 
 function CommunicationTab({ details }: { details: CustomerDetails }) {
@@ -548,6 +424,13 @@ function CommunicationTab({ details }: { details: CustomerDetails }) {
       </div>
       {channel === "sms" ? <SmsPanel details={details} /> : <EmailPanel details={details} />}
     </PageCard>
+  );
+}
+
+/** Oldest first, so the conversation reads top-to-bottom like a chat thread. */
+function oldestFirst<T extends { createdAt: string }>(list: T[]): T[] {
+  return [...list].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
 }
 
@@ -586,16 +469,29 @@ function SmsPanel({ details }: { details: CustomerDetails }) {
       <div className="text-sm text-muted-foreground">
         {messages ? `${messages.length} SMS messages` : "Loading…"}
       </div>
-      <div className="space-y-3 max-h-96 overflow-y-auto">
-        {messages?.map((m) => (
-          <MessageBubble
-            key={m.id}
-            outgoing={m.direction === "outgoing"}
-            sender={m.senderName}
-            when={m.createdAt}
-            body={m.body}
-          />
-        ))}
+      <div className="min-h-72 max-h-96 overflow-y-auto rounded-xl border border-border/60 bg-muted/20 p-4">
+        {messages === null ? (
+          <div className="h-64 flex items-center justify-center text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <MessageSquare className="h-8 w-8" />
+            <p className="text-sm">No messages yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {oldestFirst(messages).map((m) => (
+              <MessageBubble
+                key={m.id}
+                outgoing={m.direction === "outgoing"}
+                sender={m.senderName}
+                when={m.createdAt}
+                body={m.body}
+              />
+            ))}
+          </div>
+        )}
       </div>
       <div className="border-t border-border pt-4">
         <textarea
@@ -669,17 +565,30 @@ function EmailPanel({ details }: { details: CustomerDetails }) {
       <div className="text-sm text-muted-foreground">
         {messages ? `${messages.length} emails` : "Loading…"}
       </div>
-      <div className="space-y-3 max-h-96 overflow-y-auto">
-        {messages?.map((m) => (
-          <MessageBubble
-            key={m.id}
-            outgoing={m.direction === "outgoing"}
-            sender={m.senderName}
-            when={m.createdAt}
-            body={m.emailBody}
-            subject={m.emailSubject}
-          />
-        ))}
+      <div className="min-h-72 max-h-96 overflow-y-auto rounded-xl border border-border/60 bg-muted/20 p-4">
+        {messages === null ? (
+          <div className="h-64 flex items-center justify-center text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <Mail className="h-8 w-8" />
+            <p className="text-sm">No emails yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {oldestFirst(messages).map((m) => (
+              <MessageBubble
+                key={m.id}
+                outgoing={m.direction === "outgoing"}
+                sender={m.senderName}
+                when={m.createdAt}
+                body={m.emailBody}
+                subject={m.emailSubject}
+              />
+            ))}
+          </div>
+        )}
       </div>
       <div className="border-t border-border pt-4 space-y-2">
         <input
@@ -1250,127 +1159,6 @@ function NoteDialog({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ------------------------------- Assignment -------------------------------- */
-
-function AssignmentTab({
-  details,
-  onChanged,
-}: {
-  details: CustomerDetails;
-  onChanged: () => void;
-}) {
-  const perms = useCustomerPermissions();
-  const [teams, setTeams] = useState<AssignableTeam[]>([]);
-  const [teamId, setTeamId] = useState<number | "">("");
-  const [reason, setReason] = useState("");
-  const [moving, setMoving] = useState(false);
-
-  useEffect(() => {
-    getAssignableTeams()
-      .then((r) => setTeams(r.teamList))
-      .catch(() => toast.error("Couldn't load teams."));
-  }, []);
-
-  const move = async () => {
-    if (teamId === "") return;
-    setMoving(true);
-    try {
-      await changeCustomerTeam({
-        uploadedDebtorIdList: [details.uploadedDebtorId],
-        teamId,
-        remark: reason.trim(),
-      });
-      toast.success("File moved — it now sits on that team's Moved Files queue, unassigned.");
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't move this file.");
-    } finally {
-      setMoving(false);
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <PageCard>
-        <CardHead title="Current assignment" icon={<UsersRound className="h-4 w-4" />} />
-        <div className="p-6 grid grid-cols-2 gap-4">
-          <Field
-            label="Assigned agent"
-            value={
-              fullName({
-                firstName: details.assignedUserFirstName,
-                lastName: details.assignedUserLastName,
-              }) || "Unassigned"
-            }
-          />
-          <Field
-            label="Team leader"
-            value={
-              fullName({ firstName: details.leaderFirstName, lastName: details.leaderLastName }) ||
-              "—"
-            }
-          />
-          <Field label="Team" value={details.teamName || "Unassigned"} />
-          <Field label="Client" value={`${details.clientName} (${details.clientNumber})`} />
-        </div>
-      </PageCard>
-
-      <PageCard>
-        <CardHead title="Move to team" icon={<ArrowLeftRight className="h-4 w-4" />} />
-        <div className="p-6 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Moving this file clears its status and unassigns it from the current agent. It lands on
-            the destination team's Moved Files queue for reassignment.
-          </p>
-          {perms.canBulkManage ? (
-            <>
-              <label className="block">
-                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-                  Destination team
-                </span>
-                <select
-                  value={teamId}
-                  onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : "")}
-                  className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
-                >
-                  <option value="">Choose a team…</option>
-                  {teams.map((t) => (
-                    <option key={t.teamId} value={t.teamId}>
-                      {t.teamName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-                  Reason / note (optional)
-                </span>
-                <input
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
-                />
-              </label>
-              <button
-                onClick={move}
-                disabled={teamId === "" || moving}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
-              >
-                {moving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                <ArrowLeftRight className="h-4 w-4" /> Move
-              </button>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              You don't have permission to reassign files.
-            </p>
-          )}
-        </div>
-      </PageCard>
     </div>
   );
 }

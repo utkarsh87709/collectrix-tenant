@@ -5,7 +5,6 @@ import {
   Gauge,
   ScrollText,
   UsersRound,
-  LineChart,
   Wallet,
   Settings,
   Database,
@@ -42,8 +41,8 @@ export type NavGroup = {
 
 /* ---------------------------------- TENANT ---------------------------------- */
 
-// Enabled modules are visible and routable (see __root.tsx). Analytics and
-// Debtors are demo-only for now — they render mock data with no API behind them.
+// Enabled modules are visible and routable (see __root.tsx). Debtors is
+// demo-only for now — it renders mock data with no API behind it.
 export const tenantGroups: NavGroup[] = [
   {
     label: "Workspace",
@@ -55,13 +54,6 @@ export const tenantGroups: NavGroup[] = [
         description: "Dashboards, KPIs and reports",
       },
       {
-        to: "/tenant/analytics",
-        label: "Analytics",
-        icon: LineChart,
-        description: "Performance insights (demo data)",
-        keywords: "analytics insights performance reports charts",
-      },
-      {
         to: "/tenant/case-files",
         label: "Case Files",
         icon: FolderOpen,
@@ -70,6 +62,7 @@ export const tenantGroups: NavGroup[] = [
         submodules: [
           { to: "/tenant/debtors", label: "Customers" },
           { to: "/tenant/team-deck", label: "Team Deck" },
+          { to: "/tenant/moved-files", label: "Moved Files" },
         ],
       },
     ],

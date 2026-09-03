@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { loginRequest, logoutRequest, type AuthUser } from "@/lib/auth-api";
 import { AUTH_USER_KEY, clearSession, getAuthToken, setAuthToken } from "@/lib/auth-token";
+import { invalidateCustomerPermissions } from "@/lib/customer-permissions";
 
 // Roles are dynamic — the backend can return many different role names, and any
 // of them may sign in here. The only exception is the platform super admin, who
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(token);
     setUser(u);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+    invalidateCustomerPermissions();
   };
 
   const logout = () => {
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void logoutRequest();
     setUser(null);
     clearSession();
+    invalidateCustomerPermissions();
   };
 
   return (

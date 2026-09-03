@@ -18,7 +18,7 @@ export function StatusPill({
   const fg = pillTextColor(color);
   return (
     <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${className}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium ${className}`}
       style={{ backgroundColor: color, color: fg }}
     >
       <span className="font-bold">{code || "—"}</span>
