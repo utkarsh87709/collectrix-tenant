@@ -46,8 +46,8 @@
 //   POST /tenant/getCustomerCalls   { uploadedDebtorId } -> { callList[] }
 //   POST /tenant/getCustomerCallDetails { uploadedDebtorId, id } -> call + transcript + summary
 //   POST /tenant/archiveCustomer    { uploadedDebtorId } -> {}
-//     Sets archivedFlag; verified live — there is no unarchive endpoint, so this is
-//     effectively permanent. Confirm with the user before calling from a destructive UI action.
+//     Sets archivedFlag. Reversible since 2026-09-08 via archive-api's unArchiveCustomer
+//     (POST /tenant/UnArchiveCustomer) — the file sits on Case Files → Archive until restored.
 //   POST /tenant/stopEngagement     { uploadedDebtorId } -> {}  (engagementStatus 1 -> 0)
 //   POST /tenant/startEngagement    { uploadedDebtorId } -> {}  (engagementStatus 0 -> 1)
 //     Verified live and reversible (toggled and restored in dev).
@@ -380,7 +380,8 @@ export function initiateCustomerCall(input: {
 
 /* ---------------------------- Lifecycle -------------------------------- */
 
-/** No unarchive endpoint exists — treat as permanent in any confirmation copy. */
+/** Reversible: the file lands on Case Files → Archive, and archive-api's
+ *  unArchiveCustomer brings it back. */
 export function archiveCustomer(uploadedDebtorId: number): Promise<unknown> {
   return apiPost("/tenant/archiveCustomer", { uploadedDebtorId });
 }

@@ -20,6 +20,7 @@ const ENABLED_TENANT_PREFIXES = [
   "/tenant/teams",
   "/tenant/team-deck",
   "/tenant/moved-files",
+  "/tenant/archive",
   "/tenant/audit",
   "/tenant/settings",
   // Demo-only modules (mock data, no API yet).

@@ -15,6 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoveToTeamDialog } from "@/components/tenant/customers/MoveToTeamDialog";
+import { RestoreFileDialog } from "@/components/tenant/customers/RestoreFileDialog";
+import { csvCell, downloadTextFile } from "@/lib/csv";
 import {
   ChevronLeft,
   ClipboardList,
@@ -36,6 +38,7 @@ import {
   Trash2,
   Pencil,
   PhoneCall,
+  RotateCcw,
 } from "lucide-react";
 import { useCustomerPermissions, type CustomerPermissions } from "@/lib/customer-permissions";
 import {
@@ -120,6 +123,7 @@ function DebtorProfile() {
   const [reloadKey, setReloadKey] = useState(0);
   const [activeTab, setActiveTab] = useState("dataprofile");
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [engagementBusy, setEngagementBusy] = useState(false);
 
@@ -230,6 +234,7 @@ function DebtorProfile() {
               engagementBusy={engagementBusy}
               onExported={() => toast.success("Customer exported.")}
               onArchive={() => setArchiveConfirmOpen(true)}
+              onRestore={() => setRestoreDialogOpen(true)}
               onMoveToTeam={() => setMoveDialogOpen(true)}
               onToggleEngagement={toggleEngagement}
             />
@@ -257,9 +262,13 @@ function DebtorProfile() {
               />
             )}
             {isArchived && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-muted text-muted-foreground">
-                Archived
-              </span>
+              <Link
+                to="/tenant/archive"
+                title="Open the archive"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-muted text-muted-foreground hover:text-foreground"
+              >
+                <Archive className="h-3 w-3" /> Archived
+              </Link>
             )}
             {!isEngaged && (
               <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-warning/20 text-warning-foreground">
@@ -327,6 +336,29 @@ function DebtorProfile() {
           onClose={() => setArchiveConfirmOpen(false)}
           onDone={() => {
             setArchiveConfirmOpen(false);
+            refresh();
+          }}
+        />
+      )}
+      {restoreDialogOpen && (
+        <RestoreFileDialog
+          uploadedDebtorId={id}
+          name={customerDisplayName(details)}
+          fileRef={details.ourFileNo}
+          clientName={details.clientName}
+          teamName={details.teamName}
+          status={
+            details.status
+              ? {
+                  code: details.statusCode ?? details.status,
+                  name: details.status,
+                  color: details.statusColorCode ?? "#64748b",
+                }
+              : null
+          }
+          onClose={() => setRestoreDialogOpen(false)}
+          onRestored={() => {
+            setRestoreDialogOpen(false);
             refresh();
           }}
         />
@@ -1222,22 +1254,6 @@ function NoteDialog({
 
 /* ------------------------------ Manage menu -------------------------------- */
 
-function csvCell(v: string): string {
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-}
-
-function downloadTextFile(filename: string, content: string, mime: string) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
 /** Exports the already-loaded profile as CSV — no backend export endpoint
  *  exists yet, so this reads from what's on screen rather than faking a call. */
 function exportCustomerCsv(details: CustomerDetails, isArchived: boolean, isEngaged: boolean) {
@@ -1259,7 +1275,10 @@ function exportCustomerCsv(details: CustomerDetails, isArchived: boolean, isEnga
     ["Team", details.teamName || ""],
     [
       "Assigned agent",
-      fullName({ firstName: details.assignedUserFirstName, lastName: details.assignedUserLastName }),
+      fullName({
+        firstName: details.assignedUserFirstName,
+        lastName: details.assignedUserLastName,
+      }),
     ],
     ["Engagement status", isEngaged ? "Active" : "Stopped"],
     ["Archived", isArchived ? "Yes" : "No"],
@@ -1277,6 +1296,7 @@ function ManageMenu({
   engagementBusy,
   onExported,
   onArchive,
+  onRestore,
   onMoveToTeam,
   onToggleEngagement,
 }: {
@@ -1287,10 +1307,13 @@ function ManageMenu({
   engagementBusy: boolean;
   onExported: () => void;
   onArchive: () => void;
+  onRestore: () => void;
   onMoveToTeam: () => void;
   onToggleEngagement: () => void;
 }) {
   const showArchive = perms.canArchive && !isArchived;
+  // Restoring is the inverse of archiving, so it sits behind the same grant.
+  const showRestore = perms.canArchive && isArchived;
   const showEngagementToggle = isEngaged ? perms.canStopEngagement : perms.canResumeEngagement;
 
   return (
@@ -1324,6 +1347,11 @@ function ManageMenu({
         {showArchive && (
           <DropdownMenuItem onSelect={onArchive}>
             <Archive className="h-4 w-4" /> Archive
+          </DropdownMenuItem>
+        )}
+        {showRestore && (
+          <DropdownMenuItem onSelect={onRestore}>
+            <RotateCcw className="h-4 w-4" /> Restore from archive
           </DropdownMenuItem>
         )}
         {showEngagementToggle && (
@@ -1382,7 +1410,8 @@ function ArchiveConfirmDialog({
           Archive this customer?
         </div>
         <div className="px-5 py-4 text-sm text-muted-foreground">
-          This can't be undone from here — there is no unarchive action available yet.
+          The file leaves the active workload and is parked under Case Files → Archive, where it can
+          be restored at any time. Nothing is deleted.
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
           <button

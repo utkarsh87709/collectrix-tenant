@@ -58,11 +58,13 @@ export const tenantGroups: NavGroup[] = [
         label: "Case Files",
         icon: FolderOpen,
         description: "Customer accounts and team file queues",
-        keywords: "case files debtors customers accounts collections balances team deck queue",
+        keywords:
+          "case files debtors customers accounts collections balances team deck queue archive archived parked restore",
         submodules: [
           { to: "/tenant/debtors", label: "Customers" },
           { to: "/tenant/team-deck", label: "Team Deck" },
           { to: "/tenant/moved-files", label: "Moved Files" },
+          { to: "/tenant/archive", label: "Archive" },
         ],
       },
     ],

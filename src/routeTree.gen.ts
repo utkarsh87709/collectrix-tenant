@@ -28,6 +28,7 @@ import { Route as TenantDashboardsRouteImport } from './routes/tenant.dashboards
 import { Route as TenantBillingRouteImport } from './routes/tenant.billing'
 import { Route as TenantAuditRouteImport } from './routes/tenant.audit'
 import { Route as TenantAssignmentRouteImport } from './routes/tenant.assignment'
+import { Route as TenantArchiveRouteImport } from './routes/tenant.archive'
 import { Route as TenantAppointmentsRouteImport } from './routes/tenant.appointments'
 import { Route as TenantSettingsIndexRouteImport } from './routes/tenant.settings.index'
 import { Route as TenantPaymentsIndexRouteImport } from './routes/tenant.payments.index'
@@ -174,6 +175,11 @@ const TenantAuditRoute = TenantAuditRouteImport.update({
 const TenantAssignmentRoute = TenantAssignmentRouteImport.update({
   id: '/tenant/assignment',
   path: '/tenant/assignment',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TenantArchiveRoute = TenantArchiveRouteImport.update({
+  id: '/tenant/archive',
+  path: '/tenant/archive',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TenantAppointmentsRoute = TenantAppointmentsRouteImport.update({
@@ -458,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/resetpassword': typeof ResetpasswordRoute
   '/tenantinvite': typeof TenantinviteRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
+  '/tenant/archive': typeof TenantArchiveRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
@@ -531,6 +538,7 @@ export interface FileRoutesByTo {
   '/resetpassword': typeof ResetpasswordRoute
   '/tenantinvite': typeof TenantinviteRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
+  '/tenant/archive': typeof TenantArchiveRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
@@ -601,6 +609,7 @@ export interface FileRoutesById {
   '/resetpassword': typeof ResetpasswordRoute
   '/tenantinvite': typeof TenantinviteRoute
   '/tenant/appointments': typeof TenantAppointmentsRoute
+  '/tenant/archive': typeof TenantArchiveRoute
   '/tenant/assignment': typeof TenantAssignmentRoute
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
@@ -676,6 +685,7 @@ export interface FileRouteTypes {
     | '/resetpassword'
     | '/tenantinvite'
     | '/tenant/appointments'
+    | '/tenant/archive'
     | '/tenant/assignment'
     | '/tenant/audit'
     | '/tenant/billing'
@@ -749,6 +759,7 @@ export interface FileRouteTypes {
     | '/resetpassword'
     | '/tenantinvite'
     | '/tenant/appointments'
+    | '/tenant/archive'
     | '/tenant/assignment'
     | '/tenant/audit'
     | '/tenant/billing'
@@ -818,6 +829,7 @@ export interface FileRouteTypes {
     | '/resetpassword'
     | '/tenantinvite'
     | '/tenant/appointments'
+    | '/tenant/archive'
     | '/tenant/assignment'
     | '/tenant/audit'
     | '/tenant/billing'
@@ -892,6 +904,7 @@ export interface RootRouteChildren {
   ResetpasswordRoute: typeof ResetpasswordRoute
   TenantinviteRoute: typeof TenantinviteRoute
   TenantAppointmentsRoute: typeof TenantAppointmentsRoute
+  TenantArchiveRoute: typeof TenantArchiveRoute
   TenantAssignmentRoute: typeof TenantAssignmentRoute
   TenantAuditRoute: typeof TenantAuditRoute
   TenantBillingRoute: typeof TenantBillingRoute
@@ -1068,6 +1081,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant/assignment'
       fullPath: '/tenant/assignment'
       preLoaderRoute: typeof TenantAssignmentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tenant/archive': {
+      id: '/tenant/archive'
+      path: '/tenant/archive'
+      fullPath: '/tenant/archive'
+      preLoaderRoute: typeof TenantArchiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenant/appointments': {
@@ -1541,6 +1561,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetpasswordRoute: ResetpasswordRoute,
   TenantinviteRoute: TenantinviteRoute,
   TenantAppointmentsRoute: TenantAppointmentsRoute,
+  TenantArchiveRoute: TenantArchiveRoute,
   TenantAssignmentRoute: TenantAssignmentRoute,
   TenantAuditRoute: TenantAuditRoute,
   TenantBillingRoute: TenantBillingRoute,
