@@ -67,6 +67,13 @@ export const tenantGroups: NavGroup[] = [
           { to: "/tenant/archive", label: "Archive" },
         ],
       },
+      {
+        to: "/tenant/inbox",
+        label: "Inbound Inbox",
+        icon: Inbox,
+        description: "Customer replies by SMS and email, in one place",
+        keywords: "inbox inbound conversations replies sms email messages unread chat",
+      },
     ],
   },
   {

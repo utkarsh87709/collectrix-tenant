@@ -24,6 +24,7 @@ import { Route as TenantRolesRouteImport } from './routes/tenant.roles'
 import { Route as TenantPaymentsRouteImport } from './routes/tenant.payments'
 import { Route as TenantOnboardingRouteImport } from './routes/tenant.onboarding'
 import { Route as TenantMovedFilesRouteImport } from './routes/tenant.moved-files'
+import { Route as TenantInboxRouteImport } from './routes/tenant.inbox'
 import { Route as TenantDashboardsRouteImport } from './routes/tenant.dashboards'
 import { Route as TenantBillingRouteImport } from './routes/tenant.billing'
 import { Route as TenantAuditRouteImport } from './routes/tenant.audit'
@@ -155,6 +156,11 @@ const TenantOnboardingRoute = TenantOnboardingRouteImport.update({
 const TenantMovedFilesRoute = TenantMovedFilesRouteImport.update({
   id: '/tenant/moved-files',
   path: '/tenant/moved-files',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TenantInboxRoute = TenantInboxRouteImport.update({
+  id: '/tenant/inbox',
+  path: '/tenant/inbox',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TenantDashboardsRoute = TenantDashboardsRouteImport.update({
@@ -469,6 +475,7 @@ export interface FileRoutesByFullPath {
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
   '/tenant/dashboards': typeof TenantDashboardsRouteWithChildren
+  '/tenant/inbox': typeof TenantInboxRoute
   '/tenant/moved-files': typeof TenantMovedFilesRoute
   '/tenant/onboarding': typeof TenantOnboardingRoute
   '/tenant/payments': typeof TenantPaymentsRouteWithChildren
@@ -542,6 +549,7 @@ export interface FileRoutesByTo {
   '/tenant/assignment': typeof TenantAssignmentRoute
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
+  '/tenant/inbox': typeof TenantInboxRoute
   '/tenant/moved-files': typeof TenantMovedFilesRoute
   '/tenant/onboarding': typeof TenantOnboardingRoute
   '/tenant/roles': typeof TenantRolesRoute
@@ -614,6 +622,7 @@ export interface FileRoutesById {
   '/tenant/audit': typeof TenantAuditRoute
   '/tenant/billing': typeof TenantBillingRoute
   '/tenant/dashboards': typeof TenantDashboardsRouteWithChildren
+  '/tenant/inbox': typeof TenantInboxRoute
   '/tenant/moved-files': typeof TenantMovedFilesRoute
   '/tenant/onboarding': typeof TenantOnboardingRoute
   '/tenant/payments': typeof TenantPaymentsRouteWithChildren
@@ -690,6 +699,7 @@ export interface FileRouteTypes {
     | '/tenant/audit'
     | '/tenant/billing'
     | '/tenant/dashboards'
+    | '/tenant/inbox'
     | '/tenant/moved-files'
     | '/tenant/onboarding'
     | '/tenant/payments'
@@ -763,6 +773,7 @@ export interface FileRouteTypes {
     | '/tenant/assignment'
     | '/tenant/audit'
     | '/tenant/billing'
+    | '/tenant/inbox'
     | '/tenant/moved-files'
     | '/tenant/onboarding'
     | '/tenant/roles'
@@ -834,6 +845,7 @@ export interface FileRouteTypes {
     | '/tenant/audit'
     | '/tenant/billing'
     | '/tenant/dashboards'
+    | '/tenant/inbox'
     | '/tenant/moved-files'
     | '/tenant/onboarding'
     | '/tenant/payments'
@@ -909,6 +921,7 @@ export interface RootRouteChildren {
   TenantAuditRoute: typeof TenantAuditRoute
   TenantBillingRoute: typeof TenantBillingRoute
   TenantDashboardsRoute: typeof TenantDashboardsRouteWithChildren
+  TenantInboxRoute: typeof TenantInboxRoute
   TenantMovedFilesRoute: typeof TenantMovedFilesRoute
   TenantOnboardingRoute: typeof TenantOnboardingRoute
   TenantPaymentsRoute: typeof TenantPaymentsRouteWithChildren
@@ -1053,6 +1066,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant/moved-files'
       fullPath: '/tenant/moved-files'
       preLoaderRoute: typeof TenantMovedFilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tenant/inbox': {
+      id: '/tenant/inbox'
+      path: '/tenant/inbox'
+      fullPath: '/tenant/inbox'
+      preLoaderRoute: typeof TenantInboxRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenant/dashboards': {
@@ -1566,6 +1586,7 @@ const rootRouteChildren: RootRouteChildren = {
   TenantAuditRoute: TenantAuditRoute,
   TenantBillingRoute: TenantBillingRoute,
   TenantDashboardsRoute: TenantDashboardsRouteWithChildren,
+  TenantInboxRoute: TenantInboxRoute,
   TenantMovedFilesRoute: TenantMovedFilesRoute,
   TenantOnboardingRoute: TenantOnboardingRoute,
   TenantPaymentsRoute: TenantPaymentsRouteWithChildren,

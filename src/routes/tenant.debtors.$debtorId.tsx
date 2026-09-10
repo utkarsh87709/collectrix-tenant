@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
 import { PageCard, CardHead } from "@/components/tenant/ui";
-import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   DropdownMenu,
@@ -16,6 +15,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoveToTeamDialog } from "@/components/tenant/customers/MoveToTeamDialog";
 import { RestoreFileDialog } from "@/components/tenant/customers/RestoreFileDialog";
+import { ChangeStatusMenu } from "@/components/tenant/customers/ChangeStatusMenu";
+import { FlagsPopover } from "@/components/tenant/customers/FlagsPopover";
+import { EditCustomerDialog } from "@/components/tenant/customers/EditCustomerDialog";
+import { InitiateCallDialog } from "@/components/tenant/customers/InitiateCallDialog";
 import { csvCell, downloadTextFile } from "@/lib/csv";
 import {
   ChevronLeft,
@@ -57,11 +60,10 @@ import {
   sendCustomerSms,
   getCustomerCalls,
   getCustomerCallDetails,
-  callCustomerNumberList,
-  initiateCustomerCall,
   archiveCustomer,
   stopEngagement,
   startEngagement,
+  normalizeTags,
   type CustomerDetails,
   type CustomerNote,
   type CustomerEmailMessage,
@@ -124,6 +126,7 @@ function DebtorProfile() {
   const [activeTab, setActiveTab] = useState("dataprofile");
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [engagementBusy, setEngagementBusy] = useState(false);
 
@@ -201,6 +204,7 @@ function DebtorProfile() {
   });
   const isArchived = details.archivedFlag === 1;
   const isEngaged = details.engagementStatus === 1;
+  const tags = normalizeTags(details.customerTags);
 
   const toggleEngagement = async () => {
     setEngagementBusy(true);
@@ -235,6 +239,7 @@ function DebtorProfile() {
               onExported={() => toast.success("Customer exported.")}
               onArchive={() => setArchiveConfirmOpen(true)}
               onRestore={() => setRestoreDialogOpen(true)}
+              onEdit={() => setEditOpen(true)}
               onMoveToTeam={() => setMoveDialogOpen(true)}
               onToggleEngagement={toggleEngagement}
             />
@@ -250,47 +255,75 @@ function DebtorProfile() {
 
       <section className="px-6 lg:px-10 pt-6">
         <div className="rounded-2xl border border-border bg-card shadow-elegant px-6 py-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-3xl font-bold tracking-tight truncate">
-              {customerDisplayName(details)}
-            </h2>
-            {details.status && (
-              <StatusPill
-                code={details.statusCode ?? details.status}
-                name={details.status}
-                color={details.statusColorCode ?? "#64748b"}
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3 min-w-0">
+              <h2 className="font-display text-3xl font-bold tracking-tight truncate">
+                {customerDisplayName(details)}
+              </h2>
+              <ChangeStatusMenu
+                uploadedDebtorId={id}
+                statusId={details.statusId}
+                statusCode={details.statusCode}
+                statusName={details.status}
+                statusColor={details.statusColorCode}
+                canChange={perms.canUpdateStatus}
+                onChanged={refresh}
               />
-            )}
-            {isArchived && (
-              <Link
-                to="/tenant/archive"
-                title="Open the archive"
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-muted text-muted-foreground hover:text-foreground"
-              >
-                <Archive className="h-3 w-3" /> Archived
-              </Link>
-            )}
-            {!isEngaged && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-warning/20 text-warning-foreground">
-                Engagement stopped
-              </span>
-            )}
+              {isArchived && (
+                <Link
+                  to="/tenant/archive"
+                  title="Open the archive"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-muted text-muted-foreground hover:text-foreground"
+                >
+                  <Archive className="h-3 w-3" /> Archived
+                </Link>
+              )}
+              {!isEngaged && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-warning/20 text-warning-foreground">
+                  Engagement stopped
+                </span>
+              )}
+            </div>
+            <FlagsPopover
+              uploadedDebtorId={id}
+              tags={tags}
+              canEdit={perms.canManageFlags}
+              onChanged={refresh}
+            />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {details.ourFileNo} · {details.creditorName} · placed {daysAgo(details.createdAt)}
           </p>
 
-          <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <SectionLabel>Balance summary</SectionLabel>
+          <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-4">
             <SummaryTile label="Principal" value={formatMoney(details.principal)} />
             <SummaryTile label="Interest rate" value={`${details.interestRate}%`} />
             <SummaryTile label="Interest" value={formatMoney(interest)} />
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
+          <SectionLabel>Assignment summary</SectionLabel>
+          <div className="mt-2 flex flex-wrap gap-2">
             <AssignmentPill label={assignedAgent || "Unassigned"} />
             <AssignmentPill label={details.teamName || "Unassigned team"} />
             <AssignmentPill label={`${details.clientName} · ${details.creditorName}`} />
           </div>
+
+          {tags.length > 0 && (
+            <>
+              <SectionLabel>Flags</SectionLabel>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {tags.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-warning/20 text-warning-foreground"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
@@ -316,7 +349,11 @@ function DebtorProfile() {
           </TabsList>
 
           <TabsContent value="dataprofile" className="mt-4">
-            <DataProfileTab details={details} />
+            <DataProfileTab
+              details={details}
+              canEdit={perms.canEditDetails}
+              onEdit={() => setEditOpen(true)}
+            />
           </TabsContent>
           <TabsContent value="comms" className="mt-4">
             <CommunicationTab details={details} />
@@ -336,6 +373,16 @@ function DebtorProfile() {
           onClose={() => setArchiveConfirmOpen(false)}
           onDone={() => {
             setArchiveConfirmOpen(false);
+            refresh();
+          }}
+        />
+      )}
+      {editOpen && (
+        <EditCustomerDialog
+          details={details}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
             refresh();
           }}
         />
@@ -379,6 +426,14 @@ function DebtorProfile() {
   );
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-5 text-[11px] uppercase tracking-wider text-muted-foreground font-bold">
+      {children}
+    </div>
+  );
+}
+
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
@@ -400,13 +455,35 @@ function AssignmentPill({ label }: { label: string }) {
 
 /* ------------------------------ Data profile ------------------------------ */
 
-function DataProfileTab({ details }: { details: CustomerDetails }) {
+function DataProfileTab({
+  details,
+  canEdit,
+  onEdit,
+}: {
+  details: CustomerDetails;
+  canEdit: boolean;
+  onEdit: () => void;
+}) {
   return (
     <PageCard>
       <CardHead
         title="Customer profile"
-        subtitle="File number, client number and creditor come from intake and aren't editable yet"
+        subtitle={
+          canEdit
+            ? "File number, client number and creditor come from intake and can't be edited"
+            : "File number, client number and creditor come from intake and can't be edited · read-only for your role"
+        }
         icon={<ClipboardList className="h-4 w-4" />}
+        action={
+          canEdit ? (
+            <button
+              onClick={onEdit}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </button>
+          ) : undefined
+        }
       />
       <div className="p-6 space-y-6">
         <FieldSection title="File / reference">
@@ -830,7 +907,12 @@ function CallsTab({ details }: { details: CustomerDetails }) {
         />
       )}
       {callDialogOpen && (
-        <InitiateCallDialog details={details} onClose={() => setCallDialogOpen(false)} />
+        <InitiateCallDialog
+          uploadedDebtorId={details.uploadedDebtorId}
+          defaultTo={details.cellNo1}
+          customerName={customerDisplayName(details)}
+          onClose={() => setCallDialogOpen(false)}
+        />
       )}
     </PageCard>
   );
@@ -908,103 +990,6 @@ function CallDetailModal({
               </div>
             </>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InitiateCallDialog({
-  details,
-  onClose,
-}: {
-  details: CustomerDetails;
-  onClose: () => void;
-}) {
-  const [numbers, setNumbers] = useState<string[]>([]);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState(details.cellNo1 || "");
-  const [calling, setCalling] = useState(false);
-
-  useEffect(() => {
-    callCustomerNumberList(details.uploadedDebtorId)
-      .then((r) => {
-        setNumbers(r.phoneNoList);
-        setFrom(r.phoneNoList[0] ?? "");
-      })
-      .catch(() => toast.error("Couldn't load caller-ID numbers."));
-  }, [details.uploadedDebtorId]);
-
-  const call = async () => {
-    if (!from || !to.trim()) return;
-    setCalling(true);
-    try {
-      await initiateCustomerCall({
-        uploadedDebtorId: details.uploadedDebtorId,
-        callFrom: from,
-        callTo: to.trim(),
-      });
-      toast.success("Call initiated.");
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't place that call.");
-    } finally {
-      setCalling(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-2xl shadow-elegant w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="font-display font-bold text-base">Initiate call</div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-5 py-4 space-y-3">
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-              Call from
-            </span>
-            <select
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
-            >
-              {numbers.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-              Call to
-            </span>
-            <input
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
-            />
-          </label>
-        </div>
-        <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={call}
-            disabled={!from || !to.trim() || calling}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
-          >
-            {calling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            <PhoneCall className="h-4 w-4" /> Call
-          </button>
         </div>
       </div>
     </div>
@@ -1297,6 +1282,7 @@ function ManageMenu({
   onExported,
   onArchive,
   onRestore,
+  onEdit,
   onMoveToTeam,
   onToggleEngagement,
 }: {
@@ -1308,6 +1294,7 @@ function ManageMenu({
   onExported: () => void;
   onArchive: () => void;
   onRestore: () => void;
+  onEdit: () => void;
   onMoveToTeam: () => void;
   onToggleEngagement: () => void;
 }) {
@@ -1339,7 +1326,12 @@ function ManageMenu({
         >
           <Download className="h-4 w-4" /> Export
         </DropdownMenuItem>
-        {perms.canBulkManage && (
+        {perms.canEditDetails && (
+          <DropdownMenuItem onSelect={onEdit}>
+            <Pencil className="h-4 w-4" /> Edit details
+          </DropdownMenuItem>
+        )}
+        {perms.canMoveTeam && (
           <DropdownMenuItem onSelect={onMoveToTeam}>
             <ArrowLeftRight className="h-4 w-4" /> Move to team
           </DropdownMenuItem>

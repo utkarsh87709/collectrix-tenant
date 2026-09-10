@@ -27,6 +27,7 @@ import { MoveToTeamDialog } from "@/components/tenant/customers/MoveToTeamDialog
 import { useCustomerPermissions } from "@/lib/customer-permissions";
 import {
   getCustomerList,
+  updateCustomerStatus,
   customerDisplayName,
   formatMoney,
   toMoney,
@@ -231,11 +232,33 @@ function DebtorsPage() {
     });
 
   const [assignStatusId, setAssignStatusId] = useState<number | "">("");
+  const [assigning, setAssigning] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
 
   const reload = () => {
     setSelected(new Set());
     fetchRows();
+  };
+
+  // Bulk status change — one updateCustomerStatus call for every selected row.
+  const assignStatus = async () => {
+    if (assignStatusId === "" || effectiveSelected.length === 0) return;
+    setAssigning(true);
+    try {
+      await updateCustomerStatus({
+        uploadedDebtorIdList: effectiveSelected.map((r) => r.uploadedDebtorId),
+        statusId: assignStatusId,
+      });
+      const name = statuses.find((s) => s.statusId === assignStatusId)?.status ?? "the new status";
+      const n = effectiveSelected.length;
+      toast.success(`${n} ${n === 1 ? "file" : "files"} set to ${name}.`);
+      setAssignStatusId("");
+      reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't update the status.");
+    } finally {
+      setAssigning(false);
+    }
   };
 
   const showCheckboxes = !perms.loading && perms.canBulkManage;
@@ -320,38 +343,42 @@ function DebtorsPage() {
                       <span className="text-sm font-semibold">
                         {effectiveSelected.length} selected
                       </span>
-                      <NativeSelect
-                        size="sm"
-                        className="w-44"
-                        value={assignStatusId}
-                        onChange={(e) =>
-                          setAssignStatusId(e.target.value ? Number(e.target.value) : "")
-                        }
-                      >
-                        <option value="">Assign status…</option>
-                        {statuses.map((s) => (
-                          <option key={s.statusId} value={s.statusId}>
-                            {s.statusCode} · {s.status}
-                          </option>
-                        ))}
-                      </NativeSelect>
-                      <button
-                        disabled={assignStatusId === ""}
-                        onClick={() =>
-                          toast.error(
-                            "Bulk status assignment isn't available yet — the backend has no endpoint for it.",
-                          )
-                        }
-                        className="px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        Assign {effectiveSelected.length}
-                      </button>
-                      <button
-                        onClick={() => setMoveDialogOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
-                      >
-                        <ArrowLeftRight className="h-4 w-4" /> Move to team
-                      </button>
+                      {perms.canUpdateStatus && (
+                        <>
+                          <NativeSelect
+                            size="sm"
+                            className="w-44"
+                            value={assignStatusId}
+                            disabled={assigning}
+                            onChange={(e) =>
+                              setAssignStatusId(e.target.value ? Number(e.target.value) : "")
+                            }
+                          >
+                            <option value="">Assign status…</option>
+                            {statuses.map((s) => (
+                              <option key={s.statusId} value={s.statusId}>
+                                {s.statusCode} · {s.status}
+                              </option>
+                            ))}
+                          </NativeSelect>
+                          <button
+                            disabled={assignStatusId === "" || assigning}
+                            onClick={assignStatus}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {assigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                            Assign {effectiveSelected.length}
+                          </button>
+                        </>
+                      )}
+                      {perms.canMoveTeam && (
+                        <button
+                          onClick={() => setMoveDialogOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
+                        >
+                          <ArrowLeftRight className="h-4 w-4" /> Move to team
+                        </button>
+                      )}
                       <button
                         onClick={() => setSelected(new Set())}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"

@@ -60,6 +60,21 @@
 //     appears to no-op (returns meta.status:true but never actually assigns).
 //   POST /tenant/assignTeamList     {} -> { userList: [{teamId, teamName}] }
 //     Legacy response key ("userList") holds teams, not users — aliased below.
+//   POST /tenant/updateCustomerStatus  { uploadedDebtorIdList, statusId } -> {}
+//     Bulk or single status change (added 2026-09-10). Used by the list page's
+//     bulk bar and the detail header's status dropdown.
+//   POST /tenant/updateCustomerDetails { uploadedDebtorId, ...every editable field, statusId,
+//                                        customFields[{fieldId, fieldName, fieldValue}] } -> {}
+//     Full-record update (added 2026-09-10) — send every field back, not a patch.
+//     Dates go as dd/mm/yyyy, the same format getCustomerDetails returns and the
+//     intake validators demand; see backendDateToInput / inputDateToBackend.
+//   POST /tenant/getTagList        { uploadedDebtorId } -> { tagList[] }
+//   POST /tenant/assignCustomerTag { uploadedDebtorId, tagName } -> {}
+//   POST /tenant/deleteCustomerTag { uploadedDebtorId, tagName } -> {}
+//     Tags ("flags" in the UI) are free-form names. getCustomerDetails carries the
+//     file's own tags as customerTags (null when none). Every live probe returned an
+//     empty tagList and a null customerTags, so the populated shape is NOT confirmed —
+//     normalizeTags accepts a comma-separated string or an array of strings/objects.
 // All authenticated with the raw token (attached automatically by apiPost); the two
 // multipart note calls attach it by hand, matching every other module's file-upload helper.
 import { apiPost, apiUrl } from "./api-client";
@@ -177,6 +192,11 @@ export type CustomerDetails = {
   engagementStatus: number;
   movedAt: string | null;
   movedBy: number | null;
+  archivedAt: string | null;
+  archivedBy: number | null;
+  unreadMsgCount: number;
+  /** The file's tags/flags. null when none; populated shape unconfirmed — read via normalizeTags. */
+  customerTags: unknown;
   clientName: string;
   clientNumber: string;
   teamName: string | null;
@@ -414,6 +434,94 @@ export async function getAssignableTeams(): Promise<{ teamList: AssignableTeam[]
   return { teamList: data.userList ?? [] };
 }
 
+/* -------------------------------- Status --------------------------------- */
+
+/** Set the status of one or more files in a single call. */
+export function updateCustomerStatus(input: {
+  uploadedDebtorIdList: number[];
+  statusId: number;
+}): Promise<unknown> {
+  return apiPost("/tenant/updateCustomerStatus", { ...input });
+}
+
+/* ----------------------------- Edit details ------------------------------- */
+
+/** Every field updateCustomerDetails accepts. It replaces the record, so callers
+ *  send the current value for anything they didn't change. Dates are dd/mm/yyyy. */
+export type UpdateCustomerDetailsInput = {
+  uploadedDebtorId: number;
+  creditorName: string;
+  address: string;
+  homeNo: string;
+  cellNo1: string;
+  cellNo2: string;
+  email: string;
+  dob: string;
+  principal: string;
+  interestRate: string;
+  interestType: string;
+  compoundingFrequency: string;
+  interestStartDate: string;
+  currentOutstandingBalance: string;
+  currency: string;
+  delinquencyDate: string;
+  dateOfLastPayment: string;
+  lastPaymentAmount: string;
+  lastPaymentMethod: string;
+  totalPaidToDate: string;
+  preferredLanguage: string;
+  debtorFirstName: string | null;
+  debtorMiddleName: string | null;
+  debtorLastName: string | null;
+  statusId: number | null;
+  customFields: { fieldId: number; fieldName: string; fieldValue: string | null }[];
+};
+
+export function updateCustomerDetails(input: UpdateCustomerDetailsInput): Promise<unknown> {
+  return apiPost("/tenant/updateCustomerDetails", { ...input });
+}
+
+/* ------------------------------ Tags / flags ------------------------------ */
+
+/** Tag names known for this file/tenant — see the header note on shape. */
+export async function getTagList(uploadedDebtorId: number): Promise<string[]> {
+  const data = await apiPost<{ tagList?: unknown } | null>("/tenant/getTagList", {
+    uploadedDebtorId,
+  });
+  return normalizeTags(data?.tagList);
+}
+
+export function assignCustomerTag(uploadedDebtorId: number, tagName: string): Promise<unknown> {
+  return apiPost("/tenant/assignCustomerTag", { uploadedDebtorId, tagName });
+}
+
+export function deleteCustomerTag(uploadedDebtorId: number, tagName: string): Promise<unknown> {
+  return apiPost("/tenant/deleteCustomerTag", { uploadedDebtorId, tagName });
+}
+
+/** Coerce whatever the backend sends for tags into a clean list of names:
+ *  null/undefined → [], "a, b" → ["a","b"], ["a"] → ["a"], [{tagName:"a"}] → ["a"]. */
+export function normalizeTags(raw: unknown): string[] {
+  if (raw == null) return [];
+  const names: string[] = [];
+  if (typeof raw === "string") {
+    names.push(...raw.split(","));
+  } else if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (typeof item === "string") names.push(item);
+      else if (item && typeof item === "object") {
+        const o = item as Record<string, unknown>;
+        const v = o.tagName ?? o.name ?? o.tag;
+        if (typeof v === "string") names.push(v);
+      }
+    }
+  }
+  const seen = new Set<string>();
+  return names
+    .map((n) => n.trim())
+    .filter((n) => n && !seen.has(n.toLowerCase()) && (seen.add(n.toLowerCase()), true));
+}
+
 /* ------------------------------- Helpers -------------------------------- */
 
 export function customerDisplayName(c: {
@@ -454,4 +562,21 @@ export function parseBackendDate(s: string | null | undefined): Date | null {
 
 export function fullName(u: { firstName?: string | null; lastName?: string | null }): string {
   return [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+}
+
+/** dd/mm/yyyy (backend) → yyyy-mm-dd for a native date input. "" when blank or
+ *  not in that format — callers fall back to a plain text box so an oddly
+ *  formatted stored value is never silently wiped on save. */
+export function backendDateToInput(s: string | null | undefined): string {
+  const d = parseBackendDate(s);
+  if (!d) return "";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/** yyyy-mm-dd (native date input) → dd/mm/yyyy for the backend; "" stays "". */
+export function inputDateToBackend(s: string): string {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 }
