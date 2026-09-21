@@ -42,6 +42,8 @@ import {
   Pencil,
   PhoneCall,
   RotateCcw,
+  FileText,
+  FilePlus2,
 } from "lucide-react";
 import { useCustomerPermissions, type CustomerPermissions } from "@/lib/customer-permissions";
 import {
@@ -64,12 +66,19 @@ import {
   stopEngagement,
   startEngagement,
   normalizeTags,
+  getCustomerDocumentTemplateList,
+  generateCustomerDocuments,
+  getCustomerDocuments,
+  deleteCustomerDocument,
+  documentFileName,
   type CustomerDetails,
   type CustomerNote,
   type CustomerEmailMessage,
   type CustomerSmsMessage,
   type CustomerCall,
   type CustomerCallDetails,
+  type CustomerDocumentTemplate,
+  type CustomerDocument,
 } from "@/lib/customers-api";
 
 export const Route = createFileRoute("/tenant/debtors/$debtorId")({
@@ -342,6 +351,10 @@ function DebtorProfile() {
               <Headphones className="h-3.5 w-3.5 mr-1.5" />
               Calls
             </TabsTrigger>
+            <TabsTrigger value="documents">
+              <FileText className="h-3.5 w-3.5 mr-1.5" />
+              Documents
+            </TabsTrigger>
             <TabsTrigger value="notes">
               <StickyNote className="h-3.5 w-3.5 mr-1.5" />
               Notes
@@ -360,6 +373,9 @@ function DebtorProfile() {
           </TabsContent>
           <TabsContent value="calls" className="mt-4">
             <CallsTab details={details} />
+          </TabsContent>
+          <TabsContent value="documents" className="mt-4">
+            <DocumentsTab details={details} canManage={perms.canAddNotes} />
           </TabsContent>
           <TabsContent value="notes" className="mt-4">
             <NotesTab details={details} />
@@ -990,6 +1006,272 @@ function CallDetailModal({
               </div>
             </>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------- Documents --------------------------------- */
+
+function DocumentsTab({ details, canManage }: { details: CustomerDetails; canManage: boolean }) {
+  const [documents, setDocuments] = useState<CustomerDocument[] | null>(null);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const load = () =>
+    getCustomerDocuments(details.uploadedDebtorId)
+      .then((r) => setDocuments(r.documentList))
+      .catch(() => setDocuments([]));
+
+  useEffect(() => {
+    setDocuments(null);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [details.uploadedDebtorId]);
+
+  const remove = async (doc: CustomerDocument) => {
+    setDeletingId(doc.documentId);
+    try {
+      await deleteCustomerDocument(details.uploadedDebtorId, doc.documentId);
+      toast.success("Document deleted.");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't delete that document.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <PageCard>
+      <CardHead
+        title={`Documents (${documents?.length ?? 0})`}
+        subtitle={`Files generated and collected across the lifecycle for ${customerDisplayName(details)}`}
+        icon={<FileText className="h-4 w-4" />}
+        action={
+          canManage ? (
+            <button
+              onClick={() => setGenerateOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold"
+            >
+              <FilePlus2 className="h-4 w-4" /> Generate document
+            </button>
+          ) : undefined
+        }
+      />
+      <div>
+        {documents === null && (
+          <div className="px-6 py-10 flex justify-center">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {documents?.length === 0 && (
+          <div className="px-6 py-10 flex flex-col items-center gap-2 text-muted-foreground">
+            <FileText className="h-8 w-8" />
+            <p className="text-sm">No documents yet.</p>
+          </div>
+        )}
+        {documents && documents.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground font-bold">
+                  <th className="text-left px-6 py-3 font-bold">Document</th>
+                  <th className="text-left px-3 py-3 font-bold whitespace-nowrap">When</th>
+                  <th className="text-right px-6 py-3 font-bold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {documents.map((doc) => (
+                  <tr key={doc.documentId}>
+                    <td className="px-6 py-4 min-w-0">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <FileText className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate">
+                            {documentFileName(doc.fileUrl)}
+                          </div>
+                          {doc.remark && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {doc.remark}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-muted-foreground">
+                      {daysAgo(doc.createdAt)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <a
+                          href={doc.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Download"
+                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </a>
+                        {canManage && (
+                          <button
+                            onClick={() => remove(doc)}
+                            disabled={deletingId === doc.documentId}
+                            title="Delete"
+                            className="p-1.5 rounded hover:bg-muted text-destructive disabled:opacity-50"
+                          >
+                            {deletingId === doc.documentId ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {generateOpen && (
+        <GenerateDocumentDialog
+          details={details}
+          onClose={() => setGenerateOpen(false)}
+          onGenerated={() => {
+            setGenerateOpen(false);
+            load();
+          }}
+        />
+      )}
+    </PageCard>
+  );
+}
+
+function GenerateDocumentDialog({
+  details,
+  onClose,
+  onGenerated,
+}: {
+  details: CustomerDetails;
+  onClose: () => void;
+  onGenerated: () => void;
+}) {
+  const [templates, setTemplates] = useState<CustomerDocumentTemplate[] | null>(null);
+  const [templateId, setTemplateId] = useState<number | null>(null);
+  const [remark, setRemark] = useState("");
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCustomerDocumentTemplateList(details.uploadedDebtorId)
+      .then((r) => {
+        if (cancelled) return;
+        setTemplates(r.documentTemplateList);
+        setTemplateId(r.documentTemplateList[0]?.templateId ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [details.uploadedDebtorId]);
+
+  const generate = async () => {
+    if (!templateId) return;
+    setGenerating(true);
+    try {
+      await generateCustomerDocuments({
+        uploadedDebtorId: details.uploadedDebtorId,
+        templateId,
+        remark: remark.trim(),
+      });
+      toast.success("Document generated.");
+      onGenerated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't generate that document.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl shadow-elegant w-full max-w-lg">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <FilePlus2 className="h-4 w-4 text-tenant" />
+            <div className="font-display font-bold text-base">Generate document</div>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Select a template — {customerDisplayName(details)}'s details, balance, and account
+            context are merged into a ready-to-send document.
+          </p>
+          <label className="block">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+              Template
+            </span>
+            {templates === null ? (
+              <div className="mt-1.5 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading templates…
+              </div>
+            ) : templates.length === 0 ? (
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                No document templates are configured for this file's client yet. Add one under Case
+                Files → Template Library.
+              </p>
+            ) : (
+              <select
+                value={templateId ?? ""}
+                onChange={(e) => setTemplateId(Number(e.target.value))}
+                className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
+              >
+                {templates.map((t) => (
+                  <option key={t.templateId} value={t.templateId}>
+                    {t.templateName}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+          <label className="block">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+              Note (optional)
+            </span>
+            <textarea
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+              rows={2}
+              placeholder="Shown alongside the generated document in the list…"
+              className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
+            />
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={generate}
+            disabled={!templateId || generating}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
+          >
+            {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            <FilePlus2 className="h-3.5 w-3.5" /> Generate
+          </button>
         </div>
       </div>
     </div>

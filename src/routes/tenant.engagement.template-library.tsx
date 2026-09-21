@@ -20,6 +20,7 @@ import {
   Upload,
   Download,
   Sparkles,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,9 +32,13 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  getDocumentTemplates,
+  createDocumentTemplate,
+  updateDocumentTemplate,
   type Template,
   type TemplateClient,
   type TemplateType,
+  type DocumentTemplate,
 } from "@/lib/template-library-api";
 
 export const Route = createFileRoute("/tenant/engagement/template-library")({
@@ -47,38 +52,6 @@ export const Route = createFileRoute("/tenant/engagement/template-library")({
 type ApiTab = TemplateType;
 /** All tabs on the page, including the two design-only ones with no API yet. */
 type Tab = ApiTab | "documents" | "aiPrompt";
-
-type DocTemplate = {
-  id: string;
-  clientId: number;
-  name: string;
-  category: string;
-  description: string;
-  fileName: string;
-  mime: string;
-  size: number;
-  dataUrl: string;
-  uploadedBy: string;
-  uploadedAt: string;
-  status: "active" | "archived";
-};
-
-const SEED_DOC_TEMPLATES: Omit<DocTemplate, "clientId">[] = [
-  {
-    id: "doc-tpl-1",
-    name: "Demand Letter Template",
-    category: "Legal",
-    description:
-      "Standard pre-legal demand letter. AI fills customer, balance, deadline, attorney details.",
-    fileName: "demand_letter_template.docx",
-    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    size: 24576,
-    dataUrl: "",
-    uploadedBy: "Priya Sharma",
-    uploadedAt: "2025-11-18",
-    status: "active",
-  },
-];
 
 // Shown on the design-only tabs (Documents, AI Messaging Prompt) if the
 // backend client list can't be loaded, so the layout stays reviewable.
@@ -253,23 +226,54 @@ function TemplateLibraryPage() {
     return list;
   }, []);
 
-  /* --------------------------------- counts ---------------------------------- */
+  /* ----------------------- document templates (per designClients) ------------ */
+  // Same shape as the aiPrompt block above: document templates have no
+  // per-channel client list of their own on getTemplateClients, so they're
+  // fetched per client across the deduped `designClients` set.
 
-  const [docTemplates, setDocTemplates] = useState<DocTemplate[]>([]);
+  const [docCache, setDocCache] = useState<Record<number, DocumentTemplate[]>>({});
+  const [docLoading, setDocLoading] = useState(true);
+  const [docError, setDocError] = useState<string | null>(null);
+  const docPrefetched = useRef(false);
 
-  // Seed the sample document template onto the first real client once known.
-  const docsSeeded = useRef(false);
+  const prefetchDocs = useCallback(async (clients: TemplateClient[]) => {
+    setDocLoading(true);
+    setDocError(null);
+    try {
+      const lists = await Promise.all(clients.map((c) => getDocumentTemplates(c.clientId)));
+      setDocCache((prev) => {
+        const next = { ...prev };
+        clients.forEach((c, i) => {
+          next[c.clientId] = lists[i];
+        });
+        return next;
+      });
+    } catch (e) {
+      setDocError(e instanceof Error ? e.message : "Failed to load.");
+    } finally {
+      setDocLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (docsSeeded.current || designClients.length === 0) return;
-    docsSeeded.current = true;
-    setDocTemplates(SEED_DOC_TEMPLATES.map((d) => ({ ...d, clientId: designClients[0].clientId })));
-  }, [designClients]);
+    if (docPrefetched.current || designClients.length === 0) return;
+    docPrefetched.current = true;
+    prefetchDocs(designClients);
+  }, [designClients, prefetchDocs]);
+
+  const refreshOneDoc = useCallback(async (clientId: number): Promise<DocumentTemplate[]> => {
+    const list = await getDocumentTemplates(clientId);
+    setDocCache((prev) => ({ ...prev, [clientId]: list }));
+    return list;
+  }, []);
+
+  /* --------------------------------- counts ---------------------------------- */
 
   const counts: Record<Tab, number> = {
     email: Object.values(cache.email).reduce((n, l) => n + l.length, 0),
     sms: Object.values(cache.sms).reduce((n, l) => n + l.length, 0),
     call: Object.values(cache.call).reduce((n, l) => n + l.length, 0),
-    documents: docTemplates.length,
+    documents: Object.values(docCache).reduce((n, l) => n + l.length, 0),
     aiPrompt: Object.values(aiPromptCache).reduce((n, l) => n + l.length, 0),
   };
 
@@ -336,8 +340,13 @@ function TemplateLibraryPage() {
             <DocumentsPanel
               clients={designClients}
               clientsLoading={clientsLoading}
-              docs={docTemplates}
-              setDocs={setDocTemplates}
+              clientsError={clientsError}
+              onRetryClients={loadClients}
+              byClient={docCache}
+              loading={docLoading}
+              error={docError}
+              onRetry={() => prefetchDocs(designClients)}
+              refreshOne={refreshOneDoc}
             />
           ) : (
             <AiPromptsPanel
@@ -477,12 +486,16 @@ function ApiChannelPanel({
     [byClient, clientId],
   );
   const clientName = clients.find((c) => c.clientId === clientId)?.clientName ?? "";
-  const pillCounts = Object.fromEntries(clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]));
+  const pillCounts = Object.fromEntries(
+    clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]),
+  );
 
   // Reset the selection when the client changes; auto-pick the first item for
   // "call" (matches the design's always-something-selected voice agent list).
   useEffect(() => {
-    setSelected(tab === "call" && items.length > 0 ? { kind: "item", id: items[0].templateId } : null);
+    setSelected(
+      tab === "call" && items.length > 0 ? { kind: "item", id: items[0].templateId } : null,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
@@ -560,7 +573,12 @@ function ApiChannelPanel({
                         : "bg-card border-border hover:border-[color:var(--tenant)]/30 hover:bg-muted/40",
                     )}
                   >
-                    <div className={cn("text-sm font-semibold truncate", active ? "text-tenant" : "text-foreground")}>
+                    <div
+                      className={cn(
+                        "text-sm font-semibold truncate",
+                        active ? "text-tenant" : "text-foreground",
+                      )}
+                    >
                       {t.templateName}
                     </div>
                     {tab === "call" ? (
@@ -783,7 +801,9 @@ function TemplateEditor({
           <ChevronRight className="h-3 w-3 shrink-0" />
           <span className="capitalize">{channel}</span>
           <ChevronRight className="h-3 w-3 shrink-0" />
-          <span className="text-foreground font-semibold">{isNew ? "New Template" : "Edit Template"}</span>
+          <span className="text-foreground font-semibold">
+            {isNew ? "New Template" : "Edit Template"}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -813,7 +833,11 @@ function TemplateEditor({
             disabled={saving || (!isNew && !dirty)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-tenant text-white text-xs font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
           >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}{" "}
+            {saving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5" />
+            )}{" "}
             Save Template
           </button>
         </div>
@@ -949,7 +973,10 @@ function PreviewModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-border bg-card shadow-elegant"
         onClick={(e) => e.stopPropagation()}
@@ -966,8 +993,8 @@ function PreviewModal({
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="mb-4 rounded-lg border border-[color:var(--tenant)]/20 bg-[color:var(--tenant)]/5 px-3 py-2 text-[11px] text-muted-foreground">
             This is an example. Each <code className="font-mono text-tenant">{`{{variable}}`}</code>{" "}
-            is shown with placeholder data (e.g. a sample name and balance) so you can see the layout
-            — real customer values are merged in when the message is actually sent.
+            is shown with placeholder data (e.g. a sample name and balance) so you can see the
+            layout — real customer values are merged in when the message is actually sent.
           </div>
           {isEmail && (
             <div className="mb-4">
@@ -1218,7 +1245,9 @@ function AiPromptsPanel({
     () => (clientId != null ? (byClient[clientId] ?? []) : []),
     [byClient, clientId],
   );
-  const pillCounts = Object.fromEntries(clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]));
+  const pillCounts = Object.fromEntries(
+    clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]),
+  );
 
   // Reset the selection when the client changes.
   useEffect(() => {
@@ -1284,7 +1313,12 @@ function AiPromptsPanel({
                         : "bg-card border-border hover:border-[color:var(--tenant)]/30 hover:bg-muted/40",
                     )}
                   >
-                    <div className={cn("text-sm font-semibold truncate", active ? "text-tenant" : "text-foreground")}>
+                    <div
+                      className={cn(
+                        "text-sm font-semibold truncate",
+                        active ? "text-tenant" : "text-foreground",
+                      )}
+                    >
                       {p.templateName || "Untitled Prompt"}
                     </div>
                   </button>
@@ -1479,21 +1513,39 @@ function AiPromptEditor({
   );
 }
 
-/* -------------------- Documents panel (design, no API yet) ------------------ */
+/* ----------------------------- Documents panel (real API) ------------------- */
+// Backed by getClientTemplate/createDocumentTemplate/updateDocumentTemplate/
+// deleteTemplate. Like AI Messaging Prompt, document templates have no
+// per-channel client list of their own, so the client set is `designClients`
+// and byClient/loading/error/refreshOne are supplied by the page above.
 
 function DocumentsPanel({
   clients,
   clientsLoading,
-  docs,
-  setDocs,
+  clientsError,
+  onRetryClients,
+  byClient,
+  loading,
+  error,
+  onRetry,
+  refreshOne,
 }: {
   clients: TemplateClient[];
   clientsLoading: boolean;
-  docs: DocTemplate[];
-  setDocs: React.Dispatch<React.SetStateAction<DocTemplate[]>>;
+  clientsError: string | null;
+  onRetryClients: () => void;
+  byClient: Record<number, DocumentTemplate[]>;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  refreshOne: (clientId: number) => Promise<DocumentTemplate[]>;
 }) {
   const [clientId, setClientId] = useState<number | null>(null);
-  const [uploadOpen, setUploadOpen] = useState(false);
+  const [dialog, setDialog] = useState<
+    { mode: "create" } | { mode: "edit"; doc: DocumentTemplate } | null
+  >(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentTemplate | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (clients.length === 0) {
@@ -1505,13 +1557,15 @@ function DocumentsPanel({
     );
   }, [clients]);
 
-  const clientDocs = docs.filter((d) => d.clientId === clientId);
+  const docs = clientId != null ? (byClient[clientId] ?? []) : [];
   const clientName = clients.find((c) => c.clientId === clientId)?.clientName ?? "";
   const pillCounts = Object.fromEntries(
-    clients.map((c) => [c.clientId, docs.filter((d) => d.clientId === c.clientId).length]),
+    clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]),
   );
 
-  if (clientsLoading) return <PanelSpinner />;
+  if (clientsError) return <PanelError message={clientsError} onRetry={onRetryClients} />;
+  if (clientsLoading || loading) return <PanelSpinner />;
+  if (error) return <PanelError message={error} onRetry={onRetry} />;
   if (clients.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-24 text-center">
@@ -1521,23 +1575,20 @@ function DocumentsPanel({
     );
   }
 
-  function remove(id: string) {
-    setDocs((p) => p.filter((d) => d.id !== id));
-    toast.success("Template removed");
-  }
-  function download(d: DocTemplate) {
-    if (!d.dataUrl) {
-      toast.message(`${d.fileName} is a seeded sample (no file attached)`);
-      return;
+  const removeDoc = async () => {
+    if (!deleteTarget || clientId == null) return;
+    setDeleting(true);
+    try {
+      await deleteTemplate(deleteTarget.templateId);
+      toast.success("Template deleted.");
+      await refreshOne(clientId);
+      setDeleteTarget(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete the template.");
+    } finally {
+      setDeleting(false);
     }
-    const a = document.createElement("a");
-    a.href = d.dataUrl;
-    a.download = d.fileName;
-    a.click();
-  }
-  function toggleStatus(id: string) {
-    setDocs((p) => p.map((d) => (d.id === id ? { ...d, status: d.status === "active" ? "archived" : "active" } : d)));
-  }
+  };
 
   return (
     <>
@@ -1549,147 +1600,200 @@ function DocumentsPanel({
               <Sparkles className="h-4 w-4 text-tenant" /> Document Templates
             </h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-              Upload document templates (DOCX, PDF, TXT). The AI uses these templates and merges the
-              customer's details to generate documents from the customer file's Documents tab.
+              Upload .docx templates — the AI merges each customer's details into them to generate
+              documents from the customer file's Documents tab.
             </p>
           </div>
           <button
-            onClick={() => setUploadOpen(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90"
+            onClick={() => setDialog({ mode: "create" })}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 shrink-0"
           >
             <Upload className="h-4 w-4" /> Upload template
           </button>
         </div>
 
-        {clientDocs.length === 0 ? (
+        {docs.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
             No document templates for {clientName || "this client"} yet. Upload your first template
             to get started.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {clientDocs.map((d) => (
-              <div key={d.id} className="rounded-xl border border-border bg-card p-4 hover:border-tenant/40 transition">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className="h-10 w-10 rounded-lg bg-tenant-soft flex items-center justify-center shrink-0">
-                      <FileText className="h-5 w-5 text-tenant" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-semibold truncate">{d.name}</div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{d.fileName}</div>
-                    </div>
-                  </div>
-                  <span
-                    className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${
-                      d.status === "active" ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {d.status}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-3 line-clamp-2">{d.description}</p>
-                <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span className="px-2 py-0.5 rounded-md bg-muted">{d.category}</span>
-                  <span>{(d.size / 1024).toFixed(1)} KB</span>
-                  <span>· {d.uploadedAt}</span>
-                </div>
-                <div className="mt-4 flex items-center justify-between pt-3 border-t border-border">
-                  <span className="text-[11px] text-muted-foreground">by {d.uploadedBy}</span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => download(d)}
-                      className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                      title="Download"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => toggleStatus(d.id)}
-                      className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-tenant"
-                      title="Toggle status"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => remove(d.id)}
-                      className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+            {docs.map((d) => (
+              <DocumentCard
+                key={d.templateId}
+                doc={d}
+                onEdit={() => setDialog({ mode: "edit", doc: d })}
+                onDelete={() => setDeleteTarget(d)}
+              />
             ))}
           </div>
         )}
-
-        {uploadOpen && clientId != null && (
-          <UploadTemplateDialog
-            clientName={clientName}
-            onClose={() => setUploadOpen(false)}
-            onUpload={(doc) => {
-              setDocs((p) => [{ ...doc, clientId }, ...p]);
-              setUploadOpen(false);
-              toast.success(`Uploaded "${doc.name}"`);
-            }}
-          />
-        )}
       </div>
+
+      {dialog && clientId != null && (
+        <DocumentTemplateDialog
+          clientId={clientId}
+          clientName={clientName}
+          doc={dialog.mode === "edit" ? dialog.doc : null}
+          onClose={() => setDialog(null)}
+          onSaved={async () => {
+            await refreshOne(clientId);
+            setDialog(null);
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDeleteDialog
+          title="Delete Template"
+          name={deleteTarget.templateName}
+          busy={deleting}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={removeDoc}
+        />
+      )}
     </>
   );
 }
 
-function UploadTemplateDialog({
-  clientName,
-  onClose,
-  onUpload,
+function DocumentCard({
+  doc,
+  onEdit,
+  onDelete,
 }: {
-  clientName: string;
-  onClose: () => void;
-  onUpload: (doc: Omit<DocTemplate, "clientId">) => void;
+  doc: DocumentTemplate;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("Legal");
-  const [description, setDescription] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-
-  async function submit() {
-    if (!name.trim() || !file) {
-      toast.error("Name and file are required");
-      return;
-    }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    onUpload({
-      id: `doc-tpl-${Date.now()}`,
-      name: name.trim(),
-      category,
-      description: description.trim() || "—",
-      fileName: file.name,
-      mime: file.type || "application/octet-stream",
-      size: file.size,
-      dataUrl,
-      uploadedBy: "You",
-      uploadedAt: new Date().toISOString().slice(0, 10),
-      status: "active",
-    });
-  }
+  const updated = new Date(doc.updatedAt);
+  const updatedLabel = Number.isNaN(updated.getTime())
+    ? null
+    : updated.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="rounded-xl border border-border bg-card p-4 hover:border-tenant/40 transition">
+      <div className="flex items-start gap-3">
+        <div className="h-10 w-10 rounded-lg bg-tenant-soft flex items-center justify-center shrink-0">
+          <FileText className="h-5 w-5 text-tenant" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold truncate">{doc.templateName}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+            {doc.templateOrignalFileName}
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-3 line-clamp-2 min-h-[2rem]">
+        {doc.templateDescription || "—"}
+      </p>
+      {updatedLabel && (
+        <div className="mt-3 text-[11px] text-muted-foreground">Updated {updatedLabel}</div>
+      )}
+      <div className="mt-4 flex items-center justify-end gap-1 pt-3 border-t border-border">
+        <a
+          href={doc.fileUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+          title="View / download"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </a>
+        <button
+          onClick={onEdit}
+          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-tenant"
+          title="Edit"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={onDelete}
+          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+          title="Delete"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DocumentTemplateDialog({
+  clientId,
+  clientName,
+  doc,
+  onClose,
+  onSaved,
+}: {
+  clientId: number;
+  clientName: string;
+  doc: DocumentTemplate | null;
+  onClose: () => void;
+  onSaved: () => void | Promise<void>;
+}) {
+  const isNew = doc === null;
+  const [name, setName] = useState(doc?.templateName ?? "");
+  const [description, setDescription] = useState(doc?.templateDescription ?? "");
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const validate = (): string | null => {
+    if (!name.trim()) return "Template name is required.";
+    if (!description.trim()) return "Description is required.";
+    if (isNew && !file) return "A .docx file is required.";
+    if (file && !file.name.toLowerCase().endsWith(".docx")) return "Only .docx files are allowed.";
+    return null;
+  };
+
+  const submit = async () => {
+    const err = validate();
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    setSaving(true);
+    try {
+      if (isNew) {
+        await createDocumentTemplate({
+          clientId,
+          templateName: name.trim(),
+          templateDescription: description.trim(),
+          file: file!,
+        });
+        toast.success("Template uploaded.");
+      } else {
+        await updateDocumentTemplate({
+          templateId: doc.templateId,
+          clientId,
+          templateName: name.trim(),
+          templateDescription: description.trim(),
+          file: file ?? undefined,
+        });
+        toast.success("Template updated.");
+      }
+      await onSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save the template.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
       <div
         className="bg-card border border-border rounded-2xl shadow-elegant w-full max-w-lg p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 mb-1">
           <Upload className="h-5 w-5 text-tenant" />
-          <h3 className="font-display text-lg font-bold">Upload document template</h3>
+          <h3 className="font-display text-lg font-bold">
+            {isNew ? "Upload document template" : "Edit document template"}
+          </h3>
         </div>
         <p className="text-xs text-muted-foreground mb-4">
           AI will use this template to generate documents for{" "}
@@ -1710,36 +1814,28 @@ function UploadTemplateDialog({
             />
           </label>
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <div className="text-xs font-semibold mb-1.5">Category</div>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-tenant"
-              >
-                <option>Legal</option>
-                <option>Settlement</option>
-                <option>Payment</option>
-                <option>Compliance</option>
-                <option>General</option>
-              </select>
-            </label>
-            <label className="block">
-              <div className="text-xs font-semibold mb-1.5">
-                File <span className="text-destructive">*</span>
-              </div>
-              <input
-                type="file"
-                accept=".docx,.pdf,.txt,.doc"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                className="w-full text-xs"
-              />
-            </label>
-          </div>
+          <label className="block">
+            <div className="text-xs font-semibold mb-1.5">
+              {isNew ? "File" : "Replace file"}{" "}
+              {isNew && <span className="text-destructive">*</span>}
+            </div>
+            <input
+              type="file"
+              accept=".docx"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="w-full text-xs"
+            />
+            <div className="text-[11px] text-muted-foreground mt-1">
+              {isNew
+                ? "Word documents (.docx) only."
+                : `Leave empty to keep the current file (${doc.templateOrignalFileName}).`}
+            </div>
+          </label>
 
           <label className="block">
-            <div className="text-xs font-semibold mb-1.5">Description</div>
+            <div className="text-xs font-semibold mb-1.5">
+              Description <span className="text-destructive">*</span>
+            </div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -1753,20 +1849,25 @@ function UploadTemplateDialog({
             <span className="font-semibold text-tenant">Tip:</span> Use{" "}
             <code className="font-mono">{`{{debtor_full_name}}`}</code>,{" "}
             <code className="font-mono">{`{{balance_due}}`}</code>,{" "}
-            <code className="font-mono">{`{{account_number}}`}</code>, etc. in your template — the AI
-            will replace these with the customer's actual values during generation.
+            <code className="font-mono">{`{{account_number}}`}</code>, etc. in your template — the
+            AI will replace these with the customer's actual values during generation.
           </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted">
+          <button
+            onClick={onClose}
+            className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+          >
             Cancel
           </button>
           <button
             onClick={submit}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90"
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
           >
-            <Upload className="h-4 w-4" /> Upload template
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {isNew ? "Upload template" : "Save changes"}
           </button>
         </div>
       </div>
@@ -1790,7 +1891,10 @@ function ConfirmDeleteDialog({
   onConfirm: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onCancel}
+    >
       <div
         className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-elegant"
         onClick={(e) => e.stopPropagation()}
@@ -1805,11 +1909,14 @@ function ConfirmDeleteDialog({
         </div>
         <h2 className="font-display text-xl font-bold tracking-tight mt-4">{title}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          You are about to delete <span className="font-semibold text-foreground">{name}</span>. This
-          action cannot be undone.
+          You are about to delete <span className="font-semibold text-foreground">{name}</span>.
+          This action cannot be undone.
         </p>
         <div className="flex items-center justify-end gap-3 pt-6">
-          <button onClick={onCancel} className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+          >
             Cancel
           </button>
           <button
@@ -1817,7 +1924,8 @@ function ConfirmDeleteDialog({
             disabled={busy}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-white text-sm font-semibold disabled:opacity-50"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Delete
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}{" "}
+            Delete
           </button>
         </div>
       </div>

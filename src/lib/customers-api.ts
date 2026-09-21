@@ -75,6 +75,29 @@
 //     file's own tags as customerTags (null when none). Every live probe returned an
 //     empty tagList and a null customerTags, so the populated shape is NOT confirmed —
 //     normalizeTags accepts a comma-separated string or an array of strings/objects.
+//   POST /tenant/getCustomerDocumentTemplateList { uploadedDebtorId } -> { documentTemplateList[] }
+//     Templates are scoped to the file's client and gated by that client's own
+//     documentEnabled flag (getAllClients) — verified live 2026-09-21: a debtor
+//     under a client with documentEnabled:0 (or with no document templates
+//     uploaded under Case Files → Template Library) returns an empty list, not
+//     an error, so the Generate dialog just shows "no templates" rather than
+//     failing. Row shape is thin: {templateId, templateName, templateOrignalFileName}
+//     — no category/version/approval-status/compliance metadata exists on this
+//     endpoint, unlike the richer design mock.
+//   POST /tenant/generateCustomerDocuments { uploadedDebtorId, templateId, remark } -> { generatedDocumentUrl }
+//     Merges the file's live data into the template and drops a PDF in S3;
+//     remark is free text (shown back as each row's description on
+//     getCustomerDocuments) and may be "". Bad templateId -> meta.status:false,
+//     "Server Error" (verified live).
+//   POST /tenant/getCustomerDocuments { uploadedDebtorId } -> { documentList[] }
+//     Row shape (verified live): {documentId, createdAt, remark, fileUrl,
+//     createdBy, createdUserFirstName, createdUserLastName}. No file size field
+//     exists, and the S3 fileUrl has no CORS headers (verified via curl with an
+//     Origin header) so a client-side HEAD request can't recover one either —
+//     the Documents tab intentionally has no Size column rather than faking it.
+//   POST /tenant/deleteCustomerDocument { uploadedDebtorId, documentId } -> {}
+//     Idempotent — deleting an already-deleted documentId still returns
+//     meta.status:true (verified live).
 // All authenticated with the raw token (attached automatically by apiPost); the two
 // multipart note calls attach it by hand, matching every other module's file-upload helper.
 import { apiPost, apiUrl } from "./api-client";
@@ -520,6 +543,64 @@ export function normalizeTags(raw: unknown): string[] {
   return names
     .map((n) => n.trim())
     .filter((n) => n && !seen.has(n.toLowerCase()) && (seen.add(n.toLowerCase()), true));
+}
+
+/* ------------------------------ Documents -------------------------------- */
+
+export type CustomerDocumentTemplate = {
+  templateId: number;
+  templateName: string;
+  templateOrignalFileName: string;
+};
+
+/** Document templates available for this file's client. Empty (not an error)
+ *  when the client has documentEnabled:0 or no document templates uploaded. */
+export function getCustomerDocumentTemplateList(
+  uploadedDebtorId: number,
+): Promise<{ documentTemplateList: CustomerDocumentTemplate[] }> {
+  return apiPost("/tenant/getCustomerDocumentTemplateList", { uploadedDebtorId });
+}
+
+export function generateCustomerDocuments(input: {
+  uploadedDebtorId: number;
+  templateId: number;
+  remark?: string;
+}): Promise<{ generatedDocumentUrl: string }> {
+  return apiPost("/tenant/generateCustomerDocuments", { remark: "", ...input });
+}
+
+export type CustomerDocument = {
+  documentId: number;
+  createdAt: string;
+  remark: string;
+  fileUrl: string;
+  createdBy: number;
+  createdUserFirstName: string;
+  createdUserLastName: string;
+};
+
+export function getCustomerDocuments(
+  uploadedDebtorId: number,
+): Promise<{ documentList: CustomerDocument[] }> {
+  return apiPost("/tenant/getCustomerDocuments", { uploadedDebtorId });
+}
+
+export function deleteCustomerDocument(
+  uploadedDebtorId: number,
+  documentId: number,
+): Promise<unknown> {
+  return apiPost("/tenant/deleteCustomerDocument", { uploadedDebtorId, documentId });
+}
+
+/** Readable file name from an S3 document URL (decodes %20 etc.); falls back
+ *  to the raw URL if it's ever not a normal path. */
+export function documentFileName(fileUrl: string): string {
+  try {
+    const path = new URL(fileUrl).pathname;
+    return decodeURIComponent(path.split("/").pop() || fileUrl);
+  } catch {
+    return fileUrl;
+  }
 }
 
 /* ------------------------------- Helpers -------------------------------- */
