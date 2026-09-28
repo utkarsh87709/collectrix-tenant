@@ -12,6 +12,11 @@
 // phoneNoList (create/update) is an array of phoneNoId to assign to the team.
 // NOTE: createTeam requires a non-empty userList — an empty member list is rejected
 // by the backend ("Server Error"). The leader must NOT also be listed as a member.
+// Capacity is retired as of 2026-09-28 (per backend) — the New/Edit team forms no
+// longer collect it, and createTeam/updateTeam always send capacity: null now.
+// Existing teams may still carry a real number from before this change, so the
+// read side (TeamCard/TeamDetails/OrgTeam) stays number | null rather than
+// assuming every team has one.
 // All authenticated with the raw token (attached automatically by apiPost).
 import { apiPost } from "./api-client";
 
@@ -42,7 +47,7 @@ export type TeamCard = {
   teamId: number;
   createdAt: string;
   teamName: string;
-  capacity: number;
+  capacity: number | null;
   leaderId: number;
   leaderFirstName: string;
   leaderLastName: string;
@@ -53,7 +58,7 @@ export type OrgTeam = {
   teamId: number;
   createdAt: string;
   teamName: string;
-  capacity: number;
+  capacity: number | null;
   teamMembers: TeamMember[];
 };
 
@@ -77,7 +82,6 @@ export type CreateTeamInput = {
   teamName: string;
   leaderId: number;
   userList: number[];
-  capacity: number;
   /** phoneNoIds to assign to this team. */
   phoneNoList: number[];
 };
@@ -89,7 +93,7 @@ export type TeamDetails = {
   teamId: number;
   createdAt: string;
   teamName: string;
-  capacity: number;
+  capacity: number | null;
   leaderId: number;
   firstName: string;
   lastName: string | null;
@@ -138,8 +142,10 @@ export function getTeamNumbers(): Promise<{ phoneNoList: TeamPhoneNumber[] }> {
   return apiPost<{ phoneNoList: TeamPhoneNumber[] }>("/tenant/getTeamNumbers");
 }
 
+// Capacity is retired on the create/update forms — always sent as null (see the
+// header note) rather than collected from the user.
 export function createTeam(input: CreateTeamInput): Promise<unknown> {
-  return apiPost("/tenant/createTeam", { ...input });
+  return apiPost("/tenant/createTeam", { ...input, capacity: null });
 }
 
 export function getTeamDetails(teamId: number): Promise<GetTeamDetailsResult> {
@@ -147,7 +153,7 @@ export function getTeamDetails(teamId: number): Promise<GetTeamDetailsResult> {
 }
 
 export function updateTeam(input: UpdateTeamInput): Promise<unknown> {
-  return apiPost("/tenant/updateTeam", { ...input });
+  return apiPost("/tenant/updateTeam", { ...input, capacity: null });
 }
 
 export function deleteTeam(teamId: number): Promise<unknown> {

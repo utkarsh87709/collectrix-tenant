@@ -44,8 +44,12 @@ import {
   RotateCcw,
   FileText,
   FilePlus2,
+  Eye,
+  ExternalLink,
+  Paperclip,
 } from "lucide-react";
 import { useCustomerPermissions, type CustomerPermissions } from "@/lib/customer-permissions";
+import { DeleteNoteDialog } from "@/components/tenant/DeleteNoteDialog";
 import {
   getCustomerDetails,
   customerDisplayName,
@@ -925,7 +929,8 @@ function CallsTab({ details }: { details: CustomerDetails }) {
       {callDialogOpen && (
         <InitiateCallDialog
           uploadedDebtorId={details.uploadedDebtorId}
-          defaultTo={details.cellNo1}
+          cellNo1={details.cellNo1}
+          cellNo2={details.cellNo2}
           customerName={customerDisplayName(details)}
           onClose={() => setCallDialogOpen(false)}
         />
@@ -1165,6 +1170,8 @@ function GenerateDocumentDialog({
   const [templateId, setTemplateId] = useState<number | null>(null);
   const [remark, setRemark] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; documentId: number | null } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1186,18 +1193,60 @@ function GenerateDocumentDialog({
     if (!templateId) return;
     setGenerating(true);
     try {
-      await generateCustomerDocuments({
+      const { generatedDocumentUrl } = await generateCustomerDocuments({
         uploadedDebtorId: details.uploadedDebtorId,
         templateId,
         remark: remark.trim(),
       });
-      toast.success("Document generated.");
-      onGenerated();
+      // The backend merges + drops the PDF in S3 as part of generation itself (no
+      // separate dry-run/preview endpoint exists), so it's already retrievable via
+      // getCustomerDocuments. Look up its documentId so "Discard" below can remove
+      // it again if the reviewer doesn't confirm — the customer's Documents list
+      // isn't refetched until they do, so it stays invisible there either way.
+      let documentId: number | null = null;
+      try {
+        const { documentList } = await getCustomerDocuments(details.uploadedDebtorId);
+        const match = documentList
+          .filter((d) => d.fileUrl === generatedDocumentUrl)
+          .sort((a, b) => b.documentId - a.documentId)[0];
+        documentId = match?.documentId ?? null;
+      } catch {
+        // Preview still works from the URL alone; Discard just won't be able to
+        // clean up server-side in this case.
+      }
+      setPreview({ url: generatedDocumentUrl, documentId });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't generate that document.");
     } finally {
       setGenerating(false);
     }
+  };
+
+  const discardAndClose = async () => {
+    if (!preview?.documentId) {
+      onClose();
+      return;
+    }
+    setBusy(true);
+    try {
+      await deleteCustomerDocument(details.uploadedDebtorId, preview.documentId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't discard that document.");
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
+    onClose();
+  };
+
+  const save = () => {
+    toast.success("Document saved.");
+    onGenerated();
+  };
+
+  const headerClose = () => {
+    if (preview) discardAndClose();
+    else onClose();
   };
 
   return (
@@ -1206,73 +1255,130 @@ function GenerateDocumentDialog({
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <FilePlus2 className="h-4 w-4 text-tenant" />
-            <div className="font-display font-bold text-base">Generate document</div>
+            <div className="font-display font-bold text-base">
+              {preview ? "Review generated document" : "Generate document"}
+            </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted">
+          <button
+            onClick={headerClose}
+            disabled={busy}
+            className="p-1 rounded hover:bg-muted disabled:opacity-50"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="px-5 py-4 space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Select a template — {customerDisplayName(details)}'s details, balance, and account
-            context are merged into a ready-to-send document.
-          </p>
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-              Template
-            </span>
-            {templates === null ? (
-              <div className="mt-1.5 flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading templates…
-              </div>
-            ) : templates.length === 0 ? (
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                No document templates are configured for this file's client yet. Add one under Case
-                Files → Template Library.
+
+        {!preview && (
+          <>
+            <div className="px-5 py-4 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Select a template — {customerDisplayName(details)}'s details, balance, and account
+                context are merged into a ready-to-send document.
               </p>
-            ) : (
-              <select
-                value={templateId ?? ""}
-                onChange={(e) => setTemplateId(Number(e.target.value))}
-                className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
+              <label className="block">
+                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  Template
+                </span>
+                {templates === null ? (
+                  <div className="mt-1.5 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading templates…
+                  </div>
+                ) : templates.length === 0 ? (
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    No document templates are configured for this file's client yet. Add one under
+                    Case Files → Template Library.
+                  </p>
+                ) : (
+                  <select
+                    value={templateId ?? ""}
+                    onChange={(e) => setTemplateId(Number(e.target.value))}
+                    className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                  >
+                    {templates.map((t) => (
+                      <option key={t.templateId} value={t.templateId}>
+                        {t.templateName}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </label>
+              <label className="block">
+                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  Note (optional)
+                </span>
+                <textarea
+                  value={remark}
+                  onChange={(e) => setRemark(e.target.value)}
+                  rows={2}
+                  placeholder="Shown alongside the generated document in the list…"
+                  className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
               >
-                {templates.map((t) => (
-                  <option key={t.templateId} value={t.templateId}>
-                    {t.templateName}
-                  </option>
-                ))}
-              </select>
-            )}
-          </label>
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-              Note (optional)
-            </span>
-            <textarea
-              value={remark}
-              onChange={(e) => setRemark(e.target.value)}
-              rows={2}
-              placeholder="Shown alongside the generated document in the list…"
-              className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
-            />
-          </label>
-        </div>
-        <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={generate}
-            disabled={!templateId || generating}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
-          >
-            {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            <FilePlus2 className="h-3.5 w-3.5" /> Generate
-          </button>
-        </div>
+                Cancel
+              </button>
+              <button
+                onClick={generate}
+                disabled={!templateId || generating}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
+              >
+                {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                <FilePlus2 className="h-3.5 w-3.5" /> Generate
+              </button>
+            </div>
+          </>
+        )}
+
+        {preview && (
+          <>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Review the document below before saving it. It won't appear in{" "}
+                {customerDisplayName(details)}'s Documents list unless you save it.
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Eye className="h-3.5 w-3.5" /> {documentFileName(preview.url)}
+                </div>
+                <a
+                  href={preview.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-tenant hover:underline"
+                >
+                  Open in new tab <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+              <iframe
+                src={preview.url}
+                title="Generated document preview"
+                className="w-full h-[420px] rounded-lg border border-border bg-white"
+              />
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+              <button
+                onClick={discardAndClose}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
+              >
+                {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Discard
+              </button>
+              <button
+                onClick={save}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
+              >
+                <FilePlus2 className="h-3.5 w-3.5" /> Save to documents
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1285,6 +1391,8 @@ function NotesTab({ details }: { details: CustomerDetails }) {
   const [notes, setNotes] = useState<CustomerNote[] | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<CustomerNote | null>(null);
+  const [deleting, setDeleting] = useState<CustomerNote | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = () =>
     getCustomerNotes(details.uploadedDebtorId)
@@ -1297,13 +1405,18 @@ function NotesTab({ details }: { details: CustomerDetails }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [details.uploadedDebtorId]);
 
-  const remove = async (n: CustomerNote) => {
+  const confirmDelete = async (reason: string) => {
+    if (!deleting) return;
+    setDeleteBusy(true);
     try {
-      await deleteCustomerNotes(n.notesId, details.uploadedDebtorId);
+      await deleteCustomerNotes(deleting.notesId, details.uploadedDebtorId, reason);
       toast.success("Note deleted.");
+      setDeleting(null);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't delete that note.");
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -1350,7 +1463,7 @@ function NotesTab({ details }: { details: CustomerDetails }) {
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={() => remove(n)}
+                      onClick={() => setDeleting(n)}
                       className="p-1.5 rounded hover:bg-muted text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1400,6 +1513,17 @@ function NotesTab({ details }: { details: CustomerDetails }) {
           }}
         />
       )}
+      {deleting && (
+        <DeleteNoteDialog
+          open
+          busy={deleteBusy}
+          noteTitle={deleting.title}
+          onClose={() => {
+            if (!deleteBusy) setDeleting(null);
+          }}
+          onConfirm={confirmDelete}
+        />
+      )}
     </PageCard>
   );
 }
@@ -1417,7 +1541,10 @@ function NoteDialog({
 }) {
   const [title, setTitle] = useState(note?.title ?? "");
   const [description, setDescription] = useState(note?.description ?? "");
-  const [files, setFiles] = useState<File[]>([]);
+  // Attachments already saved on the note (edit mode) — user can drop any of these.
+  const [existingFiles, setExistingFiles] = useState<string[]>(note?.files ?? []);
+  // Newly staged attachments not yet uploaded — user can drop any of these too.
+  const [newFiles, setNewFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -1430,15 +1557,15 @@ function NoteDialog({
           uploadedDebtorId,
           title: title.trim(),
           description: description.trim(),
-          existingFiles: note.files,
-          newFiles: files,
+          existingFiles,
+          newFiles,
         });
       } else {
         await createCustomerNotes({
           uploadedDebtorId,
           title: title.trim(),
           description: description.trim(),
-          files,
+          files: newFiles,
         });
       }
       toast.success(note ? "Note updated." : "Note added.");
@@ -1484,17 +1611,61 @@ function NoteDialog({
             />
           </label>
           <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm cursor-pointer hover:bg-muted">
+            <Paperclip className="h-3.5 w-3.5" />
+            Attach files
             <input
               type="file"
               multiple
               className="hidden"
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              onChange={(e) => {
+                setNewFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                e.target.value = "";
+              }}
             />
-            Attach files
           </label>
-          {files.length > 0 && (
-            <div className="text-xs text-muted-foreground">
-              {files.map((f) => f.name).join(", ")}
+          {(existingFiles.length > 0 || newFiles.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {existingFiles.map((f) => (
+                <div
+                  key={f}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded border border-border bg-muted/40 text-xs"
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <a
+                    href={f}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="truncate max-w-[160px] hover:underline"
+                  >
+                    {documentFileName(f)}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setExistingFiles((prev) => prev.filter((x) => x !== f))}
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Remove ${documentFileName(f)}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {newFiles.map((f, i) => (
+                <div
+                  key={`${f.name}_${f.size}_${i}`}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded border border-border bg-muted/40 text-xs"
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate max-w-[160px]">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

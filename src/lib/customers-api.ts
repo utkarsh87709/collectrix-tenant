@@ -29,8 +29,15 @@
 //   POST /tenant/getCustomerNotes   { uploadedDebtorId } -> { noteList[] }
 //   POST /tenant/createCustomerNotes (multipart: uploadedDebtorId, title, description, file[]) -> {}
 //   POST /tenant/updateCustomerNotes (multipart: notesBody=<JSON string>, file[]) -> {}
-//   POST /tenant/deleteCustomerNotes { notesId, uploadedDebtorId } -> {}
-//     All three mutations return an empty data object — refetch getCustomerNotes after each.
+//   POST /tenant/deleteCustomerNotes { notesId, uploadedDebtorId, reason } -> {}
+//     `reason` (mandatory in the UI — a deletion must always give one) is sent
+//     best-effort: the endpoint's confirmed-live shape as of 2026-09-28 was only
+//     {notesId, uploadedDebtorId}, so an unrecognized `reason` key may currently
+//     be dropped server-side rather than persisted or surfaced on Activity &
+//     Audit. Backend needs to add storage for it (and confirm note update/delete
+//     already emit an audit-log event the way other mutations do) — flag this
+//     with backend before treating the reason requirement as fully closed.
+//   All three mutations return an empty data object — refetch getCustomerNotes after each.
 //   POST /tenant/getCustomerEmail  { uploadedDebtorId } -> { emailList[] }
 //   POST /tenant/sendCustomerEmail { uploadedDebtorId, emailSubject, emailBody } -> {}
 //     Load the most recent thread subject as the default so a reply stays on the same thread.
@@ -72,9 +79,19 @@
 //   POST /tenant/assignCustomerTag { uploadedDebtorId, tagName } -> {}
 //   POST /tenant/deleteCustomerTag { uploadedDebtorId, tagName } -> {}
 //     Tags ("flags" in the UI) are free-form names. getCustomerDetails carries the
-//     file's own tags as customerTags (null when none). Every live probe returned an
-//     empty tagList and a null customerTags, so the populated shape is NOT confirmed —
-//     normalizeTags accepts a comma-separated string or an array of strings/objects.
+//     file's own tags as customerTags (null when none) — confirmed live 2026-09-28
+//     as a plain string[] once a tag is assigned (e.g. ["skip-trace", "High Value"]),
+//     and getTagList likewise returns a populated string[] of the tenant's known tag
+//     names. normalizeTags still accepts a comma-separated string or an array of
+//     strings/objects defensively. getCustomerList's row (CustomerListItem below) has
+//     NO tag/flag field at all — confirmed live: assigning a tag and re-fetching the
+//     list doesn't surface it under any key — so the Customers table's Flags column
+//     has nothing to render and is intentionally left as a placeholder rather than
+//     faked; raise with backend if that list endpoint should carry tags too.
+//     CustomerListItem.customerTags below is typed optional and read the same way
+//     as the profile page's (normalizeTags) purely so that column starts rendering
+//     automatically, no frontend change needed, the day backend adds that field to
+//     getCustomerList's row under this same key.
 //   POST /tenant/getCustomerDocumentTemplateList { uploadedDebtorId } -> { documentTemplateList[] }
 //     Templates are scoped to the file's client and gated by that client's own
 //     documentEnabled flag (getAllClients) — verified live 2026-09-21: a debtor
@@ -121,6 +138,10 @@ export type CustomerListItem = {
   assignedUserLastName: string | null;
   leaderFirstName: string | null;
   leaderLastName: string | null;
+  /** Not returned live as of 2026-09-28 (see the header note above) — typed
+   *  optional so the Customers table picks it up for free, under this same
+   *  key, the day the backend adds it to this row. Read via normalizeTags. */
+  customerTags?: unknown;
 };
 
 export type CustomerListFilters = {
@@ -218,7 +239,7 @@ export type CustomerDetails = {
   archivedAt: string | null;
   archivedBy: number | null;
   unreadMsgCount: number;
-  /** The file's tags/flags. null when none; populated shape unconfirmed — read via normalizeTags. */
+  /** The file's tags/flags. null when none; confirmed live as string[] when populated — read via normalizeTags. */
   customerTags: unknown;
   clientName: string;
   clientNumber: string;
@@ -312,8 +333,12 @@ export async function updateCustomerNotes(input: {
   await multipartPost("/tenant/updateCustomerNotes", form);
 }
 
-export function deleteCustomerNotes(notesId: number, uploadedDebtorId: number): Promise<unknown> {
-  return apiPost("/tenant/deleteCustomerNotes", { notesId, uploadedDebtorId });
+export function deleteCustomerNotes(
+  notesId: number,
+  uploadedDebtorId: number,
+  reason: string,
+): Promise<unknown> {
+  return apiPost("/tenant/deleteCustomerNotes", { notesId, uploadedDebtorId, reason });
 }
 
 /* --------------------------- Communication ---------------------------- */

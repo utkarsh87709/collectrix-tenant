@@ -780,6 +780,7 @@ function UserFormModal({
                           <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           {formatPhoneNo(n.phoneNo)}
                         </span>
+                        {teamIds.length > 1 && n.teamName && <Pill tone="muted">{n.teamName}</Pill>}
                         <span className="text-[11px] text-muted-foreground shrink-0">
                           {n.numberType === "tollFree" ? "Toll-Free" : "Local"}
                         </span>

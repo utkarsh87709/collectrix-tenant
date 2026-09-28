@@ -372,7 +372,8 @@ function InboxPage() {
       {callOpen && details && (
         <InitiateCallDialog
           uploadedDebtorId={details.uploadedDebtorId}
-          defaultTo={details.cellNo1}
+          cellNo1={details.cellNo1}
+          cellNo2={details.cellNo2}
           customerName={customerDisplayName(details)}
           onClose={() => setCallOpen(false)}
         />

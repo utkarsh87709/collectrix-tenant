@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, PhoneCall, X } from "lucide-react";
+import { Loader2, Phone, PhoneCall, X } from "lucide-react";
 import { toast } from "sonner";
 import { NativeSelect } from "@/components/tenant/ui";
 import { callCustomerNumberList, initiateCustomerCall } from "@/lib/customers-api";
@@ -9,19 +9,26 @@ import { callCustomerNumberList, initiateCustomerCall } from "@/lib/customers-ap
  *  customer profile's Calls tab and the Inbound Inbox header. */
 export function InitiateCallDialog({
   uploadedDebtorId,
-  defaultTo,
+  cellNo1,
+  cellNo2,
   customerName,
   onClose,
 }: {
   uploadedDebtorId: number;
-  /** The customer's number to dial — usually cellNo1. Editable in the dialog. */
-  defaultTo?: string | null;
+  /** The customer's numbers on file — both offered as selectable "call to" options. */
+  cellNo1?: string | null;
+  cellNo2?: string | null;
   customerName?: string;
   onClose: () => void;
 }) {
+  const customerNumbers = [
+    cellNo1?.trim() ? { label: "Cell no. 1", number: cellNo1.trim() } : null,
+    cellNo2?.trim() ? { label: "Cell no. 2", number: cellNo2.trim() } : null,
+  ].filter((n): n is { label: string; number: string } => n !== null);
+
   const [numbers, setNumbers] = useState<string[] | null>(null);
   const [from, setFrom] = useState("");
-  const [to, setTo] = useState(defaultTo ?? "");
+  const [to, setTo] = useState(customerNumbers[0]?.number ?? "");
   const [calling, setCalling] = useState(false);
 
   useEffect(() => {
@@ -71,6 +78,41 @@ export function InitiateCallDialog({
           </button>
         </div>
         <div className="space-y-3 px-5 py-4">
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Number to dial
+            </span>
+            {customerNumbers.length === 0 ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                No phone number on file for this customer.
+              </p>
+            ) : (
+              <div className="mt-1 space-y-1.5">
+                {customerNumbers.map((n) => (
+                  <label
+                    key={n.label}
+                    className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${
+                      to === n.number
+                        ? "border-tenant bg-tenant-soft"
+                        : "border-border hover:bg-muted"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="callTo"
+                        checked={to === n.number}
+                        onChange={() => setTo(n.number)}
+                      />
+                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                      {n.label}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">{n.number}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
           <label className="block">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Call from
@@ -91,17 +133,6 @@ export function InitiateCallDialog({
               ))}
             </NativeSelect>
           </label>
-          <label className="block">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Call to
-            </span>
-            <input
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              placeholder="Customer's number"
-              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            />
-          </label>
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <button
@@ -120,7 +151,7 @@ export function InitiateCallDialog({
             ) : (
               <PhoneCall className="h-4 w-4" />
             )}
-            Call
+            {to.trim() ? `Call ${to.trim()}` : "Call"}
           </button>
         </div>
       </div>

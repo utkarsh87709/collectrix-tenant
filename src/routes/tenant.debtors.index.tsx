@@ -31,6 +31,7 @@ import {
   customerDisplayName,
   formatMoney,
   toMoney,
+  normalizeTags,
   type CustomerListItem,
   type CustomerListFilters,
 } from "@/lib/customers-api";
@@ -483,9 +484,31 @@ function DebtorsPage() {
                               <td className="px-3 py-3 text-right font-mono">
                                 {formatMoney(row.currentOutstandingBalance)}
                               </td>
-                              {/* Flags aren't in getCustomerList/getCustomerDetails yet — left blank
-                                  rather than fabricated; see the customers-api.ts header note. */}
-                              <td className="px-6 py-3" />
+                              <td className="px-6 py-3">
+                                {/* getCustomerList's row carries no tag/flag field today (confirmed
+                                    live — see the customers-api.ts header note); this reads
+                                    row.customerTags the same way the profile page reads
+                                    getCustomerDetails.customerTags, so the day backend adds that
+                                    field to this row under the same key, pills appear here with no
+                                    further frontend change. */}
+                                {(() => {
+                                  const rowTags = normalizeTags(row.customerTags);
+                                  return rowTags.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {rowTags.map((t) => (
+                                        <span
+                                          key={t}
+                                          className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-warning/20 text-warning-foreground"
+                                        >
+                                          {t}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  );
+                                })()}
+                              </td>
                             </tr>
                           );
                         })}

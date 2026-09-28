@@ -48,7 +48,7 @@ export const Route = createFileRoute("/tenant/teams")({
 
 type ViewMode = "cards" | "org";
 
-function utilizationOf(members: number, capacity: number) {
+function utilizationOf(members: number, capacity: number | null) {
   if (!capacity) return 0;
   return (members / capacity) * 100;
 }
@@ -244,14 +244,16 @@ function TeamsPage() {
                       Capacity
                     </div>
                     <div className="mt-1 font-semibold">
-                      {members.length} / {t.capacity}
+                      {t.capacity != null ? `${members.length} / ${t.capacity}` : "—"}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
                       Utilization
                     </div>
-                    <div className="mt-1 font-semibold">{utilization.toFixed(0)}%</div>
+                    <div className="mt-1 font-semibold">
+                      {t.capacity != null ? `${utilization.toFixed(0)}%` : "—"}
+                    </div>
                   </div>
                 </div>
                 <div className="px-6 pb-5">
@@ -536,7 +538,6 @@ function TeamFormModal({
 
   const [name, setName] = useState("");
   const [leaderId, setLeaderId] = useState<number | "">("");
-  const [capacity, setCapacity] = useState<number | "">("");
   const [members, setMembers] = useState<number[]>([]);
   const [memberQuery, setMemberQuery] = useState("");
 
@@ -566,7 +567,6 @@ function TeamFormModal({
             ...(details.unassignedTeamMembers ?? []),
           ]);
           setName(td.teamName);
-          setCapacity(td.capacity);
           setLeaderId(td.leaderId);
           setMembers((details.assignedTeamMembers ?? []).map((m) => m.userId));
           // phoneNoList holds this team's numbers (teamId === teamId) + unassigned ones.
@@ -631,19 +631,7 @@ function TeamFormModal({
     [members, leaderId],
   );
 
-  // Members must never exceed the entered capacity.
-  const capacityNum = capacity === "" ? 0 : Number(capacity);
-  const overCapacity = capacityNum > 0 && effectiveMembers.length > capacityNum;
-  const capacityReached = capacityNum > 0 && effectiveMembers.length >= capacityNum;
-
-  const canSave =
-    !!name.trim() &&
-    leaderId !== "" &&
-    capacity !== "" &&
-    Number(capacity) > 0 &&
-    effectiveMembers.length > 0 &&
-    !overCapacity &&
-    !saving;
+  const canSave = !!name.trim() && leaderId !== "" && effectiveMembers.length > 0 && !saving;
 
   const save = async () => {
     if (!canSave) return;
@@ -653,7 +641,6 @@ function TeamFormModal({
         teamName: name.trim(),
         leaderId: Number(leaderId),
         userList: effectiveMembers,
-        capacity: Number(capacity),
         phoneNoList: phoneIds,
       };
       if (isEdit) {
@@ -721,19 +708,6 @@ function TeamFormModal({
                 )}
               </select>
             </div>
-            <div>
-              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                Capacity
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value === "" ? "" : Number(e.target.value))}
-                placeholder="e.g. 50"
-                className="mt-1 w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
-              />
-            </div>
           </div>
 
           <div>
@@ -772,21 +746,15 @@ function TeamFormModal({
               ) : (
                 filteredPool.map((u) => {
                   const isChecked = members.includes(u.userId);
-                  // Block selecting beyond capacity — already-checked members stay toggleable.
-                  const disabled = capacityReached && !isChecked;
                   return (
                     <label
                       key={u.userId}
-                      title={disabled ? "Team capacity reached" : undefined}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded ${
-                        disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-muted cursor-pointer"
-                      }`}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         className="accent-tenant"
                         checked={isChecked}
-                        disabled={disabled}
                         onChange={() => toggle(u.userId)}
                       />
                       <span className="text-sm flex-1 truncate">{fullName(u) || u.emailId}</span>
@@ -801,12 +769,6 @@ function TeamFormModal({
             {!optionsLoading && effectiveMembers.length === 0 && (
               <p className="mt-1.5 text-[11px] text-muted-foreground">
                 Select at least one member — a team can't be saved empty.
-              </p>
-            )}
-            {overCapacity && (
-              <p className="mt-1.5 text-[11px] font-medium text-red-500">
-                {effectiveMembers.length} members selected exceeds the capacity of {capacityNum}.
-                Remove members or increase capacity before saving.
               </p>
             )}
           </div>

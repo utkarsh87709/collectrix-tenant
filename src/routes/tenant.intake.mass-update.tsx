@@ -752,7 +752,7 @@ function UpdateTab({ onApplied }: { onApplied: () => void }) {
 
       <div className="px-6 py-6">
         {step === 1 && (
-          <div className="space-y-6 max-w-3xl">
+          <div className="space-y-6">
             <div>
               <h3 className="font-display text-xl font-bold tracking-tight">
                 Upload your corrected spreadsheet
