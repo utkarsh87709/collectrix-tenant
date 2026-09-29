@@ -1,23 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  Archive,
-  ArrowRightLeft,
   ArrowUpRight,
   Briefcase,
-  CalendarX2,
   Check,
   ChevronDown,
   Copy,
-  FileInput,
+  FileText,
   History,
   Loader2,
   Mail,
+  Paperclip,
   PauseCircle,
   Phone,
   PlayCircle,
   Plus,
-  Receipt,
   StickyNote,
   Tag,
   UserRound,
@@ -37,12 +34,14 @@ import {
   formatMoney,
   fullName,
   getCustomerNotes,
+  getCustomerTimeline,
   getTagList,
   normalizeTags,
   parseBackendDate,
   toMoney,
   type CustomerDetails,
   type CustomerNote,
+  type CustomerTimelineEvent,
 } from "@/lib/customers-api";
 import { inboxAssignUser } from "@/lib/inbox-api";
 import { getTeamDeckAssignUserList, memberName, type AssignableMember } from "@/lib/team-deck-api";
@@ -762,83 +761,54 @@ function TagsSection({
 
 /* -------------------------------- Timeline -------------------------------- */
 
-type TimelineEvent = {
-  key: string;
-  label: string;
-  detail?: string;
-  at: Date;
-  icon: React.ReactNode;
-};
-
-/** Milestones the file already carries as dates — no extra endpoint needed. */
-function buildTimeline(d: CustomerDetails): TimelineEvent[] {
-  const events: TimelineEvent[] = [];
-  const push = (
-    key: string,
-    at: Date | null,
-    label: string,
-    icon: React.ReactNode,
-    detail?: string,
-  ) => {
-    if (at && !Number.isNaN(at.getTime())) events.push({ key, at, label, icon, detail });
-  };
-  const iso = (s: string | null | undefined) => (s ? new Date(s) : null);
-
-  push("archived", iso(d.archivedAt), "Archived", <Archive className="h-3 w-3" />);
-  push(
-    "moved",
-    iso(d.movedAt),
-    d.teamName ? `Moved to ${d.teamName}` : "Moved between teams",
-    <ArrowRightLeft className="h-3 w-3" />,
-  );
-  const lastPaid = toMoney(d.lastPaymentAmount);
-  push(
-    "lastPayment",
-    parseBackendDate(d.dateOfLastPayment),
-    "Last payment",
-    <Receipt className="h-3 w-3" />,
-    [lastPaid > 0 ? formatMoney(lastPaid) : null, d.lastPaymentMethod]
-      .filter(Boolean)
-      .join(" · ") || undefined,
-  );
-  push(
-    "delinquent",
-    parseBackendDate(d.delinquencyDate),
-    "Delinquent since",
-    <CalendarX2 className="h-3 w-3" />,
-  );
-  push(
-    "received",
-    iso(d.createdAt),
-    "File received",
-    <FileInput className="h-3 w-3" />,
-    d.clientName ? `from ${d.clientName}` : undefined,
-  );
-  return events.sort((a, b) => b.at.getTime() - a.at.getTime());
-}
-
 function TimelineSection({ details }: { details: CustomerDetails }) {
-  const events = useMemo(() => buildTimeline(details), [details]);
+  const id = details.uploadedDebtorId;
+  const [events, setEvents] = useState<CustomerTimelineEvent[] | null>(null);
+
+  useEffect(() => {
+    setEvents(null);
+    getCustomerTimeline(id)
+      .then((r) => setEvents(r.timelineList))
+      .catch(() => setEvents([]));
+  }, [id]);
+
+  const sorted = useMemo(
+    () =>
+      events
+        ? [...events].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          )
+        : [],
+    [events],
+  );
+
   return (
     <Section icon={<History className="h-3.5 w-3.5" />} title="Timeline">
-      {events.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nothing dated on this file yet.</p>
+      {events === null ? (
+        <div className="space-y-2">
+          <div className="h-10 animate-pulse rounded-lg bg-muted" />
+          <div className="h-10 animate-pulse rounded-lg bg-muted" />
+        </div>
+      ) : sorted.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No activity recorded on this file yet.</p>
       ) : (
         <ol className="relative ml-3 space-y-3 border-l border-border pl-5">
-          {events.map((e, i) => (
-            <li key={e.key} className="relative">
+          {sorted.map((e, i) => (
+            <li key={e.timelineId} className="relative">
               <span
                 className={`absolute -left-[31px] top-0 inline-flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-card ${
                   i === 0 ? "bg-tenant text-white" : "bg-muted text-muted-foreground"
                 }`}
               >
-                {e.icon}
+                <History className="h-3 w-3" />
               </span>
-              <div className="text-sm font-semibold leading-6">{e.label}</div>
+              <div className="text-sm font-semibold leading-6">{e.header}</div>
+              {e.message && e.message !== e.header && (
+                <div className="text-xs text-muted-foreground">{e.message}</div>
+              )}
               <div className="text-[11px] text-muted-foreground">
-                {e.detail ? `${e.detail} · ` : ""}
-                {format(e.at, "d MMM yyyy")}
-                <span className="opacity-70"> · {timeAgo(e.at.toISOString())}</span>
+                {formatDateTime(e.createdAt)}
+                <span className="opacity-70"> · {timeAgo(e.createdAt)}</span>
               </div>
             </li>
           ))}
@@ -856,6 +826,7 @@ function NotesSection({ details, canAdd }: { details: CustomerDetails; canAdd: b
   const [composing, setComposing] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [newFiles, setNewFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
 
   const load = () =>
@@ -887,10 +858,12 @@ function NotesSection({ details, canAdd }: { details: CustomerDetails; canAdd: b
         uploadedDebtorId: id,
         title: title.trim(),
         description: description.trim(),
+        files: newFiles,
       });
       toast.success("Note added.");
       setTitle("");
       setDescription("");
+      setNewFiles([]);
       setComposing(false);
       await load();
     } catch (err) {
@@ -931,12 +904,48 @@ function NotesSection({ details, canAdd }: { details: CustomerDetails; canAdd: b
             placeholder="What happened?"
             className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-2 text-sm outline-none focus:border-tenant"
           />
+          <label className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-semibold hover:bg-muted cursor-pointer">
+            <Paperclip className="h-3 w-3" />
+            Attach files
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const selected = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                setNewFiles((prev) => [...prev, ...selected]);
+              }}
+            />
+          </label>
+          {newFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {newFiles.map((f, i) => (
+                <div
+                  key={`${f.name}_${f.size}_${i}`}
+                  className="flex items-center gap-1.5 rounded border border-border bg-muted/40 px-2 py-1 text-[11px]"
+                >
+                  <FileText className="h-3 w-3 shrink-0" />
+                  <span className="max-w-[160px] truncate">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <button
               onClick={() => {
                 setComposing(false);
                 setTitle("");
                 setDescription("");
+                setNewFiles([]);
               }}
               className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
             >
@@ -975,6 +984,23 @@ function NotesSection({ details, canAdd }: { details: CustomerDetails; canAdd: b
               </div>
               {n.description && (
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{n.description}</p>
+              )}
+              {n.files.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {n.files.map((f) => (
+                    <a
+                      key={f}
+                      href={f}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex max-w-[160px] items-center gap-1 truncate rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-tenant hover:underline"
+                    >
+                      <FileText className="h-3 w-3 shrink-0" />
+                      {f.split("/").pop()}
+                    </a>
+                  ))}
+                </div>
               )}
               <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
                 <Avatar

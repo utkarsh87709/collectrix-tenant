@@ -1618,8 +1618,9 @@ function NoteDialog({
               multiple
               className="hidden"
               onChange={(e) => {
-                setNewFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                const selected = Array.from(e.target.files ?? []);
                 e.target.value = "";
+                setNewFiles((prev) => [...prev, ...selected]);
               }}
             />
           </label>

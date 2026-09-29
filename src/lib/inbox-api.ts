@@ -7,14 +7,26 @@
 //                                    dateOfLastPaymentStart/End }
 //                                  -> { totalCount, debtorList[] }
 //     Identical filter body to getCustomerList (ids null when unset, dates yyyy-mm-dd).
-//     Row shape CONFIRMED 2026-09-10 from a live response the user pasted:
-//       { uploadedDebtorId, ourFileNo, unreadMsgCount, debtorFirstName, debtorMiddleName,
-//         debtorLastName, creditorName, clientName, clientNumber, teamName, status }
-//     i.e. unreadMsgCount is there, but NO last-message text/time/channel, no balance,
-//     no statusCode/statusColorCode and no tags. Raised with backend the same day —
-//     the optional fields on InboxCustomer are the names requested, so they show
-//     through the moment they're added; until then inbox-placeholders.ts fills the
-//     message summary with samples (unread stays real).
+//     Row shape RE-CONFIRMED 2026-09-29 from a live response (devapi, tenantId 1):
+//       { uploadedDebtorId, ourFileNo, unreadMsgCount, lastMsg, debtorFirstName,
+//         debtorMiddleName, debtorLastName, creditorName, clientName, clientNumber,
+//         teamName, status }
+//     Backend has now shipped the requested last-message summary, but as a single
+//     field named lastMsg (plain text, null when the file has no messages) — NOT
+//     lastMessage as originally asked for. There is still no lastMessageAt,
+//     lastMessageChannel, lastMessageDirection, balance, statusCode/statusColorCode
+//     or tags on the row; inboxPreview() below reads lastMsg for the body and
+//     leaves the rest null, and the UI shows "No messages yet" / no timestamp
+//     rather than guessing.
+//     unreadMsgCount itself was already a real field (not a placeholder) — every
+//     row checked live today returns 0, so the previously reported "first
+//     conversation always shows unreadMsgCount: 1" looks like it was either a
+//     backend counting bug since fixed, or the old sample fallback (deleted
+//     inbox-placeholders.ts, which stood in for the *message preview* — 100%
+//     fake before lastMsg existed) got mistaken for the unread badge itself.
+//     Either way, the fake-sample layer is now gone from the UI — everything
+//     shown is read straight off this row, so a wrong unread count from here on
+//     is a backend data issue, not a frontend one.
 //   POST /tenant/inboxAssignUser { uploadedDebtorId, userId } -> {}
 //     Hands the file to a member of its own team. Candidate members come from
 //     team-deck-api's getTeamDeckAssignUserList(details.assignedTeamId).
@@ -34,6 +46,10 @@ export type InboxCustomer = {
   ourFileNo: string;
   /** Messages received since the file was last opened — real, verified live. */
   unreadMsgCount: number | null;
+  /** Plain-text body of the last message on the file, null when it has none.
+   *  Confirmed live 2026-09-29 — this is the field backend actually shipped for
+   *  the "last message" ask, under a different name than requested. */
+  lastMsg?: string | null;
   debtorFirstName: string | null;
   debtorMiddleName: string | null;
   debtorLastName: string | null;
@@ -44,8 +60,8 @@ export type InboxCustomer = {
   /** Status display name only — no code or colour on the row. */
   status: string | null;
 
-  /* ---- Requested from backend 2026-09-10, not on the row yet. Optional so the
-     UI picks them up automatically once they land. ---- */
+  /* ---- Still requested from backend, not on the row yet as of 2026-09-29.
+     Optional so the UI picks them up automatically once they land. ---- */
   lastMessage?: string | null;
   lastMessageAt?: string | null;
   lastMessageChannel?: string | null;
@@ -110,15 +126,17 @@ function firstString(row: Record<string, unknown>, keys: string[]): string | nul
   return null;
 }
 
-/** Read the "last message" summary off a conversation row. The requested
- *  names (lastMessage, lastMessageAt, lastMessageChannel, lastMessageDirection)
- *  are tried first, then a few plausible variants in case backend picks
- *  different ones; a row with none yields all-null and the list shows samples. */
+/** Read the "last message" summary off a conversation row. lastMsg is the
+ *  confirmed real field for the body; the rest (timestamp, channel, direction)
+ *  aren't on the row yet, so those stay null — a few plausible alternate names
+ *  are tried in case backend adds them under a different key than requested.
+ *  A row with no message at all yields all-null and the UI shows "No messages
+ *  yet" rather than making anything up. */
 export function inboxPreview(row: InboxCustomer): InboxPreview {
   const r = row as unknown as Record<string, unknown>;
   const body = firstString(r, [
-    "lastMessage",
     "lastMsg",
+    "lastMessage",
     "lastMessageBody",
     "lastMsgBody",
     "lastBody",

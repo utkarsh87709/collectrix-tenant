@@ -48,11 +48,6 @@ export const Route = createFileRoute("/tenant/teams")({
 
 type ViewMode = "cards" | "org";
 
-function utilizationOf(members: number, capacity: number | null) {
-  if (!capacity) return 0;
-  return (members / capacity) * 100;
-}
-
 function TeamsPage() {
   const [view, setView] = useState<ViewMode>("cards");
   const [cards, setCards] = useState<TeamCard[]>([]);
@@ -200,7 +195,6 @@ function TeamsPage() {
         <section className="px-6 lg:px-10 py-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
           {cards.map((t) => {
             const members = t.teamMembers ?? [];
-            const utilization = utilizationOf(members.length, t.capacity);
             const leader = fullName({ firstName: t.leaderFirstName, lastName: t.leaderLastName });
             return (
               <PageCard key={t.teamId}>
@@ -230,38 +224,12 @@ function TeamsPage() {
                     </div>
                   }
                 />
-                <div className="px-6 py-5 grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                      Leader
-                    </div>
-                    <div className="mt-1 font-semibold inline-flex items-center gap-1.5">
-                      <Crown className="h-3.5 w-3.5 text-warning" /> {leader || "—"}
-                    </div>
+                <div className="px-6 py-5 text-sm">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                    Leader
                   </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                      Capacity
-                    </div>
-                    <div className="mt-1 font-semibold">
-                      {t.capacity != null ? `${members.length} / ${t.capacity}` : "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                      Utilization
-                    </div>
-                    <div className="mt-1 font-semibold">
-                      {t.capacity != null ? `${utilization.toFixed(0)}%` : "—"}
-                    </div>
-                  </div>
-                </div>
-                <div className="px-6 pb-5">
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className={`h-full ${utilization > 90 ? "bg-destructive" : utilization > 75 ? "bg-warning" : "bg-gradient-tenant"}`}
-                      style={{ width: `${Math.min(utilization, 100)}%` }}
-                    />
+                  <div className="mt-1 font-semibold inline-flex items-center gap-1.5">
+                    <Crown className="h-3.5 w-3.5 text-warning" /> {leader || "—"}
                   </div>
                 </div>
                 <div className="px-6 pb-4 flex flex-wrap gap-1.5">

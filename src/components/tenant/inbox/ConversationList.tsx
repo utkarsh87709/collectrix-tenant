@@ -3,7 +3,7 @@ import { Filter, Inbox, Loader2, Mail, MessageSquare, RefreshCw, Search, X } fro
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NativeSelect } from "@/components/tenant/ui";
 import { customerDisplayName, normalizeTags } from "@/lib/customers-api";
-import type { InboxCustomer } from "@/lib/inbox-api";
+import { inboxPreview, inboxUnread, type InboxCustomer } from "@/lib/inbox-api";
 import type { Status } from "@/lib/statuses-api";
 import type { TeamListItem } from "@/lib/teams-api";
 import type { MassUpdateClient } from "@/lib/mass-update-api";
@@ -15,7 +15,6 @@ import {
   plainText,
   type InboxFilters,
 } from "./inbox-utils";
-import { resolveInboxRow } from "./inbox-placeholders";
 
 export function ConversationList({
   rows,
@@ -79,15 +78,16 @@ export function ConversationList({
     return m;
   }, [statuses]);
 
-  // Conversation summary per row: real fields, with samples filling the gaps
-  // until the backend adds them (see inbox-placeholders.ts).
+  // Conversation summary per row, read straight off what the API returns —
+  // no sample/placeholder data. A row with no message shows "No messages yet";
+  // a row with none of unreadMsgCount shows no badge.
   const resolved = useMemo(() => {
-    const m = new Map<number, ReturnType<typeof resolveInboxRow>>();
-    for (const r of rows) m.set(r.uploadedDebtorId, resolveInboxRow(r));
+    const m = new Map<number, ReturnType<typeof inboxPreview>>();
+    for (const r of rows) m.set(r.uploadedDebtorId, inboxPreview(r));
     return m;
   }, [rows]);
   const unreadOf = (r: InboxCustomer) =>
-    locallyRead.has(r.uploadedDebtorId) ? 0 : (resolved.get(r.uploadedDebtorId)?.unread ?? 0);
+    locallyRead.has(r.uploadedDebtorId) ? 0 : (inboxUnread(r) ?? 0);
 
   const visible = useMemo(
     () => (unreadOnly ? rows.filter((r) => unreadOf(r) > 0) : rows),
@@ -285,7 +285,7 @@ export function ConversationList({
             {visible.map((r) => {
               const id = r.uploadedDebtorId;
               const name = customerDisplayName(r);
-              const { preview } = resolved.get(id) ?? resolveInboxRow(r);
+              const preview = resolved.get(id) ?? inboxPreview(r);
               const unread = unreadOf(r);
               const selected = id === selectedId;
               const tags = normalizeTags(r.customerTags);
@@ -344,9 +344,9 @@ export function ConversationList({
                         >
                           {preview.channel === "email" ? (
                             <Mail className="h-3 w-3 shrink-0 opacity-60" />
-                          ) : (
+                          ) : preview.channel === "sms" ? (
                             <MessageSquare className="h-3 w-3 shrink-0 opacity-60" />
-                          )}
+                          ) : null}
                           <span className="line-clamp-1 italic">
                             {preview.body ? `“${plainText(preview.body)}”` : "No messages yet"}
                           </span>

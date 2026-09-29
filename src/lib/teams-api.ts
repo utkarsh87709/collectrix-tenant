@@ -12,11 +12,11 @@
 // phoneNoList (create/update) is an array of phoneNoId to assign to the team.
 // NOTE: createTeam requires a non-empty userList — an empty member list is rejected
 // by the backend ("Server Error"). The leader must NOT also be listed as a member.
-// Capacity is retired as of 2026-09-28 (per backend) — the New/Edit team forms no
-// longer collect it, and createTeam/updateTeam always send capacity: null now.
-// Existing teams may still carry a real number from before this change, so the
-// read side (TeamCard/TeamDetails/OrgTeam) stays number | null rather than
-// assuming every team has one.
+// The capacity concept is retired app-wide as of 2026-09-28 (per backend): the
+// New/Edit team forms no longer collect it, createTeam/updateTeam always send
+// capacity: null, and nothing in the app reads it back (dropped from TeamCard/
+// TeamDetails/OrgTeam below) — the backend still accepts the key on write, it's
+// just always null now.
 // All authenticated with the raw token (attached automatically by apiPost).
 import { apiPost } from "./api-client";
 
@@ -47,7 +47,6 @@ export type TeamCard = {
   teamId: number;
   createdAt: string;
   teamName: string;
-  capacity: number | null;
   leaderId: number;
   leaderFirstName: string;
   leaderLastName: string;
@@ -58,7 +57,6 @@ export type OrgTeam = {
   teamId: number;
   createdAt: string;
   teamName: string;
-  capacity: number | null;
   teamMembers: TeamMember[];
 };
 
@@ -93,7 +91,6 @@ export type TeamDetails = {
   teamId: number;
   createdAt: string;
   teamName: string;
-  capacity: number | null;
   leaderId: number;
   firstName: string;
   lastName: string | null;

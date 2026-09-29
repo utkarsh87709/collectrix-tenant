@@ -38,6 +38,16 @@
 //     already emit an audit-log event the way other mutations do) — flag this
 //     with backend before treating the reason requirement as fully closed.
 //   All three mutations return an empty data object — refetch getCustomerNotes after each.
+//   POST /tenant/getCustomerTimeline { uploadedDebtorId } -> { timelineList[] }
+//     The file's activity history (status changes, etc.). Confirmed live 2026-09-29:
+//     { timelineId, createdAt, createdBy, uploadedDebtorId, message, header }. Every
+//     event seen so far has header === message === "Status Changed" (createdBy is a
+//     userId, not a name) — treat header as the display title and message as detail
+//     text since backend may vary them for other event types later. This replaces
+//     the client-side timeline the inbox's DetailsPanel used to synthesize from a
+//     handful of date fields on CustomerDetails (archivedAt/movedAt/last payment/
+//     delinquency/createdAt), which looked "static" because most files carry none
+//     of those dates.
 //   POST /tenant/getCustomerEmail  { uploadedDebtorId } -> { emailList[] }
 //   POST /tenant/sendCustomerEmail { uploadedDebtorId, emailSubject, emailBody } -> {}
 //     Load the most recent thread subject as the default so a reply stays on the same thread.
@@ -339,6 +349,23 @@ export function deleteCustomerNotes(
   reason: string,
 ): Promise<unknown> {
   return apiPost("/tenant/deleteCustomerNotes", { notesId, uploadedDebtorId, reason });
+}
+
+/* ------------------------------ Timeline ------------------------------- */
+
+export type CustomerTimelineEvent = {
+  timelineId: number;
+  createdAt: string;
+  createdBy: number;
+  uploadedDebtorId: number;
+  header: string;
+  message: string;
+};
+
+export function getCustomerTimeline(
+  uploadedDebtorId: number,
+): Promise<{ timelineList: CustomerTimelineEvent[] }> {
+  return apiPost("/tenant/getCustomerTimeline", { uploadedDebtorId });
 }
 
 /* --------------------------- Communication ---------------------------- */
