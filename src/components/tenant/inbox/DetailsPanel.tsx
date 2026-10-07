@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NativeSelect } from "@/components/tenant/ui";
 import { ChangeStatusMenu } from "@/components/tenant/customers/ChangeStatusMenu";
-import type { CustomerPermissions } from "@/lib/customer-permissions";
+import type { Permissions } from "@/lib/permissions/store";
 import {
   assignCustomerTag,
   createCustomerNotes,
@@ -34,19 +34,18 @@ import {
   formatMoney,
   fullName,
   getCustomerNotes,
-  getCustomerTimeline,
   getTagList,
   normalizeTags,
   parseBackendDate,
   toMoney,
   type CustomerDetails,
   type CustomerNote,
-  type CustomerTimelineEvent,
 } from "@/lib/customers-api";
 import { inboxAssignUser } from "@/lib/inbox-api";
 import { getTeamDeckAssignUserList, memberName, type AssignableMember } from "@/lib/team-deck-api";
 import { Avatar, TagChip } from "./InboxBits";
 import { formatDateTime, timeAgo } from "./inbox-utils";
+import { CustomerTimeline } from "@/components/tenant/customers/CustomerTimeline";
 
 export function DetailsPanel({
   details,
@@ -59,7 +58,7 @@ export function DetailsPanel({
 }: {
   details: CustomerDetails | null;
   loading: boolean;
-  perms: CustomerPermissions;
+  perms: Permissions;
   onClose: () => void;
   /** Something on the file changed — the caller refetches details + list. */
   onChanged: () => void;
@@ -89,9 +88,15 @@ export function DetailsPanel({
               onToggleEngagement={onToggleEngagement}
               engagementBusy={engagementBusy}
             />
-            <TagsSection details={details} canEdit={perms.canManageFlags} onChanged={onChanged} />
+            <TagsSection
+              details={details}
+              canEdit={perms.can("customers.manageFlags")}
+              onChanged={onChanged}
+            />
             <TimelineSection details={details} />
-            <NotesSection details={details} canAdd={perms.canAddNotes} />
+            {perms.can("customers.notes.view") && (
+              <NotesSection details={details} canAdd={perms.can("customers.notes.create")} />
+            )}
           </div>
         )}
       </div>
@@ -401,7 +406,7 @@ function AssignmentSection({
   engagementBusy,
 }: {
   details: CustomerDetails;
-  perms: CustomerPermissions;
+  perms: Permissions;
   onChanged: () => void;
   onToggleEngagement: () => void;
   engagementBusy: boolean;
@@ -414,10 +419,13 @@ function AssignmentSection({
     lastName: details.assignedUserLastName,
   });
   const isEngaged = details.engagementStatus === 1;
-  const canToggle = isEngaged ? perms.canStopEngagement : perms.canResumeEngagement;
+  const canToggle = perms.can(
+    isEngaged ? "customers.stopEngagement" : "customers.resumeEngagement",
+  );
+  const canAssign = perms.can("inbox.assign");
 
   useEffect(() => {
-    if (teamId == null || !perms.canAssignUser) {
+    if (teamId == null || !canAssign) {
       setMembers([]);
       return;
     }
@@ -433,7 +441,7 @@ function AssignmentSection({
     return () => {
       cancelled = true;
     };
-  }, [teamId, perms.canAssignUser]);
+  }, [teamId, canAssign]);
 
   // If the current assignee isn't on the team list any more, still show them.
   const options = useMemo(() => {
@@ -485,7 +493,7 @@ function AssignmentSection({
                 <UserRound className="h-3.5 w-3.5" />
               </span>
             )}
-            {perms.canAssignUser && teamId != null ? (
+            {canAssign && teamId != null ? (
               <NativeSelect
                 size="sm"
                 className="min-w-0 flex-1"
@@ -534,7 +542,7 @@ function AssignmentSection({
               statusCode={details.statusCode}
               statusName={details.status}
               statusColor={details.statusColorCode}
-              canChange={perms.canUpdateStatus}
+              canChange={perms.can("customers.changeStatus")}
               onChanged={onChanged}
             />
           </Row>
@@ -762,58 +770,9 @@ function TagsSection({
 /* -------------------------------- Timeline -------------------------------- */
 
 function TimelineSection({ details }: { details: CustomerDetails }) {
-  const id = details.uploadedDebtorId;
-  const [events, setEvents] = useState<CustomerTimelineEvent[] | null>(null);
-
-  useEffect(() => {
-    setEvents(null);
-    getCustomerTimeline(id)
-      .then((r) => setEvents(r.timelineList))
-      .catch(() => setEvents([]));
-  }, [id]);
-
-  const sorted = useMemo(
-    () =>
-      events
-        ? [...events].sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-          )
-        : [],
-    [events],
-  );
-
   return (
     <Section icon={<History className="h-3.5 w-3.5" />} title="Timeline">
-      {events === null ? (
-        <div className="space-y-2">
-          <div className="h-10 animate-pulse rounded-lg bg-muted" />
-          <div className="h-10 animate-pulse rounded-lg bg-muted" />
-        </div>
-      ) : sorted.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No activity recorded on this file yet.</p>
-      ) : (
-        <ol className="relative ml-3 space-y-3 border-l border-border pl-5">
-          {sorted.map((e, i) => (
-            <li key={e.timelineId} className="relative">
-              <span
-                className={`absolute -left-[31px] top-0 inline-flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-card ${
-                  i === 0 ? "bg-tenant text-white" : "bg-muted text-muted-foreground"
-                }`}
-              >
-                <History className="h-3 w-3" />
-              </span>
-              <div className="text-sm font-semibold leading-6">{e.header}</div>
-              {e.message && e.message !== e.header && (
-                <div className="text-xs text-muted-foreground">{e.message}</div>
-              )}
-              <div className="text-[11px] text-muted-foreground">
-                {formatDateTime(e.createdAt)}
-                <span className="opacity-70"> · {timeAgo(e.createdAt)}</span>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
+      <CustomerTimeline uploadedDebtorId={details.uploadedDebtorId} />
     </Section>
   );
 }

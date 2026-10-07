@@ -5,6 +5,10 @@
 //   POST /tenant/createTemplate { clientId, templateType, templateName, templateSubject, templateMessage, greetingMsg } -> {}
 //   POST /tenant/updateTemplate { templateId, templateType, templateName, templateSubject, templateMessage, greetingMsg } -> {}
 //   POST /tenant/deleteTemplate { templateId }                  -> {}
+// Email templates can carry document attachments: createTemplate/updateTemplate
+// take documentTemplateIdList (document template ids of the same client) and
+// getClientTemplate returns it on each row (null/[] when none). Each listed
+// document is generated for the customer and attached whenever the template is sent.
 // templateSubject is mandatory on create even for SMS — pass an empty string.
 // greetingMsg only applies to "call" templates (null for the rest). On update
 // templateType is accepted but the type itself cannot be changed.
@@ -54,6 +58,8 @@ export type Template = {
   templateMessage: string;
   /** Call templates only — spoken when the call connects. Null elsewhere. */
   greetingMsg?: string | null;
+  /** Email templates only — document templates attached when it's sent. */
+  documentTemplateIdList?: number[] | null;
 };
 
 export function getTemplateClients(): Promise<{
@@ -81,6 +87,7 @@ export function createTemplate(input: {
   templateSubject: string;
   templateMessage: string;
   greetingMsg?: string | null;
+  documentTemplateIdList?: number[];
 }): Promise<unknown> {
   return apiPost("/tenant/createTemplate", { greetingMsg: null, ...input });
 }
@@ -93,6 +100,7 @@ export function updateTemplate(input: {
   templateSubject: string;
   templateMessage: string;
   greetingMsg?: string | null;
+  documentTemplateIdList?: number[];
 }): Promise<unknown> {
   return apiPost("/tenant/updateTemplate", { ...input });
 }

@@ -9,6 +9,11 @@ const TOKEN_KEY = "collectrix.token";
 // auth-context). Kept here so non-React modules can clear the session.
 export const AUTH_USER_KEY = "collectrix.auth";
 
+// The signed-in user's last known permissions (see permissions/store.ts), kept
+// so the sidebar and route guard render correctly on a reload before the fresh
+// copy arrives. Cleared with the session — it is a UI hint, never a grant.
+export const PERMISSIONS_CACHE_KEY = "collectrix.permissions";
+
 // How long the login cookie persists (mirrors the old "stay signed in until
 // logout" behaviour of localStorage). A 401 clears it early regardless.
 const TOKEN_MAX_AGE_DAYS = 7;
@@ -27,7 +32,8 @@ function writeCookie(name: string, value: string, maxAgeDays: number): void {
   if (typeof document === "undefined") return;
   const maxAge = Math.floor(maxAgeDays * 24 * 60 * 60);
   // Secure only over https (so it still works on http://localhost during dev).
-  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+  const secure =
+    typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
   document.cookie =
     `${encodeURIComponent(name)}=${encodeURIComponent(value)}` +
     `; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
@@ -62,11 +68,12 @@ export function clearAuthToken(): void {
   }
 }
 
-// Clear the whole local session (token cookie + user record).
+// Clear the whole local session (token cookie + user record + cached permissions).
 export function clearSession(): void {
   clearAuthToken();
   try {
     localStorage.removeItem(AUTH_USER_KEY);
+    localStorage.removeItem(PERMISSIONS_CACHE_KEY);
   } catch {
     /* ignore */
   }

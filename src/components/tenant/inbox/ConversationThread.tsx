@@ -13,11 +13,12 @@ import {
   PhoneCall,
   PlayCircle,
   Send,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChangeStatusMenu } from "@/components/tenant/customers/ChangeStatusMenu";
-import type { CustomerPermissions } from "@/lib/customer-permissions";
+import type { Permissions } from "@/lib/permissions/store";
 import {
   customerDisplayName,
   getCustomerEmail,
@@ -29,6 +30,10 @@ import {
 } from "@/lib/customers-api";
 import type { InboxChannel } from "@/lib/inbox-api";
 import { Avatar, TagChip } from "./InboxBits";
+import { EmailBody } from "@/components/tenant/EmailBody";
+import { AttachmentList } from "@/components/tenant/customers/EmailAttachments";
+import { EmailComposer } from "@/components/tenant/EmailComposer";
+import { isEmptyEmailHtml } from "@/lib/email-html";
 import {
   dayLabel,
   formatClock,
@@ -48,6 +53,8 @@ type ThreadMessage = {
   subject?: string;
   from?: string;
   to?: string;
+  /** Email only — URLs of documents sent with the message. */
+  attachments?: string[];
 };
 
 const GROUP_WINDOW_MS = 5 * 60_000;
@@ -74,7 +81,7 @@ export function ConversationThread({
   onRetry: () => void;
   channel: InboxChannel;
   onChannelChange: (c: InboxChannel) => void;
-  perms: CustomerPermissions;
+  perms: Permissions;
   onCall: () => void;
   onToggleEngagement: () => void;
   engagementBusy: boolean;
@@ -138,7 +145,7 @@ function ThreadBody({
   details: CustomerDetails;
   channel: InboxChannel;
   onChannelChange: (c: InboxChannel) => void;
-  perms: CustomerPermissions;
+  perms: Permissions;
   onCall: () => void;
   onToggleEngagement: () => void;
   engagementBusy: boolean;
@@ -158,6 +165,10 @@ function ThreadBody({
   const [subject, setSubject] = useState("");
   const [subjectTouched, setSubjectTouched] = useState(false);
   const [body, setBody] = useState("");
+  // Email has its own draft (HTML) so switching channel never carries markup
+  // into the SMS box or plain text into the editor.
+  const [emailHtml, setEmailHtml] = useState("");
+  const [attachIds, setAttachIds] = useState<number[]>([]);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -193,6 +204,7 @@ function ThreadBody({
             subject: m.emailSubject,
             from: m.fromEmail,
             to: m.toEmail,
+            attachments: m.documentAttachmentList ?? [],
           }));
           setMessages(list);
           // Reply on the most recent thread by default so it stays threaded.
@@ -222,26 +234,32 @@ function ThreadBody({
 
   const ordered = useMemo(() => (messages ? oldestFirst(messages) : []), [messages]);
 
-  const canSend = perms.canSendComms;
+  const canSend = perms.can(
+    channel === "sms" ? "customers.messages.sendSms" : "customers.messages.sendEmail",
+  );
   const trimmed = body.trim();
   const needsSubject = channel === "email" && !subject.trim();
+  const hasContent = channel === "sms" ? !!trimmed : !isEmptyEmailHtml(emailHtml);
   const sms = smsSegments(body);
 
   const send = async () => {
-    if (!trimmed || sending || needsSubject) return;
+    if (!hasContent || sending || needsSubject) return;
     setSending(true);
     try {
       if (channel === "sms") {
         await sendCustomerSms({ uploadedDebtorId: id, body: trimmed });
+        setBody("");
+        if (textareaRef.current) textareaRef.current.style.height = "auto";
       } else {
         await sendCustomerEmail({
           uploadedDebtorId: id,
           emailSubject: subject.trim(),
-          emailBody: trimmed,
+          emailBody: emailHtml,
+          ...(attachIds.length ? { documentTemplateIdList: attachIds } : {}),
         });
+        setEmailHtml("");
+        setAttachIds([]);
       }
-      setBody("");
-      if (textareaRef.current) textareaRef.current.style.height = "auto";
       toast.success(channel === "sms" ? "SMS sent." : "Email sent.");
       await load(true);
       onSent();
@@ -253,9 +271,9 @@ function ThreadBody({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // SMS: Enter sends, Shift+Enter breaks a line. Email: ⌘/Ctrl+Enter sends.
+    // SMS: Enter sends, Shift+Enter breaks a line. (Email: the editor handles ⌘/Ctrl+Enter.)
     if (e.key !== "Enter") return;
-    if (channel === "sms" ? !e.shiftKey : e.metaKey || e.ctrlKey) {
+    if (!e.shiftKey) {
       e.preventDefault();
       send();
     }
@@ -289,7 +307,7 @@ function ThreadBody({
                 statusCode={details.statusCode}
                 statusName={details.status}
                 statusColor={details.statusColorCode}
-                canChange={perms.canUpdateStatus}
+                canChange={perms.can("customers.changeStatus")}
                 onChanged={onStatusChanged}
               />
             </div>
@@ -332,7 +350,7 @@ function ThreadBody({
               />
             </div>
 
-            {perms.canMakeCalls && (
+            {perms.can("customers.calls.place") && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -347,7 +365,7 @@ function ThreadBody({
               </Tooltip>
             )}
 
-            {(isEngaged ? perms.canStopEngagement : perms.canResumeEngagement) && (
+            {perms.can(isEngaged ? "customers.stopEngagement" : "customers.resumeEngagement") && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -460,7 +478,8 @@ function ThreadBody({
       <div className="border-t border-border bg-card px-4 py-3">
         {!canSend ? (
           <p className="py-1 text-center text-xs text-muted-foreground">
-            Your role can't send SMS or email. You can still read the conversation.
+            Your role can't send {channel === "sms" ? "SMS" : "email"}. You can still read the
+            conversation.
           </p>
         ) : (
           <>
@@ -471,63 +490,105 @@ function ThreadBody({
                 still send.
               </div>
             )}
-            {channel === "email" && (
-              <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 focus-within:border-tenant focus-within:bg-background">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Subject
-                </span>
+            {channel === "email" ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    <Mail className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />
+                    To <span className="font-semibold text-foreground">{name}</span>
+                    {details.email ? ` · ${details.email}` : ""}
+                  </span>
+                  {(!isEmptyEmailHtml(emailHtml) || attachIds.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmailHtml("");
+                        setAttachIds([]);
+                      }}
+                      disabled={sending}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 font-medium hover:bg-muted disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Discard
+                    </button>
+                  )}
+                </div>
                 <input
                   value={subject}
                   onChange={(e) => {
                     setSubject(e.target.value);
                     setSubjectTouched(true);
                   }}
-                  placeholder="Add a subject"
-                  className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  placeholder="Subject"
+                  aria-label="Subject"
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-tenant"
                 />
+                <EmailComposer
+                  value={emailHtml}
+                  onChange={setEmailHtml}
+                  clientId={details.clientId}
+                  attachments={attachIds}
+                  onAttachmentsChange={setAttachIds}
+                  placeholder={`Write to ${name.split(" ")[0]}…`}
+                  disabled={sending}
+                  onSubmit={send}
+                  minHeight={110}
+                  maxHeight={260}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] text-muted-foreground">
+                    {needsSubject && hasContent
+                      ? "Add a subject to send"
+                      : "Sent as email-safe HTML · ⌘/Ctrl+Enter to send"}
+                  </span>
+                  <button
+                    onClick={send}
+                    disabled={!hasContent || sending || needsSubject}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-tenant px-4 py-2 text-sm font-semibold text-white shadow-tenant transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                  >
+                    {sending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    Send
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="relative rounded-2xl border border-border bg-muted/30 transition-colors focus-within:border-tenant focus-within:bg-background">
+                <textarea
+                  ref={textareaRef}
+                  value={body}
+                  rows={1}
+                  onChange={(e) => {
+                    setBody(e.target.value);
+                    autoGrow(e.currentTarget);
+                  }}
+                  onKeyDown={onKeyDown}
+                  placeholder={`Text ${name.split(" ")[0]}…`}
+                  className="block max-h-[168px] w-full resize-none bg-transparent px-4 pb-11 pt-3 text-sm leading-relaxed outline-none"
+                />
+                <div className="absolute inset-x-3 bottom-2 flex items-center justify-between gap-3">
+                  <span className="truncate text-[10px] text-muted-foreground">
+                    {sms.chars > 0
+                      ? `${sms.chars} chars · ${sms.segments} segment${sms.segments === 1 ? "" : "s"} · Enter to send`
+                      : "Enter to send · Shift+Enter for a new line"}
+                  </span>
+                  <button
+                    onClick={send}
+                    disabled={!hasContent || sending}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-tenant text-white shadow-tenant transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                    aria-label="Send SMS"
+                  >
+                    {sending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             )}
-            <div className="relative rounded-2xl border border-border bg-muted/30 transition-colors focus-within:border-tenant focus-within:bg-background">
-              <textarea
-                ref={textareaRef}
-                value={body}
-                rows={1}
-                onChange={(e) => {
-                  setBody(e.target.value);
-                  autoGrow(e.currentTarget);
-                }}
-                onKeyDown={onKeyDown}
-                placeholder={
-                  channel === "sms"
-                    ? `Text ${name.split(" ")[0]}…`
-                    : `Write to ${name.split(" ")[0]}…`
-                }
-                className="block max-h-[168px] w-full resize-none bg-transparent px-4 pb-11 pt-3 text-sm leading-relaxed outline-none"
-              />
-              <div className="absolute inset-x-3 bottom-2 flex items-center justify-between gap-3">
-                <span className="truncate text-[10px] text-muted-foreground">
-                  {channel === "sms"
-                    ? sms.chars > 0
-                      ? `${sms.chars} chars · ${sms.segments} segment${sms.segments === 1 ? "" : "s"} · Enter to send`
-                      : "Enter to send · Shift+Enter for a new line"
-                    : needsSubject && trimmed
-                      ? "Add a subject to send"
-                      : "⌘/Ctrl+Enter to send"}
-                </span>
-                <button
-                  onClick={send}
-                  disabled={!trimmed || sending || needsSubject}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-tenant text-white shadow-tenant transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                  aria-label={channel === "sms" ? "Send SMS" : "Send email"}
-                >
-                  {sending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
           </>
         )}
       </div>
@@ -604,7 +665,16 @@ function Bubble({
           }`}
         >
           {m.subject && <div className="mb-1 font-semibold leading-snug">{m.subject}</div>}
-          <div className="whitespace-pre-wrap break-words leading-relaxed">{plainText(m.body)}</div>
+          {channel === "email" ? (
+            <>
+              <EmailBody body={m.body} className="leading-relaxed" />
+              <AttachmentList urls={m.attachments} onTint={out} />
+            </>
+          ) : (
+            <div className="whitespace-pre-wrap break-words leading-relaxed">
+              {plainText(m.body)}
+            </div>
+          )}
           <div
             className={`mt-1.5 flex items-center gap-1 text-[10px] ${
               out ? "justify-end text-white/75" : "text-muted-foreground"

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
 import { PageCard, CardHead } from "@/components/tenant/ui";
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/tenant/settings/statuses")({
 });
 
 function StatusesPage() {
+  const { can } = usePermissions();
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,12 +140,14 @@ function StatusesPage() {
         title="Statuses"
         subtitle="Define the account lifecycle for your firm."
         action={
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 transition-opacity"
-          >
-            <Plus className="h-4 w-4" /> New Status
-          </button>
+          can("statuses.create") ? (
+            <button
+              onClick={openCreate}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 transition-opacity"
+            >
+              <Plus className="h-4 w-4" /> New Status
+            </button>
+          ) : undefined
         }
       />
 
@@ -188,12 +192,14 @@ function StatusesPage() {
               <p className="text-sm text-muted-foreground">
                 No statuses yet. Create your first status to define the account lifecycle.
               </p>
-              <button
-                onClick={openCreate}
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 transition-opacity"
-              >
-                <Plus className="h-4 w-4" /> New Status
-              </button>
+              {can("statuses.create") && (
+                <button
+                  onClick={openCreate}
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 transition-opacity"
+                >
+                  <Plus className="h-4 w-4" /> New Status
+                </button>
+              )}
             </div>
           ) : (
             <ul className="divide-y divide-border">
@@ -223,20 +229,24 @@ function StatusesPage() {
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      onClick={() => openEdit(s)}
-                      aria-label={`Edit ${s.status}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeleting(s)}
-                      aria-label={`Delete ${s.status}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {can("statuses.edit") && (
+                      <button
+                        onClick={() => openEdit(s)}
+                        aria-label={`Edit ${s.status}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+                    {can("statuses.delete") && (
+                      <button
+                        onClick={() => setDeleting(s)}
+                        aria-label={`Delete ${s.status}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </li>
               ))}

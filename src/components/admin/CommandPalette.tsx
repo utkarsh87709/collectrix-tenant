@@ -1,9 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
-import { allRoutes, tenantGroups } from "@/lib/nav-registry";
+import { flattenNav, useVisibleNav } from "@/lib/nav-registry";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -16,7 +22,9 @@ export function CommandPalette() {
         setOpen((v) => !v);
       }
       const target = e.target as HTMLElement | null;
-      const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      const typing =
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (e.key === "/" && !typing && !open) {
         e.preventDefault();
         setOpen(true);
@@ -38,7 +46,9 @@ export function CommandPalette() {
     navigate({ to: to as never });
   };
 
-  const primary = tenantGroups;
+  // Only the destinations this user's role can open (see permissions/routes.ts).
+  const primary = useVisibleNav();
+  const destinations = useMemo(() => flattenNav(primary), [primary]);
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
@@ -51,10 +61,16 @@ export function CommandPalette() {
             {g.items.map((i) => {
               const Icon = i.icon;
               return (
-                <CommandItem key={i.to} value={`${i.label} ${i.keywords ?? ""}`} onSelect={() => go(i.to)}>
+                <CommandItem
+                  key={i.to}
+                  value={`${i.label} ${i.keywords ?? ""}`}
+                  onSelect={() => go(i.to)}
+                >
                   <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
                   <span>{i.label}</span>
-                  {i.description && <span className="ml-auto text-xs text-muted-foreground">{i.description}</span>}
+                  {i.description && (
+                    <span className="ml-auto text-xs text-muted-foreground">{i.description}</span>
+                  )}
                 </CommandItem>
               );
             })}
@@ -64,10 +80,14 @@ export function CommandPalette() {
         <CommandSeparator />
 
         <CommandGroup heading="All destinations">
-          {allRoutes.map((i) => {
+          {destinations.map((i) => {
             const Icon = i.icon;
             return (
-              <CommandItem key={`all-${i.to}`} value={`${i.label} ${i.to} ${i.keywords ?? ""}`} onSelect={() => go(i.to)}>
+              <CommandItem
+                key={`all-${i.to}`}
+                value={`${i.label} ${i.to} ${i.keywords ?? ""}`}
+                onSelect={() => go(i.to)}
+              >
                 <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>{i.label}</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">{i.to}</span>

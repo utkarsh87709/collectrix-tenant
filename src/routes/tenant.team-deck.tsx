@@ -20,6 +20,7 @@ import {
   Building2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   getTeamDeckTeamList,
   getTeamDeckDebtors,
@@ -171,6 +172,10 @@ function TeamDeckPage() {
 
   const team = teams.find((t) => t.teamId === teamId) ?? null;
   const isDeckTab = tab === "inDeck";
+  const { can } = usePermissions();
+  const canAssign = can("teamDeck.assign");
+  // Row checkboxes exist only to feed the bulk "Assign to member" action.
+  const selectable = isDeckTab && canAssign;
 
   const onAssigned = async () => {
     setAssignTargets(null);
@@ -324,7 +329,7 @@ function TeamDeckPage() {
             </div>
 
             {/* Bulk action bar (In Deck) */}
-            {isDeckTab && selectedDebtors.length > 0 && (
+            {selectable && selectedDebtors.length > 0 && (
               <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-lg border border-tenant/30 bg-tenant-soft px-4 py-2.5 text-sm">
                 <span className="font-medium text-tenant">{selectedDebtors.length} selected</span>
                 <div className="flex items-center gap-2">
@@ -382,7 +387,7 @@ function TeamDeckPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <tr>
-                      {isDeckTab && (
+                      {selectable && (
                         <th className="px-6 py-3 w-10">
                           <input
                             type="checkbox"
@@ -393,13 +398,13 @@ function TeamDeckPage() {
                           />
                         </th>
                       )}
-                      <th className={`${isDeckTab ? "px-4" : "px-6"} py-3 font-semibold`}>
+                      <th className={`${selectable ? "px-4" : "px-6"} py-3 font-semibold`}>
                         Customer
                       </th>
                       <th className="px-4 py-3 font-semibold">Creditor</th>
                       <th className="px-4 py-3 font-semibold">Balance</th>
                       {!isDeckTab && <th className="px-4 py-3 font-semibold">Assigned to</th>}
-                      <th className="px-4 py-3 font-semibold text-right">Action</th>
+                      {canAssign && <th className="px-4 py-3 font-semibold text-right">Action</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -416,7 +421,7 @@ function TeamDeckPage() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: Math.min(i * 0.03, 0.3), duration: 0.2 }}
                         >
-                          {isDeckTab && (
+                          {selectable && (
                             <td className="px-6 py-3">
                               <input
                                 type="checkbox"
@@ -427,7 +432,7 @@ function TeamDeckPage() {
                               />
                             </td>
                           )}
-                          <td className={`${isDeckTab ? "px-4" : "px-6"} py-3`}>
+                          <td className={`${selectable ? "px-4" : "px-6"} py-3`}>
                             <div className="font-semibold">{name || "—"}</div>
                             <div className="text-xs text-muted-foreground">{fileNo}</div>
                           </td>
@@ -449,17 +454,19 @@ function TeamDeckPage() {
                               )}
                             </td>
                           )}
-                          <td className="px-4 py-3">
-                            <div className="flex justify-end">
-                              <button
-                                onClick={() => setAssignTargets([d])}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border border-border hover:bg-[var(--tenant)] hover:text-white hover:border-[var(--tenant)] transition"
-                              >
-                                <UserPlus className="h-3.5 w-3.5" />
-                                {isDeckTab ? "Assign" : "Reassign"}
-                              </button>
-                            </div>
-                          </td>
+                          {canAssign && (
+                            <td className="px-4 py-3">
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={() => setAssignTargets([d])}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border border-border hover:bg-[var(--tenant)] hover:text-white hover:border-[var(--tenant)] transition"
+                                >
+                                  <UserPlus className="h-3.5 w-3.5" />
+                                  {isDeckTab ? "Assign" : "Reassign"}
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </motion.tr>
                       );
                     })}

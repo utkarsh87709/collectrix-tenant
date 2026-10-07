@@ -1,11 +1,12 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ChevronsUpDown, LogOut, ChevronRight } from "lucide-react";
+import { ChevronsUpDown, LogOut, ChevronRight, RefreshCw } from "lucide-react";
 import { MyProfilePanel } from "@/components/admin/MyProfilePanel";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/collectrix-logo.png";
 import { useAuth } from "@/lib/auth-context";
-import { tenantGroups, type NavItem } from "@/lib/nav-registry";
+import { tenantGroups, useVisibleNav, type NavItem } from "@/lib/nav-registry";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   Sidebar as UiSidebar,
   SidebarContent,
@@ -193,7 +194,10 @@ export function Sidebar() {
       .toUpperCase() || "TA";
   const email = user?.emailId ?? "";
 
-  const groups = tenantGroups;
+  // Only the destinations this user's role can open (see permissions/routes.ts).
+  const groups = useVisibleNav();
+  const perms = usePermissions();
+  const roleLabel = perms.isTenantAdmin ? "Tenant Administrator" : user?.role || "Team member";
 
   return (
     <UiSidebar
@@ -224,6 +228,17 @@ export function Sidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {perms.status === "error" && !collapsed && (
+          <div className="mx-3 mt-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2 text-xs text-sidebar-foreground/80">
+            Couldn't load your access, so some pages are hidden.
+            <button
+              onClick={perms.retry}
+              className="mt-1.5 flex items-center gap-1 font-semibold text-tenant hover:underline"
+            >
+              <RefreshCw className="h-3 w-3" /> Try again
+            </button>
+          </div>
+        )}
         {groups.map((group) => (
           <SidebarGroup key={group.label}>
             {!collapsed && (
@@ -269,7 +284,7 @@ export function Sidebar() {
                   >
                     {fullName}
                   </div>
-                  <div className="text-sidebar-foreground/60 truncate">Tenant Administrator</div>
+                  <div className="text-sidebar-foreground/60 truncate">{roleLabel}</div>
                 </div>
               </button>
               <DropdownMenu>

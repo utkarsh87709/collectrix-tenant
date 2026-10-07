@@ -40,7 +40,6 @@ import { Route as TenantCommsIndexRouteImport } from './routes/tenant.comms.inde
 import { Route as TenantCaseFilesIndexRouteImport } from './routes/tenant.case-files.index'
 import { Route as TenantSettingsStatusesRouteImport } from './routes/tenant.settings.statuses'
 import { Route as TenantSettingsStatusAutomationRouteImport } from './routes/tenant.settings.status-automation'
-import { Route as TenantSettingsDocumentAutomationRouteImport } from './routes/tenant.settings.document-automation'
 import { Route as TenantPaymentsSettlementsRouteImport } from './routes/tenant.payments.settlements'
 import { Route as TenantPaymentsPlansRouteImport } from './routes/tenant.payments.plans'
 import { Route as TenantIntakeUploadRouteImport } from './routes/tenant.intake.upload'
@@ -237,12 +236,6 @@ const TenantSettingsStatusAutomationRoute =
   TenantSettingsStatusAutomationRouteImport.update({
     id: '/status-automation',
     path: '/status-automation',
-    getParentRoute: () => TenantSettingsRoute,
-  } as any)
-const TenantSettingsDocumentAutomationRoute =
-  TenantSettingsDocumentAutomationRouteImport.update({
-    id: '/document-automation',
-    path: '/document-automation',
     getParentRoute: () => TenantSettingsRoute,
   } as any)
 const TenantPaymentsSettlementsRoute =
@@ -517,7 +510,6 @@ export interface FileRoutesByFullPath {
   '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
-  '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
   '/tenant/case-files/': typeof TenantCaseFilesIndexRoute
@@ -588,7 +580,6 @@ export interface FileRoutesByTo {
   '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
-  '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
   '/tenant/case-files': typeof TenantCaseFilesIndexRoute
@@ -664,7 +655,6 @@ export interface FileRoutesById {
   '/tenant/intake/upload': typeof TenantIntakeUploadRoute
   '/tenant/payments/plans': typeof TenantPaymentsPlansRoute
   '/tenant/payments/settlements': typeof TenantPaymentsSettlementsRoute
-  '/tenant/settings/document-automation': typeof TenantSettingsDocumentAutomationRoute
   '/tenant/settings/status-automation': typeof TenantSettingsStatusAutomationRoute
   '/tenant/settings/statuses': typeof TenantSettingsStatusesRoute
   '/tenant/case-files/': typeof TenantCaseFilesIndexRoute
@@ -741,7 +731,6 @@ export interface FileRouteTypes {
     | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
-    | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
     | '/tenant/case-files/'
@@ -812,7 +801,6 @@ export interface FileRouteTypes {
     | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
-    | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
     | '/tenant/case-files'
@@ -887,7 +875,6 @@ export interface FileRouteTypes {
     | '/tenant/intake/upload'
     | '/tenant/payments/plans'
     | '/tenant/payments/settlements'
-    | '/tenant/settings/document-automation'
     | '/tenant/settings/status-automation'
     | '/tenant/settings/statuses'
     | '/tenant/case-files/'
@@ -1178,13 +1165,6 @@ declare module '@tanstack/react-router' {
       path: '/status-automation'
       fullPath: '/tenant/settings/status-automation'
       preLoaderRoute: typeof TenantSettingsStatusAutomationRouteImport
-      parentRoute: typeof TenantSettingsRoute
-    }
-    '/tenant/settings/document-automation': {
-      id: '/tenant/settings/document-automation'
-      path: '/document-automation'
-      fullPath: '/tenant/settings/document-automation'
-      preLoaderRoute: typeof TenantSettingsDocumentAutomationRouteImport
       parentRoute: typeof TenantSettingsRoute
     }
     '/tenant/payments/settlements': {
@@ -1525,14 +1505,12 @@ const TenantPaymentsRouteWithChildren = TenantPaymentsRoute._addFileChildren(
 )
 
 interface TenantSettingsRouteChildren {
-  TenantSettingsDocumentAutomationRoute: typeof TenantSettingsDocumentAutomationRoute
   TenantSettingsStatusAutomationRoute: typeof TenantSettingsStatusAutomationRoute
   TenantSettingsStatusesRoute: typeof TenantSettingsStatusesRoute
   TenantSettingsIndexRoute: typeof TenantSettingsIndexRoute
 }
 
 const TenantSettingsRouteChildren: TenantSettingsRouteChildren = {
-  TenantSettingsDocumentAutomationRoute: TenantSettingsDocumentAutomationRoute,
   TenantSettingsStatusAutomationRoute: TenantSettingsStatusAutomationRoute,
   TenantSettingsStatusesRoute: TenantSettingsStatusesRoute,
   TenantSettingsIndexRoute: TenantSettingsIndexRoute,

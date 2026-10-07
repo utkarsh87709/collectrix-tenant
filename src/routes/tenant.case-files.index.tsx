@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
 import { Wallet, Inbox, ArrowRightLeft, Archive, ArrowRight } from "lucide-react";
+import { canOpen } from "@/lib/permissions/routes";
+import { usePermissions } from "@/lib/permissions/store";
 
 export const Route = createFileRoute("/tenant/case-files/")({
   head: () => ({ meta: [{ title: "Case Files · Tenant Admin" }] }),
@@ -40,11 +42,14 @@ const tiles = [
 ] as const;
 
 function CaseFilesHub() {
+  const { canAny } = usePermissions();
+  // Only the queues this user's role can open (see permissions/routes.ts).
+  const visible = tiles.filter((t) => canOpen(t.to, canAny));
   return (
     <Shell>
       <Topbar title="Case Files" subtitle="Customer accounts and team file queues" />
       <section className="px-6 lg:px-10 py-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {tiles.map((t) => (
+        {visible.map((t) => (
           <Link key={t.to} to={t.to} className="group">
             <div
               className={`rounded-2xl border border-border bg-gradient-to-br ${t.color} bg-card p-5 shadow-elegant hover:shadow-tenant transition-all hover:-translate-y-0.5`}

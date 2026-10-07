@@ -26,6 +26,7 @@ import {
   FileWarning,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import { getTeamList, type TeamListItem } from "@/lib/teams-api";
 import { getAllStatus, type Status } from "@/lib/statuses-api";
 import {
@@ -80,6 +81,8 @@ function downloadTextFile(filename: string, content: string, mime: string) {
 /* --------------------------------- page ------------------------------------ */
 
 function MassUpdatePage() {
+  const { can } = usePermissions();
+  const canApply = can("massUpdate.apply");
   const [tab, setTab] = useState<"export" | "update">("export");
 
   return (
@@ -94,12 +97,18 @@ function MassUpdatePage() {
           <TabButton active={tab === "export"} onClick={() => setTab("export")} icon={Download}>
             Export data
           </TabButton>
-          <TabButton active={tab === "update"} onClick={() => setTab("update")} icon={Upload}>
-            Update data
-          </TabButton>
+          {canApply && (
+            <TabButton active={tab === "update"} onClick={() => setTab("update")} icon={Upload}>
+              Update data
+            </TabButton>
+          )}
         </div>
 
-        {tab === "export" ? <ExportTab /> : <UpdateTab onApplied={() => setTab("export")} />}
+        {tab === "update" && canApply ? (
+          <UpdateTab onApplied={() => setTab("export")} />
+        ) : (
+          <ExportTab canExport={can("massUpdate.export")} />
+        )}
       </section>
     </Shell>
   );
@@ -145,7 +154,8 @@ const emptyFilters: MassUpdateFilters = {
   currentOutstandingBalanceMax: null,
 };
 
-function ExportTab() {
+/** `canExport` (massUpdate.export) — without it the list is browse-only. */
+function ExportTab({ canExport }: { canExport: boolean }) {
   const [clients, setClients] = useState<MassUpdateClient[]>([]);
   const [teams, setTeams] = useState<TeamListItem[]>([]);
   const [statuses, setStatuses] = useState<MassUpdateStatus[]>([]);
@@ -290,7 +300,7 @@ function ExportTab() {
               <span className="font-semibold">
                 Files <span className="text-tenant">({totalCount})</span>
               </span>
-              {totalCount > rows.length && (
+              {canExport && totalCount > rows.length && (
                 <button
                   onClick={selectAllMatching}
                   disabled={selectingAll}
@@ -300,7 +310,7 @@ function ExportTab() {
                   Select all {totalCount} matching
                 </button>
               )}
-              {selected.size > 0 && (
+              {canExport && selected.size > 0 && (
                 <button
                   onClick={() => setSelected(new Set())}
                   className="text-muted-foreground hover:text-foreground"
@@ -309,18 +319,24 @@ function ExportTab() {
                 </button>
               )}
             </div>
-            <button
-              onClick={exportSelected}
-              disabled={selected.size === 0 || exporting}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {exporting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              Export as CSV{selected.size > 0 ? ` (${selected.size})` : ""}
-            </button>
+            {canExport ? (
+              <button
+                onClick={exportSelected}
+                disabled={selected.size === 0 || exporting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                Export as CSV{selected.size > 0 ? ` (${selected.size})` : ""}
+              </button>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                Your role can browse these files but not download them.
+              </span>
+            )}
           </div>
 
           {error ? (
@@ -347,15 +363,17 @@ function ExportTab() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
-                      <th className="w-10 px-5 py-3">
-                        <input
-                          type="checkbox"
-                          checked={pageAllSelected}
-                          onChange={togglePage}
-                          className="rounded"
-                          aria-label="Select page"
-                        />
-                      </th>
+                      {canExport && (
+                        <th className="w-10 px-5 py-3">
+                          <input
+                            type="checkbox"
+                            checked={pageAllSelected}
+                            onChange={togglePage}
+                            className="rounded"
+                            aria-label="Select page"
+                          />
+                        </th>
+                      )}
                       <th className="px-3 py-3 font-semibold">File No.</th>
                       <th className="px-3 py-3 font-semibold">Customer</th>
                       <th className="px-3 py-3 font-semibold">Creditor Client</th>
@@ -371,19 +389,21 @@ function ExportTab() {
                       return (
                         <tr
                           key={d.uploadedDebtorId}
-                          onClick={() => toggle(d.uploadedDebtorId)}
-                          className={`border-b border-border last:border-0 cursor-pointer transition ${
-                            isSelected ? "bg-tenant/5" : "hover:bg-muted/40"
-                          }`}
+                          onClick={canExport ? () => toggle(d.uploadedDebtorId) : undefined}
+                          className={`border-b border-border last:border-0 transition ${
+                            canExport ? "cursor-pointer" : ""
+                          } ${isSelected ? "bg-tenant/5" : "hover:bg-muted/40"}`}
                         >
-                          <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggle(d.uploadedDebtorId)}
-                              className="rounded"
-                            />
-                          </td>
+                          {canExport && (
+                            <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggle(d.uploadedDebtorId)}
+                                className="rounded"
+                              />
+                            </td>
+                          )}
                           <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
                             {d.ourFileNo}
                           </td>

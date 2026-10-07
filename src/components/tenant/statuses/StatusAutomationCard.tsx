@@ -9,10 +9,8 @@ import {
   FileText,
   Mail,
   MessageSquare,
-  Phone,
   Plus,
   Trash2,
-  UserPlus,
 } from "lucide-react";
 import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { NativeSelect } from "@/components/tenant/ui";
@@ -20,12 +18,12 @@ import {
   CHANNEL_LABEL,
   DURATION_UNIT_LABEL,
   conflictingChannels,
-  isAiOnlyChannel,
   newFollowUp,
   summarizeAutomation,
   validateAutomation,
   type ChannelConfig,
   type ChannelKey,
+  type DocumentTemplateOption,
   type Duration,
   type DurationUnit,
   type FollowUp,
@@ -37,14 +35,10 @@ import {
 const CHANNEL_ICON: Record<ChannelKey, typeof Mail> = {
   email: Mail,
   sms: MessageSquare,
-  call: Phone,
 };
 
 /** A selectable Template Library entry (template or AI agent). */
 export type TemplateOption = { id: number; name: string };
-
-/** A team member eligible for auto-assignment. */
-export type MemberOption = { userId: number; name: string };
 
 export function StatusAutomationCard({
   row,
@@ -56,10 +50,11 @@ export function StatusAutomationCard({
   onPreview,
   templatesFor,
   templateName,
-  members,
   documentsAllowed,
+  documentTemplates,
   otherStatuses,
   loadingDetails,
+  readOnly = false,
 }: {
   row: StatusAutomationRow;
   config: StatusAutomationConfig;
@@ -71,13 +66,16 @@ export function StatusAutomationCard({
   onPreview: () => void;
   templatesFor: (channel: ChannelKey, source: MessageSource) => TemplateOption[];
   templateName: (id: number | null) => string;
-  members: MemberOption[];
   /** False when the client has document generation switched off. */
   documentsAllowed: boolean;
+  /** The client's document templates (getClientTemplate "document"). */
+  documentTemplates: DocumentTemplateOption[];
   otherStatuses: StatusAutomationRow[];
   loadingDetails: boolean;
+  /** Without statusAutomation.edit the card still expands and previews, but nothing changes. */
+  readOnly?: boolean;
 }) {
-  const error = validateAutomation(config, allowed);
+  const error = validateAutomation(config, allowed, documentsAllowed);
   const summary = summarizeAutomation(config, allowed, templateName);
   const conflicts = conflictingChannels(config, allowed);
 
@@ -134,7 +132,7 @@ export function StatusAutomationCard({
               type="checkbox"
               className="sr-only peer"
               checked={config.enabled}
-              disabled={loadingDetails}
+              disabled={loadingDetails || readOnly}
               onChange={(e) => onChange({ enabled: e.target.checked })}
               aria-label={`Automation for ${row.status}`}
             />
@@ -146,8 +144,10 @@ export function StatusAutomationCard({
       </div>
 
       {open && (
-        <div
-          className={`px-6 py-5 space-y-6 ${config.enabled ? "" : "opacity-50 pointer-events-none"}`}
+        // A native fieldset disables every control inside it in read-only mode.
+        <fieldset
+          disabled={readOnly}
+          className={`min-w-0 px-6 py-5 space-y-6 ${config.enabled ? "" : "opacity-50 pointer-events-none"}`}
         >
           {conflicts.length > 0 && (
             <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs flex items-start gap-2">
@@ -164,15 +164,14 @@ export function StatusAutomationCard({
             <SectionLabel>Outreach channels</SectionLabel>
             {allowed.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                This client has every communication channel switched off. Enable SMS, email or
-                calling on the client record to automate outreach.
+                This client has every communication channel switched off. Enable SMS or email on the
+                client record to automate outreach.
               </p>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {allowed.map((ch) => {
                   const cfg = config.channels[ch];
                   const Icon = CHANNEL_ICON[ch];
-                  const aiOnly = isAiOnlyChannel(ch);
                   const options = templatesFor(ch, cfg.messageSource);
                   return (
                     <div
@@ -182,11 +181,6 @@ export function StatusAutomationCard({
                       <label className="flex items-center justify-between cursor-pointer">
                         <span className="inline-flex items-center gap-2 text-sm font-semibold">
                           <Icon className="h-4 w-4 text-tenant" /> {CHANNEL_LABEL[ch]}
-                          {aiOnly && (
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-tenant bg-tenant-soft rounded px-1 py-0.5">
-                              AI
-                            </span>
-                          )}
                         </span>
                         <input
                           type="checkbox"
@@ -205,44 +199,38 @@ export function StatusAutomationCard({
                             ariaPrefix={`${CHANNEL_LABEL[ch]} delay`}
                           />
 
-                          {/* Voice is always agent-driven, so it skips the
-                              template/AI choice and picks an agent directly. */}
-                          {!aiOnly && (
-                            <div>
-                              <FieldLabel>Message source</FieldLabel>
-                              <div className="flex items-center gap-4">
-                                {/* "ai" is hidden for now — Template is the only
+                          <div>
+                            <FieldLabel>Message source</FieldLabel>
+                            <div className="flex items-center gap-4">
+                              {/* "ai" is hidden for now — Template is the only
                                     selectable source for text channels. */}
-                                {(["template"] as MessageSource[]).map((src) => (
-                                  <label
-                                    key={src}
-                                    className="inline-flex items-center gap-1.5 cursor-pointer text-sm"
-                                  >
-                                    <input
-                                      type="radio"
-                                      name={`src-${config.statusId}-${ch}`}
-                                      checked={cfg.messageSource === src}
-                                      onChange={() =>
-                                        // The two sources read different
-                                        // libraries, so the old id can't carry over.
-                                        patchChannel(ch, { messageSource: src, templateId: null })
-                                      }
-                                      className="accent-tenant"
-                                    />
-                                    {src === "template" ? "Template" : "AI-generated"}
-                                  </label>
-                                ))}
-                              </div>
+                              {(["template"] as MessageSource[]).map((src) => (
+                                <label
+                                  key={src}
+                                  className="inline-flex items-center gap-1.5 cursor-pointer text-sm"
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`src-${config.statusId}-${ch}`}
+                                    checked={cfg.messageSource === src}
+                                    onChange={() =>
+                                      // The two sources read different
+                                      // libraries, so the old id can't carry over.
+                                      patchChannel(ch, { messageSource: src, templateId: null })
+                                    }
+                                    className="accent-tenant"
+                                  />
+                                  {src === "template" ? "Template" : "AI-generated"}
+                                </label>
+                              ))}
                             </div>
-                          )}
+                          </div>
 
                           <div>
                             <FieldLabel>
-                              {aiOnly
-                                ? "AI agent"
-                                : cfg.messageSource === "ai"
-                                  ? "AI prompt (optional)"
-                                  : "First template"}
+                              {cfg.messageSource === "ai"
+                                ? "AI prompt (optional)"
+                                : "First template"}
                             </FieldLabel>
                             <NativeSelect
                               size="sm"
@@ -254,11 +242,9 @@ export function StatusAutomationCard({
                               }
                             >
                               <option value="">
-                                {aiOnly
-                                  ? "Select agent…"
-                                  : cfg.messageSource === "ai"
-                                    ? "No prompt — let the AI write freely"
-                                    : "Select template…"}
+                                {cfg.messageSource === "ai"
+                                  ? "No prompt — let the AI write freely"
+                                  : "Select template…"}
                               </option>
                               {options.map((t) => (
                                 <option key={t.id} value={t.id}>
@@ -269,18 +255,10 @@ export function StatusAutomationCard({
                             {options.length === 0 && (
                               <p className="mt-1 text-[11px] text-warning-foreground">
                                 Nothing in the{" "}
-                                {aiOnly
-                                  ? "call"
-                                  : cfg.messageSource === "ai"
-                                    ? "AI prompt"
-                                    : CHANNEL_LABEL[ch].toLowerCase()}{" "}
+                                {cfg.messageSource === "ai"
+                                  ? "AI prompt"
+                                  : CHANNEL_LABEL[ch].toLowerCase()}{" "}
                                 library for this client yet — add one under Template Library.
-                              </p>
-                            )}
-                            {aiOnly && (
-                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                The AI agent places the call and speaks with each customer at call
-                                time.
                               </p>
                             )}
                           </div>
@@ -316,7 +294,6 @@ export function StatusAutomationCard({
                   </p>
                   {config.followUps.map((fu, idx) => {
                     const options = templatesFor(fu.channel, fu.messageSource);
-                    const aiOnly = isAiOnlyChannel(fu.channel);
                     return (
                       <div
                         key={fu.key}
@@ -335,9 +312,7 @@ export function StatusAutomationCard({
                                 const next = e.target.value as ChannelKey;
                                 patchFollowUp(fu.key, {
                                   channel: next,
-                                  // Text channels are template-only while the
-                                  // "ai" source is hidden.
-                                  messageSource: isAiOnlyChannel(next) ? "ai" : "template",
+                                  messageSource: "template",
                                   templateId: null,
                                 });
                               }}
@@ -369,42 +344,36 @@ export function StatusAutomationCard({
                           </button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {!aiOnly && (
-                            <div>
-                              <FieldLabel>Message source</FieldLabel>
-                              <div className="flex items-center gap-4 py-1">
-                                {/* Unlike outreach channels, follow-ups offer AI
-                                    as a real option for email/SMS, not just call. */}
-                                {(["template", "ai"] as MessageSource[]).map((src) => (
-                                  <label
-                                    key={src}
-                                    className="inline-flex items-center gap-1.5 cursor-pointer text-sm"
-                                  >
-                                    <input
-                                      type="radio"
-                                      name={`fusrc-${fu.key}`}
-                                      checked={fu.messageSource === src}
-                                      onChange={() =>
-                                        patchFollowUp(fu.key, {
-                                          messageSource: src,
-                                          templateId: null,
-                                        })
-                                      }
-                                      className="accent-tenant"
-                                    />
-                                    {src === "template" ? "Template" : "AI-generated"}
-                                  </label>
-                                ))}
-                              </div>
+                          <div>
+                            <FieldLabel>Message source</FieldLabel>
+                            <div className="flex items-center gap-4 py-1">
+                              {/* Unlike outreach channels, follow-ups offer AI
+                                    as a real option. */}
+                              {(["template", "ai"] as MessageSource[]).map((src) => (
+                                <label
+                                  key={src}
+                                  className="inline-flex items-center gap-1.5 cursor-pointer text-sm"
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`fusrc-${fu.key}`}
+                                    checked={fu.messageSource === src}
+                                    onChange={() =>
+                                      patchFollowUp(fu.key, {
+                                        messageSource: src,
+                                        templateId: null,
+                                      })
+                                    }
+                                    className="accent-tenant"
+                                  />
+                                  {src === "template" ? "Template" : "AI-generated"}
+                                </label>
+                              ))}
                             </div>
-                          )}
+                          </div>
                           <div>
                             <FieldLabel>
-                              {aiOnly
-                                ? "AI agent"
-                                : fu.messageSource === "ai"
-                                  ? "AI prompt (optional)"
-                                  : "Template"}
+                              {fu.messageSource === "ai" ? "AI prompt (optional)" : "Template"}
                             </FieldLabel>
                             <NativeSelect
                               size="sm"
@@ -416,11 +385,9 @@ export function StatusAutomationCard({
                               }
                             >
                               <option value="">
-                                {aiOnly
-                                  ? "Select agent…"
-                                  : fu.messageSource === "ai"
-                                    ? "No prompt — let the AI write freely"
-                                    : "Select template…"}
+                                {fu.messageSource === "ai"
+                                  ? "No prompt — let the AI write freely"
+                                  : "Select template…"}
                               </option>
                               {options.map((t) => (
                                 <option key={t.id} value={t.id}>
@@ -446,52 +413,48 @@ export function StatusAutomationCard({
 
           {/* ── Toggleable behaviours ──────────────────────────────────── */}
           <BehaviorRow
-            icon={<UserPlus className="h-4 w-4 text-tenant" />}
-            title="Assign to team member"
-            subtitle="Files entering this status are handed to one member of the selected team."
-            enabled={config.assignMember.enabled}
-            onToggle={(enabled) => onChange({ assignMember: { ...config.assignMember, enabled } })}
-          >
-            <NativeSelect
-              size="sm"
-              className="max-w-sm"
-              value={config.assignMember.userId ?? ""}
-              onChange={(e) =>
-                onChange({
-                  assignMember: {
-                    ...config.assignMember,
-                    userId: e.target.value ? Number(e.target.value) : null,
-                  },
-                })
-              }
-              aria-label="Team member to assign"
-            >
-              <option value="">Select team member…</option>
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.name}
-                </option>
-              ))}
-            </NativeSelect>
-            {members.length === 0 && (
-              <p className="mt-1 text-[11px] text-warning-foreground">
-                This team has no members to assign to yet.
-              </p>
-            )}
-          </BehaviorRow>
-
-          <BehaviorRow
             icon={<FileText className="h-4 w-4 text-tenant" />}
             title="Generate documents"
             subtitle={
               documentsAllowed
-                ? "Produces this status' document set when a file enters it."
+                ? "Generates the selected document template when a file enters this status."
                 : "This client has document generation switched off."
             }
             enabled={config.generateDocuments}
             disabled={!documentsAllowed}
             onToggle={(enabled) => onChange({ generateDocuments: enabled })}
-          />
+          >
+            <NativeSelect
+              size="sm"
+              className="max-w-sm"
+              value={config.documentTemplateId ?? ""}
+              onChange={(e) =>
+                onChange({
+                  documentTemplateId: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              aria-label="Document template to generate"
+            >
+              <option value="">Select document template…</option>
+              {/* Keep a saved id visible even if it has left the library. */}
+              {config.documentTemplateId != null &&
+                !documentTemplates.some((d) => d.id === config.documentTemplateId) && (
+                  <option value={config.documentTemplateId}>
+                    #{config.documentTemplateId} (not in this client's library)
+                  </option>
+                )}
+              {documentTemplates.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </NativeSelect>
+            {documentTemplates.length === 0 && (
+              <p className="mt-1 text-[11px] text-warning-foreground">
+                No document templates for this client yet — add one under Template Library.
+              </p>
+            )}
+          </BehaviorRow>
 
           <BehaviorRow
             icon={<Archive className="h-4 w-4 text-tenant" />}
@@ -548,7 +511,7 @@ export function StatusAutomationCard({
               </div>
             </div>
           </BehaviorRow>
-        </div>
+        </fieldset>
       )}
     </div>
   );

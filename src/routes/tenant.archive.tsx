@@ -18,7 +18,7 @@ import { PageCard, CardHead, NativeSelect, Pill } from "@/components/tenant/ui";
 import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { UsersTableSkeleton } from "@/components/admin/Skeletons";
 import { RestoreFileDialog } from "@/components/tenant/customers/RestoreFileDialog";
-import { useCustomerPermissions } from "@/lib/customer-permissions";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   getArchivedCustomers,
   archivedDebtorName,
@@ -78,7 +78,7 @@ function activeFilterCount(f: Filters, search: string): number {
 }
 
 function ArchivePage() {
-  const perms = useCustomerPermissions();
+  const perms = usePermissions();
 
   // Dropdown reference data — the real master lists, fetched once. getStatusList
   // feeds the dropdown (per backend); getAllStatus adds the code + colour for
@@ -167,7 +167,7 @@ function ArchivePage() {
   };
 
   const [restoreTarget, setRestoreTarget] = useState<ArchivedDebtor | null>(null);
-  const showRestore = !perms.loading && perms.canArchive;
+  const showRestore = perms.can("archive.restore");
 
   const statusFor = (d: ArchivedDebtor) =>
     d.statusId != null ? statusById.get(d.statusId) : undefined;
@@ -219,13 +219,15 @@ function ArchivePage() {
         title="Archive"
         subtitle="Parked files removed from the active workload"
         action={
-          <button
-            onClick={exportCsv}
-            disabled={loading || debtors.length === 0}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="h-4 w-4" /> Export CSV
-          </button>
+          perms.can("archive.export") ? (
+            <button
+              onClick={exportCsv}
+              disabled={loading || debtors.length === 0}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="h-4 w-4" /> Export CSV
+            </button>
+          ) : undefined
         }
       />
 
@@ -503,9 +505,10 @@ function ArchivePage() {
             </div>
           )}
 
-          {!loading && !error && !showRestore && !perms.loading && (
+          {!loading && !error && !showRestore && (
             <div className="px-6 py-3 border-t border-border text-xs text-muted-foreground">
-              Restoring is read-only for your role — it needs the "Archive debtor files" permission.
+              Your role can browse the archive but not restore files — that needs the Archive ·
+              Restore permission.
             </div>
           )}
         </PageCard>

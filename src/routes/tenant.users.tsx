@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   getUsers,
   getRoleList,
@@ -64,7 +65,6 @@ function formatDate(iso: string | null) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { dateStyle: "medium" });
 }
-
 
 function CalendarLogo({ provider }: { provider: "google" | "outlook" }) {
   if (provider === "google") {
@@ -163,6 +163,10 @@ function CalendarOption({ provider, title }: { provider: "google" | "outlook"; t
 
 function TenantUsersPage() {
   const { user: me } = useAuth();
+  const { can } = usePermissions();
+  // "Manage" opens one modal for profile edits, password resets and access —
+  // offer it when the role can do any of the three.
+  const canManage = can("users.edit") || can("users.resetPassword") || can("users.deactivate");
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -232,13 +236,15 @@ function TenantUsersPage() {
         title="User Management"
         subtitle="All users in your organization · tenant-scoped"
         action={
-          <button
-            onClick={() => setShowCreate(true)}
-            disabled={roles.length === 0}
-            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" /> Add user
-          </button>
+          can("users.create") ? (
+            <button
+              onClick={() => setShowCreate(true)}
+              disabled={roles.length === 0}
+              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" /> Add user
+            </button>
+          ) : undefined
         }
       />
 
@@ -341,7 +347,9 @@ function TenantUsersPage() {
                         {u.teamList && u.teamList.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {u.teamList.map((t) => (
-                              <Pill key={t.teamId} tone="muted">{t.teamName}</Pill>
+                              <Pill key={t.teamId} tone="muted">
+                                {t.teamName}
+                              </Pill>
                             ))}
                           </div>
                         ) : u.teamName ? (
@@ -378,12 +386,14 @@ function TenantUsersPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setEditing(u)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border border-border hover:bg-[var(--tenant)] hover:text-white hover:border-[var(--tenant)] transition"
-                          >
-                            Manage
-                          </button>
+                          {canManage && (
+                            <button
+                              onClick={() => setEditing(u)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border border-border hover:bg-[var(--tenant)] hover:text-white hover:border-[var(--tenant)] transition"
+                            >
+                              Manage
+                            </button>
+                          )}
                         </div>
                       </td>
                     </motion.tr>
@@ -448,6 +458,9 @@ function TenantUsersPage() {
           }}
           onStatusChanged={fetchUsers}
           canChangeStatus={me?.userId !== editing.userId}
+          canEditProfile={can("users.edit")}
+          canResetPassword={can("users.resetPassword")}
+          canDeactivate={can("users.deactivate")}
           onResetLink={(link, email) => setResetLink({ link, email })}
         />
       )}
@@ -471,6 +484,9 @@ function UserFormModal({
   onSaved,
   onStatusChanged,
   canChangeStatus,
+  canEditProfile = true,
+  canResetPassword = true,
+  canDeactivate = true,
   onResetLink,
 }: {
   roles: RoleListItem[];
@@ -480,9 +496,14 @@ function UserFormModal({
   onSaved: (resetLink: string | null, email: string) => void | Promise<void>;
   onStatusChanged?: () => void | Promise<void>;
   canChangeStatus?: boolean;
+  /** users.edit — without it the profile fields are read-only. */
+  canEditProfile?: boolean;
+  canResetPassword?: boolean;
+  canDeactivate?: boolean;
   onResetLink?: (link: string, email: string) => void;
 }) {
   const isEdit = !!user;
+  const readOnlyProfile = isEdit && !canEditProfile;
   const [fullName, setFullName] = useState(user ? fullNameOf(user) : "");
   const [emailId, setEmailId] = useState(user?.emailId ?? "");
   // E.164 phone value (e.g. "+14165550123"); the picker carries the country.
@@ -644,9 +665,11 @@ function UserFormModal({
               {isEdit ? "Manage user" : "Add new user"}
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {isEdit
-                ? "Update profile, role, or account status"
-                : "Creates the user and generates a password setup link"}
+              {readOnlyProfile
+                ? "Your role can't change this user's profile or role"
+                : isEdit
+                  ? "Update profile, role, or account status"
+                  : "Creates the user and generates a password setup link"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -663,134 +686,141 @@ function UserFormModal({
         </div>
 
         <div className="px-6 py-5 space-y-5 text-sm max-h-[70vh] overflow-y-auto">
-          <Field label="Full name" required>
-            <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Sam Patel"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
-            />
-          </Field>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Email" required>
+          {/* A native fieldset disables every control inside it at once. */}
+          <fieldset disabled={readOnlyProfile} className="min-w-0 space-y-5">
+            <Field label="Full name" required>
               <input
-                value={emailId}
-                onChange={(e) => setEmailId(e.target.value)}
-                placeholder="sam.p@company.com"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Sam Patel"
                 className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
               />
-              {emailId && !emailValid && (
-                <span className="text-[11px] text-destructive mt-1 block">Enter a valid email</span>
-              )}
             </Field>
-            <Field label="Phone number" required>
-              <PhoneInput
-                international
-                defaultCountry="CA"
-                value={phone}
-                onChange={setPhone}
-                placeholder="Enter phone number"
-                className="phone-input"
-              />
-              {phone && !phoneValid && (
-                <span className="text-[11px] text-destructive mt-1 block">
-                  Enter a valid phone number
-                </span>
-              )}
-            </Field>
-          </div>
 
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Role" required>
-              <select
-                value={roleId}
-                onChange={(e) => setRoleId(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
-              >
-                {roles.map((r) => (
-                  <option key={r.roleId} value={r.roleId}>
-                    {r.roleName}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Teams">
-              {teams.length === 0 ? (
-                <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border px-3 py-2.5">
-                  No teams available.
-                </p>
-              ) : (
-                <div className="grid sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-muted p-2">
-                  {teams.map((t) => (
-                    <label
-                      key={t.teamId}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-background cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        className="accent-tenant"
-                        checked={teamIds.includes(t.teamId)}
-                        onChange={() => toggleTeam(t.teamId)}
-                      />
-                      <span className="text-sm truncate">{t.teamName}</span>
-                    </label>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Field label="Email" required>
+                <input
+                  value={emailId}
+                  onChange={(e) => setEmailId(e.target.value)}
+                  placeholder="sam.p@company.com"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
+                />
+                {emailId && !emailValid && (
+                  <span className="text-[11px] text-destructive mt-1 block">
+                    Enter a valid email
+                  </span>
+                )}
+              </Field>
+              <Field label="Phone number" required>
+                <PhoneInput
+                  international
+                  defaultCountry="CA"
+                  value={phone}
+                  onChange={setPhone}
+                  placeholder="Enter phone number"
+                  className="phone-input"
+                />
+                {phone && !phoneValid && (
+                  <span className="text-[11px] text-destructive mt-1 block">
+                    Enter a valid phone number
+                  </span>
+                )}
+              </Field>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Field label="Role" required>
+                <select
+                  value={roleId}
+                  onChange={(e) => setRoleId(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
+                >
+                  {roles.map((r) => (
+                    <option key={r.roleId} value={r.roleId}>
+                      {r.roleName}
+                    </option>
                   ))}
-                </div>
-              )}
-            </Field>
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-              Phone numbers
-              {phoneIds.length > 0 && (
-                <span className="text-tenant ml-1">({phoneIds.length} selected)</span>
-              )}
-            </label>
-            <div className="mt-1">
-              {teamIds.length === 0 ? (
-                <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border px-3 py-4 text-center">
-                  Select a team to assign phone numbers to this user.
-                </p>
-              ) : numbersLoading ? (
-                <div className="rounded-lg border border-border px-3 py-4 text-center text-xs text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading team numbers…
-                </div>
-              ) : numberPool.length === 0 ? (
-                <p className="text-xs text-muted-foreground rounded-lg border border-border px-3 py-4 text-center">
-                  These teams have no numbers. Assign numbers to a team first.
-                </p>
-              ) : (
-                <div className="grid sm:grid-cols-2 gap-1 max-h-44 overflow-y-auto rounded-lg border border-border p-2">
-                  {numberPool.map((n) => {
-                    const isChecked = phoneIds.includes(n.phoneNoId);
-                    return (
+                </select>
+              </Field>
+              <Field label="Teams">
+                {teams.length === 0 ? (
+                  <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border px-3 py-2.5">
+                    No teams available.
+                  </p>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-muted p-2">
+                    {teams.map((t) => (
                       <label
-                        key={n.phoneNoId}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer"
+                        key={t.teamId}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-background cursor-pointer"
                       >
                         <input
                           type="checkbox"
                           className="accent-tenant"
-                          checked={isChecked}
-                          onChange={() => togglePhone(n.phoneNoId)}
+                          checked={teamIds.includes(t.teamId)}
+                          onChange={() => toggleTeam(t.teamId)}
                         />
-                        <span className="inline-flex items-center gap-1.5 text-sm flex-1 truncate">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          {formatPhoneNo(n.phoneNo)}
-                        </span>
-                        {teamIds.length > 1 && n.teamName && <Pill tone="muted">{n.teamName}</Pill>}
-                        <span className="text-[11px] text-muted-foreground shrink-0">
-                          {n.numberType === "tollFree" ? "Toll-Free" : "Local"}
-                        </span>
+                        <span className="text-sm truncate">{t.teamName}</span>
                       </label>
-                    );
-                  })}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </Field>
             </div>
-          </div>
+
+            <div>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                Phone numbers
+                {phoneIds.length > 0 && (
+                  <span className="text-tenant ml-1">({phoneIds.length} selected)</span>
+                )}
+              </label>
+              <div className="mt-1">
+                {teamIds.length === 0 ? (
+                  <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border px-3 py-4 text-center">
+                    Select a team to assign phone numbers to this user.
+                  </p>
+                ) : numbersLoading ? (
+                  <div className="rounded-lg border border-border px-3 py-4 text-center text-xs text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading team numbers…
+                  </div>
+                ) : numberPool.length === 0 ? (
+                  <p className="text-xs text-muted-foreground rounded-lg border border-border px-3 py-4 text-center">
+                    These teams have no numbers. Assign numbers to a team first.
+                  </p>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-1 max-h-44 overflow-y-auto rounded-lg border border-border p-2">
+                    {numberPool.map((n) => {
+                      const isChecked = phoneIds.includes(n.phoneNoId);
+                      return (
+                        <label
+                          key={n.phoneNoId}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-tenant"
+                            checked={isChecked}
+                            onChange={() => togglePhone(n.phoneNoId)}
+                          />
+                          <span className="inline-flex items-center gap-1.5 text-sm flex-1 truncate">
+                            <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            {formatPhoneNo(n.phoneNo)}
+                          </span>
+                          {teamIds.length > 1 && n.teamName && (
+                            <Pill tone="muted">{n.teamName}</Pill>
+                          )}
+                          <span className="text-[11px] text-muted-foreground shrink-0">
+                            {n.numberType === "tollFree" ? "Toll-Free" : "Local"}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </fieldset>
 
           {isEdit && (
             <div>
@@ -804,20 +834,22 @@ function UserFormModal({
             </div>
           )}
 
-          {isEdit && (
+          {isEdit && (canResetPassword || canDeactivate) && (
             <div>
               <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 block">
                 Account actions
               </label>
               <div className="flex flex-wrap gap-2">
-                <ActionBtn
-                  icon={KeyRound}
-                  label="Reset password"
-                  loading={resetting}
-                  disabled={resetting}
-                  onClick={doReset}
-                />
-                {canChangeStatus ? (
+                {canResetPassword && (
+                  <ActionBtn
+                    icon={KeyRound}
+                    label="Reset password"
+                    loading={resetting}
+                    disabled={resetting}
+                    onClick={doReset}
+                  />
+                )}
+                {!canDeactivate ? null : canChangeStatus ? (
                   <ActionBtn
                     icon={accountStatus === "active" ? PauseCircle : RotateCcw}
                     label={accountStatus === "active" ? "Disable user" : "Enable user"}
@@ -845,16 +877,18 @@ function UserFormModal({
             disabled={saving}
             className="px-4 py-2 rounded-lg text-sm hover:bg-muted disabled:opacity-50"
           >
-            Cancel
+            {readOnlyProfile ? "Close" : "Cancel"}
           </button>
-          <button
-            onClick={save}
-            disabled={!canSave}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isEdit ? "Save changes" : "Create user"}
-          </button>
+          {!readOnlyProfile && (
+            <button
+              onClick={save}
+              disabled={!canSave}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isEdit ? "Save changes" : "Create user"}
+            </button>
+          )}
         </div>
       </motion.div>
     </motion.div>

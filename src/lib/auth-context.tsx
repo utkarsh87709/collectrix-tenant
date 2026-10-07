@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { loginRequest, logoutRequest, type AuthUser } from "@/lib/auth-api";
 import { AUTH_USER_KEY, clearSession, getAuthToken, setAuthToken } from "@/lib/auth-token";
-import { invalidateCustomerPermissions } from "@/lib/customer-permissions";
+import { refreshPermissions, resetPermissions } from "@/lib/permissions/store";
 
 // Roles are dynamic — the backend can return many different role names, and any
 // of them may sign in here. The only exception is the platform super admin, who
-// belongs on the Collectrix super admin portal instead. (Per-module role-based
-// access control is handled separately, not at login.)
+// belongs on the Collectrix super admin portal instead. What each role can see
+// and do is handled separately, by permissions/store.ts.
 const SUPER_ADMIN_ROLE = "superAdmin";
 
 type Ctx = {
@@ -41,9 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Super admins should sign in to the Collectrix super admin portal instead.");
     }
     setAuthToken(token);
-    setUser(u);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-    invalidateCustomerPermissions();
+    // Drop the previous session's grants and fetch this user's before the first
+    // screen renders, so the sidebar doesn't show links that then disappear. A
+    // failure here isn't fatal — the guard retries and shows its own error state.
+    resetPermissions();
+    await refreshPermissions().catch(() => {});
+    setUser(u);
   };
 
   const logout = () => {
@@ -51,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void logoutRequest();
     setUser(null);
     clearSession();
-    invalidateCustomerPermissions();
+    resetPermissions();
   };
 
   return (

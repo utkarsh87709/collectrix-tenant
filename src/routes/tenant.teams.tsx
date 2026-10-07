@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion, type Variants } from "motion/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   getTeamsCardView,
   getTeamsOrgView,
@@ -49,6 +50,7 @@ export const Route = createFileRoute("/tenant/teams")({
 type ViewMode = "cards" | "org";
 
 function TeamsPage() {
+  const { can } = usePermissions();
   const [view, setView] = useState<ViewMode>("cards");
   const [cards, setCards] = useState<TeamCard[]>([]);
   const [leaderGroups, setLeaderGroups] = useState<LeaderGroup[]>([]);
@@ -142,12 +144,14 @@ function TeamsPage() {
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </button>
-            <button
-              onClick={openCreate}
-              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-            >
-              <Plus className="h-4 w-4" /> New team
-            </button>
+            {can("teams.create") && (
+              <button
+                onClick={openCreate}
+                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+              >
+                <Plus className="h-4 w-4" /> New team
+              </button>
+            )}
           </div>
         }
       />
@@ -183,12 +187,14 @@ function TeamsPage() {
             <p className="text-xs text-muted-foreground mt-1">
               Create your first team to organize members under a leader.
             </p>
-            <button
-              onClick={openCreate}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-            >
-              <Plus className="h-4 w-4" /> New team
-            </button>
+            {can("teams.create") && (
+              <button
+                onClick={openCreate}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+              >
+                <Plus className="h-4 w-4" /> New team
+              </button>
+            )}
           </div>
         </section>
       ) : view === "cards" ? (
@@ -207,20 +213,24 @@ function TeamsPage() {
                         <UsersRound className="h-3 w-3" /> {members.length}{" "}
                         {members.length === 1 ? "member" : "members"}
                       </Pill>
-                      <button
-                        onClick={() => openEdit(t.teamId)}
-                        aria-label="Edit team"
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border hover:bg-muted"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleting(t)}
-                        aria-label="Delete team"
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border text-destructive hover:bg-destructive/10 hover:border-destructive/40"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {can("teams.edit") && (
+                        <button
+                          onClick={() => openEdit(t.teamId)}
+                          aria-label="Edit team"
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border hover:bg-muted"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {can("teams.delete") && (
+                        <button
+                          onClick={() => setDeleting(t)}
+                          aria-label="Delete team"
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border text-destructive hover:bg-destructive/10 hover:border-destructive/40"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   }
                 />

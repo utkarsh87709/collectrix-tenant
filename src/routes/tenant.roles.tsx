@@ -1,56 +1,89 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "motion/react";
+import {
+  Copy,
+  Eye,
+  Info,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
-import { Pill } from "@/components/tenant/ui";
-import { motion } from "motion/react";
 import { RolesGridSkeleton } from "@/components/admin/Skeletons";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, X, ChevronDown, Loader2, RefreshCw, ShieldCheck, Check, Minus, Layers } from "lucide-react";
-import { toast } from "sonner";
+import { Pill } from "@/components/tenant/ui";
 import {
-  getConfiguredRoles,
-  getAllRoles,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  RoleEditor,
+  type RoleDraft,
+  type RoleEditorMode,
+} from "@/components/tenant/roles/RoleEditor";
+import { MODULE_ICONS } from "@/components/tenant/roles/permission-ui";
+import { ALL_PERMISSION_KEYS, PERMISSION_MODULES } from "@/lib/permissions/catalog";
+import { moduleAccess } from "@/lib/permissions/summary";
+import { refreshPermissions, usePermissions } from "@/lib/permissions/store";
+import {
   createRole,
+  deleteRole,
+  getAllRoles,
   updateRole,
-  type ConfiguredRoles,
+  type PermissionSchema,
   type Role,
+  type RoleInput,
 } from "@/lib/roles-api";
-import { getRoleDescription, setRoleDescription } from "@/lib/role-descriptions";
-import { regroupByModule, uniquePermissionCount } from "@/lib/permission-modules";
 
 export const Route = createFileRoute("/tenant/roles")({
   head: () => ({ meta: [{ title: "Roles & Permissions · Tenant Admin" }] }),
   component: RolesPage,
 });
 
+const TOTAL = ALL_PERMISSION_KEYS.length;
+
+type EditorState = { mode: RoleEditorMode; role: Role | null; draft: RoleDraft };
+
 function RolesPage() {
-  const [catalog, setCatalog] = useState<ConfiguredRoles | null>(null);
+  const perms = usePermissions();
   const [roles, setRoles] = useState<Role[]>([]);
-  const [totalConfiguration, setTotalConfiguration] = useState(0);
+  const [schema, setSchema] = useState<PermissionSchema>("v2");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [deleting, setDeleting] = useState<Role | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
-  const [editing, setEditing] = useState<Role | null>(null);
-  const [creating, setCreating] = useState(false);
-
-  const catalogTotal = useMemo(
-    () => (catalog ? uniquePermissionCount(catalog) : 0),
-    [catalog],
-  );
-  const total = totalConfiguration || catalogTotal;
-
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     setError(null);
     try {
-      const [cfg, all] = await Promise.all([getConfiguredRoles(), getAllRoles()]);
-      setCatalog(cfg);
-      setRoles(all.roles);
-      setTotalConfiguration(all.totalConfiguration);
+      const res = await getAllRoles();
+      setRoles(res.roles);
+      setSchema(res.schema);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load roles.");
+      if (!quiet) setError(e instanceof Error ? e.message : "Failed to load roles.");
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, []);
 
@@ -58,348 +91,381 @@ function RolesPage() {
     load();
   }, [load]);
 
-  const refreshRoles = useCallback(async () => {
-    try {
-      const all = await getAllRoles();
-      setRoles(all.roles);
-      setTotalConfiguration(all.totalConfiguration);
-    } catch {
-      /* keep existing list */
+  // The old backend format can be displayed but not written back safely, so
+  // every write is off until the backend serves the new one.
+  const legacy = schema === "legacy";
+  const canCreate = perms.can("roles.create") && !legacy;
+  const canEdit = perms.can("roles.edit") && !legacy;
+  const canDelete = perms.can("roles.delete") && !legacy;
+  const assignedUsers = useMemo(() => roles.reduce((n, r) => n + r.userCount, 0), [roles]);
+
+  const open = (mode: RoleEditorMode, role: Role | null, draft?: Partial<RoleDraft>) =>
+    setEditor({
+      mode,
+      role,
+      draft: {
+        name: draft?.name ?? role?.roleName ?? "",
+        description: draft?.description ?? role?.roleDescription ?? "",
+        permissions: draft?.permissions ?? role?.permissions ?? [],
+      },
+    });
+
+  const openRole = (role: Role) => open(canEdit ? "edit" : "view", role);
+
+  const save = async (input: RoleInput) => {
+    if (!editor) return;
+    if (editor.mode === "edit" && editor.role) {
+      await updateRole({ roleId: editor.role.roleId, ...input });
+      toast.success(`Role "${input.roleName}" updated`);
+    } else {
+      await createRole(input);
+      toast.success(`Role "${input.roleName}" created`);
     }
-  }, []);
+    setEditor(null);
+    await load(true);
+    // The signed-in user may be on the role that just changed.
+    void refreshPermissions();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await deleteRole(deleting.roleId);
+      toast.success(`Role "${deleting.roleName}" deleted`);
+      setDeleting(null);
+      await load(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't delete the role.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   return (
     <Shell>
       <Topbar
         title="Roles & Permissions"
-        subtitle="Custom roles enforced server-side — permissions apply to all assigned users"
+        subtitle="Decide what each role can see and do — changes apply to everyone on the role"
         action={
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <button
-              onClick={load}
+              onClick={() => load()}
               disabled={loading}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted disabled:opacity-50"
+              className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
             </button>
-            <button
-              onClick={() => setCreating(true)}
-              disabled={loading || !catalog}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" /> New role
-            </button>
+            {canCreate && (
+              <button
+                onClick={() => open("create", null)}
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" /> New role
+              </button>
+            )}
           </div>
         }
       />
 
-      <section className="px-6 lg:px-10 py-6">
+      <section className="px-6 lg:px-10 py-6 space-y-5">
         {loading ? (
           <RolesGridSkeleton />
         ) : error ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center">
             <p className="text-sm text-destructive font-medium">{error}</p>
-            <button onClick={load} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted">
+            <button
+              onClick={() => load()}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+            >
               <RefreshCw className="h-4 w-4" /> Try again
             </button>
           </div>
-        ) : roles.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-12 text-center">
-            <p className="text-sm text-muted-foreground">No roles yet.</p>
-            <button onClick={() => setCreating(true)} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant">
-              <Plus className="h-4 w-4" /> Create your first role
-            </button>
-          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {roles.map((r, i) => {
-              const enabled = r.allowedConfiguration.length;
-              const pct = total > 0 ? Math.round((enabled / total) * 100) : 0;
-              return (
-                <motion.button
+          <>
+            {legacy && (
+              <div className="flex items-start gap-3 rounded-2xl border border-[color:var(--tenant)]/25 bg-[color:var(--tenant)]/5 px-5 py-4 text-sm">
+                <Info className="h-4 w-4 shrink-0 mt-0.5 text-tenant" />
+                <div>
+                  <div className="font-semibold">Roles are read-only for now</div>
+                  <p className="mt-0.5 text-muted-foreground">
+                    The server still stores roles in the old permission format. Each role below
+                    shows what it can do today, mapped to the new permissions. Creating, editing and
+                    deleting roles unlocks as soon as the backend switches to the new format.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              {roles.length} custom {roles.length === 1 ? "role" : "roles"} · {assignedUsers}{" "}
+              {assignedUsers === 1 ? "user" : "users"} assigned · {TOTAL} permissions across{" "}
+              {PERMISSION_MODULES.length} modules
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <TenantAdminCard />
+              {roles.map((r, i) => (
+                <RoleCard
                   key={r.roleId}
-                  onClick={() => setEditing(r)}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(i * 0.05, 0.4), duration: 0.25 }}
-                  whileHover={{ y: -2 }}
-                  className="text-left rounded-2xl border border-border bg-card p-5 shadow-elegant hover:border-tenant transition-colors group"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="font-display font-bold">{r.roleName}</div>
-                    <Pill tone="muted">#{r.roleId}</Pill>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{enabled}/{total} permissions</span>
-                    <span className="font-semibold text-tenant">{r.userCount} {r.userCount === 1 ? "user" : "users"}</span>
-                  </div>
-                  <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <motion.div className="h-full bg-gradient-tenant" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ delay: Math.min(i * 0.05, 0.4) + 0.15, duration: 0.5, ease: "easeOut" }} />
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
+                  role={r}
+                  index={i}
+                  isOwnRole={perms.roleId === r.roleId}
+                  canEdit={canEdit}
+                  canCreate={canCreate}
+                  canDelete={canDelete}
+                  onOpen={() => openRole(r)}
+                  onDuplicate={() =>
+                    open("create", null, {
+                      name: `${r.roleName} (copy)`,
+                      description: r.roleDescription,
+                      permissions: r.permissions,
+                    })
+                  }
+                  onDelete={() => setDeleting(r)}
+                />
+              ))}
+              {roles.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-border p-6 flex flex-col items-center justify-center text-center">
+                  <p className="text-sm font-semibold">No custom roles yet</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Create roles to give each part of your team exactly the access it needs.
+                  </p>
+                  {canCreate && (
+                    <button
+                      onClick={() => open("create", null)}
+                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+                    >
+                      <Plus className="h-4 w-4" /> Create a role
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </section>
 
-      {catalog && (editing || creating) && (
+      {editor && (
         <RoleEditor
-          catalog={catalog}
-          role={editing}
-          onClose={() => { setEditing(null); setCreating(false); }}
-          onSaved={async () => {
-            setEditing(null);
-            setCreating(false);
-            await refreshRoles();
-          }}
+          mode={editor.mode}
+          initial={editor.draft}
+          takenNames={roles.filter((r) => r.roleId !== editor.role?.roleId).map((r) => r.roleName)}
+          isOwnRole={!!editor.role && perms.roleId === editor.role.roleId}
+          legacy={legacy}
+          onClose={() => setEditor(null)}
+          onSave={save}
         />
       )}
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && !deleteBusy && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete role?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleting && (
+                <>
+                  <span className="font-semibold">{deleting.roleName}</span> will be removed for
+                  good. Nobody is on it, so no one loses access.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmDelete();
+              }}
+              disabled={deleteBusy}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteBusy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Shell>
   );
 }
 
-function RoleEditor({
-  catalog,
+function TenantAdminCard() {
+  return (
+    <div className="rounded-2xl border border-dashed border-[color:var(--tenant)]/40 bg-[color:var(--tenant)]/5 p-5 flex flex-col">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-display font-bold">Tenant Administrator</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            The built-in owner role. It always holds every permission and can't be edited or
+            deleted.
+          </p>
+        </div>
+        <span className="shrink-0 whitespace-nowrap">
+          <Pill tone="tenant">Built-in</Pill>
+        </span>
+      </div>
+      <div className="mt-auto pt-4">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">
+            {TOTAL} of {TOTAL} permissions
+          </span>
+          <span className="font-semibold text-tenant">Full access</span>
+        </div>
+        <div className="mt-2 h-1.5 rounded-full bg-gradient-tenant" />
+      </div>
+    </div>
+  );
+}
+
+function RoleCard({
   role,
-  onClose,
-  onSaved,
+  index,
+  isOwnRole,
+  canEdit,
+  canCreate,
+  canDelete,
+  onOpen,
+  onDuplicate,
+  onDelete,
 }: {
-  catalog: ConfiguredRoles;
-  role: Role | null;
-  onClose: () => void;
-  onSaved: () => void | Promise<void>;
+  role: Role;
+  index: number;
+  isOwnRole: boolean;
+  canEdit: boolean;
+  canCreate: boolean;
+  canDelete: boolean;
+  onOpen: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
 }) {
-  const isEdit = !!role;
-  const [name, setName] = useState(role?.roleName ?? "");
-  const [description, setDescription] = useState(() => (role ? getRoleDescription(role.roleName) : ""));
-  const [selected, setSelected] = useState<Set<number>>(
-    () => new Set(role?.allowedConfiguration ?? []),
+  const granted = useMemo(() => new Set(role.permissions), [role.permissions]);
+  const held = role.permissions.length;
+  const pct = Math.round((held / TOTAL) * 100);
+  const modules = PERMISSION_MODULES.map((m) => ({ m, level: moduleAccess(m, granted) })).filter(
+    (x) => x.level !== "none",
   );
-  const [saving, setSaving] = useState(false);
-  // Right panel groups by the backend's functional categories (header). The
-  // left rail re-buckets the same permissions by module (tabsLinked); a
-  // permission linked to several modules appears under each, and selection
-  // stays in sync because everything is keyed by configId.
-  const moduleGroups = useMemo(() => regroupByModule(catalog), [catalog]);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(catalog.configuredRoles.map((g) => [g.header, true])),
-  );
-
-  const totalConfigs = uniquePermissionCount(catalog);
-
-  const toggle = (configId: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(configId)) next.delete(configId);
-      else next.add(configId);
-      return next;
-    });
-  };
-
-  // Toggle a set of permissions on/off as a unit. Used by both the module rail
-  // and a category's "Select all" — they pass different id sets, same logic.
-  const toggleIds = (ids: number[]) => {
-    const allOn = ids.every((id) => selected.has(id));
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (allOn) next.delete(id);
-        else next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const save = async () => {
-    const roleName = name.trim();
-    if (!roleName) {
-      toast.error("Role name is required");
-      return;
-    }
-    const allowedConfiguration = [...selected].sort((a, b) => a - b);
-    setSaving(true);
-    try {
-      if (isEdit && role) {
-        await updateRole({ roleId: role.roleId, roleName, roleDescription: description.trim(), allowedConfiguration });
-        setRoleDescription(roleName, description.trim(), role.roleName);
-        toast.success(`Role "${roleName}" updated`);
-      } else {
-        await createRole({ roleName, roleDescription: description.trim(), allowedConfiguration });
-        setRoleDescription(roleName, description.trim());
-        toast.success(`Role "${roleName}" created`);
-      }
-      await onSaved();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save role");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const inUse = role.userCount > 0;
 
   return (
-    <motion.div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <motion.div className="w-full max-w-5xl max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-card border border-border shadow-tenant overflow-hidden" initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 300, damping: 28 }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <div>
-            <h3 className="font-display font-bold text-lg">{isEdit ? "Edit role" : "Create role"}</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">{selected.size}/{totalConfigs} permissions enabled</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: Math.min(index * 0.04, 0.3), duration: 0.25 }}
+      className="group relative rounded-2xl border border-border bg-card p-5 shadow-elegant hover:border-[color:var(--tenant)]/60 transition-colors flex flex-col"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {/* The title's ::after stretches over the card, so the whole card opens the role. */}
+          <button
+            onClick={onOpen}
+            className="text-left font-display font-bold truncate max-w-full after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-[color:var(--tenant)]/60"
+          >
+            {role.roleName}
+          </button>
+          {isOwnRole && (
+            <span className="ml-2 align-middle">
+              <Pill tone="tenant">Your role</Pill>
+            </span>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+            {role.roleDescription || "No description"}
+          </p>
         </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-sm">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Role name</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Senior Collections Agent"
-                className="mt-1 w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
-              />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Description</label>
-              <input
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What this role is for"
-                className="mt-1 w-full px-3 py-2 rounded-lg bg-muted border border-border outline-none focus:ring-2 ring-tenant"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-5 items-start">
-          <div className="hidden md:block w-60 shrink-0 sticky top-0 space-y-3">
-            <div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Layers className="h-4 w-4" />
-                <span className="text-xs uppercase tracking-wider font-semibold">Modules</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-snug mt-1.5">
-                Selecting a module auto-checks its linked permissions on the right.
-              </p>
-            </div>
-            <div className="space-y-2.5">
-              {moduleGroups.map((group) => {
-                const ids = group.configuration.map((c) => c.configId);
-                const onCount = ids.filter((id) => selected.has(id)).length;
-                const allOn = ids.length > 0 && onCount === ids.length;
-                const partial = onCount > 0 && !allOn;
-                return (
-                  <button
-                    key={group.header}
-                    type="button"
-                    onClick={() => toggleIds(ids)}
-                    className={`w-full flex items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition ${
-                      allOn
-                        ? "bg-tenant/10 border-tenant/40"
-                        : "bg-muted/30 border-border hover:bg-muted/60"
-                    }`}
-                  >
-                    <span
-                      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        allOn || partial ? "bg-tenant border-tenant text-white" : "border-muted-foreground/40"
-                      }`}
-                    >
-                      {allOn && <Check className="h-3 w-3" />}
-                      {partial && <Minus className="h-3 w-3" />}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className={`block font-display font-semibold text-sm ${allOn ? "text-tenant" : "text-foreground"}`}>
-                        {group.header}
-                      </span>
-                      <span className="block text-[11px] text-muted-foreground mt-1">
-                        {onCount}/{ids.length} permissions
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex-1 min-w-0 space-y-3">
-            {catalog.configuredRoles.map((group) => {
-              const isOpen = openGroups[group.header];
-              const ids = group.configuration.map((c) => c.configId);
-              const onCount = ids.filter((id) => selected.has(id)).length;
-              const allOn = onCount === ids.length;
-              return (
-                <div key={group.header} className="rounded-lg border border-border overflow-hidden">
-                  <div className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/40">
-                    <button
-                      type="button"
-                      onClick={() => setOpenGroups((s) => ({ ...s, [group.header]: !isOpen }))}
-                      className="flex items-center gap-2 flex-1 text-left hover:opacity-80"
-                    >
-                      <ChevronDown className={`h-4 w-4 transition ${isOpen ? "" : "-rotate-90"}`} />
-                      <span className="font-display font-semibold text-sm">{group.header}</span>
-                    </button>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] text-muted-foreground">{onCount}/{ids.length}</span>
-                      <label className="flex items-center gap-1.5 text-[11px] font-medium text-tenant cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="accent-tenant"
-                          checked={allOn}
-                          ref={(el) => { if (el) el.indeterminate = onCount > 0 && !allOn; }}
-                          onChange={() => toggleIds(ids)}
-                        />
-                        Select all
-                      </label>
-                    </div>
-                  </div>
-                  {isOpen && (
-                    <div className="grid sm:grid-cols-2 gap-0.5 p-2">
-                      {group.configuration.map((c) => (
-                        <label
-                          key={c.configId}
-                          className="flex items-start gap-2 px-3 py-2 rounded-md text-sm hover:bg-muted cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selected.has(c.configId)}
-                            onChange={() => toggle(c.configId)}
-                            className="mt-0.5 accent-tenant"
-                          />
-                          <span className="flex-1 min-w-0">
-                            <span className="block">{c.configName}</span>
-                            <span className="mt-1 flex flex-wrap gap-1">
-                              {c.tabsLinked.map((t) => (
-                                <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">{t}</span>
-                              ))}
-                            </span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 border-t border-border bg-muted/30 flex justify-between items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5 text-tenant" /> Permissions are enforced server-side.
-          </div>
-          <div className="flex gap-2 ml-auto">
-            <button onClick={onClose} disabled={saving} className="px-4 py-2 rounded-lg text-sm hover:bg-muted disabled:opacity-50">Cancel</button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
-              disabled={!name.trim() || saving}
-              onClick={save}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
+              className="relative z-10 -mr-1.5 -mt-1 p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label={`Actions for ${role.roleName}`}
             >
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isEdit ? "Save changes" : "Create role"}
+              <MoreHorizontal className="h-4 w-4" />
             </button>
-          </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuItem onSelect={onOpen}>
+              {canEdit ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {canEdit ? "Edit role" : "View permissions"}
+            </DropdownMenuItem>
+            {canCreate && (
+              <DropdownMenuItem onSelect={onDuplicate}>
+                <Copy className="h-4 w-4" /> Duplicate
+              </DropdownMenuItem>
+            )}
+            {canDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={inUse}
+                  onSelect={onDelete}
+                  className="text-destructive focus:text-destructive flex-col items-start gap-0.5"
+                >
+                  <span className="flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" /> Delete role
+                  </span>
+                  {inUse && (
+                    <span className="text-[11px] text-muted-foreground">
+                      Move its {role.userCount} {role.userCount === 1 ? "user" : "users"} to another
+                      role first
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="mt-auto pt-4">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground tabular-nums">
+            {held} of {TOTAL} permissions
+          </span>
+          <span className="inline-flex items-center gap-1 font-semibold text-tenant">
+            <Users className="h-3.5 w-3.5" /> {role.userCount}{" "}
+            {role.userCount === 1 ? "user" : "users"}
+          </span>
         </div>
-      </motion.div>
+        <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+          <motion.div
+            className="h-full bg-gradient-tenant"
+            initial={{ width: 0 }}
+            animate={{ width: `${pct}%` }}
+            transition={{
+              delay: Math.min(index * 0.04, 0.3) + 0.15,
+              duration: 0.5,
+              ease: "easeOut",
+            }}
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {modules.length === 0 ? (
+            <span className="text-[11px] text-muted-foreground">No access to any module yet</span>
+          ) : (
+            modules.map(({ m, level }) => {
+              const Icon = MODULE_ICONS[m.id];
+              return (
+                <span
+                  key={m.id}
+                  title={`${m.label}: ${level === "full" ? "full access" : level === "view" ? "view only" : "custom"}`}
+                  className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
+                    level === "full"
+                      ? "bg-[color:var(--tenant)]/10 text-tenant"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Icon className="h-3 w-3" />
+                  {m.label}
+                  {level === "view" && (
+                    <Eye className="h-3 w-3 opacity-70" aria-label="view only" />
+                  )}
+                </span>
+              );
+            })
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }

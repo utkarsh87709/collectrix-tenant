@@ -8,6 +8,7 @@ import {
   MessageSquare, Mail, Phone, FileText, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -33,6 +34,7 @@ const CHANNELS: { key: keyof ClientChannels; label: string; icon: LucideIcon }[]
 ];
 
 function ClientListPage() {
+  const { can } = usePermissions();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,12 +67,14 @@ function ClientListPage() {
         title="Client List"
         subtitle="Clients / creditors in your data intake list"
         action={
-          <button
-            onClick={() => setEditing("new")}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-          >
-            <Plus className="h-4 w-4" /> Add
-          </button>
+          can("clients.create") ? (
+            <button
+              onClick={() => setEditing("new")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+            >
+              <Plus className="h-4 w-4" /> Add
+            </button>
+          ) : undefined
         }
       />
 
@@ -100,12 +104,14 @@ function ClientListPage() {
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <Building2 className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">No clients yet. Add your first client to get started.</p>
-              <button
-                onClick={() => setEditing("new")}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-              >
-                <Plus className="h-4 w-4" /> Add client
-              </button>
+              {can("clients.create") && (
+                <button
+                  onClick={() => setEditing("new")}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+                >
+                  <Plus className="h-4 w-4" /> Add client
+                </button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -117,7 +123,9 @@ function ClientListPage() {
                     <th className="px-6 py-3 font-semibold">Client Number</th>
                     <th className="px-6 py-3 font-semibold">Files</th>
                     <th className="px-6 py-3 font-semibold">Channels</th>
-                    <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                    {(can("clients.edit") || can("clients.delete")) && (
+                      <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -161,30 +169,36 @@ function ClientListPage() {
                           </div>
                         </TooltipProvider>
                       </td>
-                      <td className="px-6 py-4">
-                        <TooltipProvider delayDuration={200}>
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => setEditing(c)}
-                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm font-medium hover:bg-muted hover:border-tenant/40 transition-colors"
-                            >
-                              <Settings2 className="h-4 w-4 text-muted-foreground" /> Configure
-                            </button>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
+                      {(can("clients.edit") || can("clients.delete")) && (
+                        <td className="px-6 py-4">
+                          <TooltipProvider delayDuration={200}>
+                            <div className="flex items-center justify-end gap-2">
+                              {can("clients.edit") && (
                                 <button
-                                  onClick={() => setDeleting(c)}
-                                  aria-label={`Remove ${c.clientName}`}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                  onClick={() => setEditing(c)}
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm font-medium hover:bg-muted hover:border-tenant/40 transition-colors"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Settings2 className="h-4 w-4 text-muted-foreground" /> Configure
                                 </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">Remove client</TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TooltipProvider>
-                      </td>
+                              )}
+                              {can("clients.delete") && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => setDeleting(c)}
+                                      aria-label={`Remove ${c.clientName}`}
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">Remove client</TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                          </TooltipProvider>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

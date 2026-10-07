@@ -5,6 +5,7 @@ import { Topbar } from "@/components/admin/Topbar";
 import {
   Mail,
   MessageSquare,
+  Check,
   FileText,
   PhoneCall,
   Bot,
@@ -23,9 +24,12 @@ import {
   Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import { cn } from "@/lib/utils";
 import { RichTextToolbar } from "@/components/tenant/RichTextToolbar";
-import { VARIABLE_LIBRARY } from "@/lib/comms-mock";
+import { InsertVariableMenu } from "@/components/tenant/InsertVariableMenu";
+import { insertIntoField } from "@/lib/placeholders-api";
+import { plainText } from "@/components/tenant/inbox/inbox-utils";
 import {
   getTemplateClients,
   getClientTemplate,
@@ -60,18 +64,31 @@ const FALLBACK_CLIENTS: TemplateClient[] = [
   { clientId: -2, clientName: "Airtel Bank" },
 ];
 
-// Substitute {{var}} tokens with their sample values for the preview.
-const SAMPLE_BY_KEY = new Map(VARIABLE_LIBRARY.map((v) => [v.key, v.sample]));
-function withSamples(text: string): string {
-  return text.replace(/\{\{[^}]+\}\}/g, (m) => SAMPLE_BY_KEY.get(m) ?? m);
+const TOKEN = /\{\{([^{}]+)\}\}/g;
+
+/** Preview text: {{Field}} tokens shown as [Field] so they read as slots. */
+function previewText(text: string): string {
+  return text.replace(TOKEN, (_, name: string) => `[${name.trim()}]`);
+}
+
+/** Preview HTML: tokens become highlighted chips. Token names are escaped —
+ *  the surrounding markup is the template's own HTML, as before. */
+function previewHtml(html: string): string {
+  return html.replace(TOKEN, (_, name: string) => {
+    const safe = name.trim().replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    return `<span style="padding:0 4px;border-radius:4px;background:color-mix(in oklab, var(--tenant) 15%, transparent);color:var(--tenant);font-weight:600">${safe}</span>`;
+  });
 }
 
 /** Plain-text summary of a template body (strips HTML) for the list preview. */
 function bodyPreview(t: Template): string {
-  return t.templateMessage
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return plainText(t.templateMessage).replace(/\s+/g, " ").trim();
+}
+
+/** Names compare trimmed and case-insensitively, so "Initial Outreach " and
+ *  "initial outreach" count as the same template name. */
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 /* --------------------------------- page ------------------------------------ */
@@ -325,6 +342,10 @@ function TemplateLibraryPage() {
 
           {tab === "email" || tab === "sms" || tab === "call" ? (
             <ApiChannelPanel
+              // One instance per channel: sharing it let an open email
+              // template's editor survive a switch to SMS and dump its HTML
+              // into the plain-text box.
+              key={tab}
               tab={tab}
               clients={apiClients?.[tab] ?? []}
               clientsLoading={clientsLoading}
@@ -466,6 +487,7 @@ function ApiChannelPanel({
   onRetry: () => void;
   refreshOne: (type: ApiTab, clientId: number) => Promise<Template[]>;
 }) {
+  const canCreate = usePermissions().can("templates.create");
   const [clientId, setClientId] = useState<number | null>(null);
   const [selected, setSelected] = useState<{ kind: "item"; id: number } | { kind: "draft" } | null>(
     null,
@@ -533,14 +555,16 @@ function ApiChannelPanel({
               {items.length}
             </span>
           </div>
-          <div className="px-3 pb-2">
-            <button
-              onClick={() => setSelected({ kind: "draft" })}
-              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 transition-opacity"
-            >
-              <Plus className="h-4 w-4" /> {newLabel}
-            </button>
-          </div>
+          {canCreate && (
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setSelected({ kind: "draft" })}
+                className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 transition-opacity"
+              >
+                <Plus className="h-4 w-4" /> {newLabel}
+              </button>
+            </div>
+          )}
           <ul className="px-2 pb-3 space-y-1 overflow-y-auto">
             {selected?.kind === "draft" && (
               <li>
@@ -599,7 +623,7 @@ function ApiChannelPanel({
 
         {/* Right editor */}
         <div className="flex flex-col">
-          {!selected || clientId == null ? (
+          {!selected || clientId == null || (selected.kind === "item" && !selectedItem) ? (
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-12 text-center">
               Select {tab === "call" ? "a voice agent" : "a template"} from the left or create a new
               one.
@@ -628,11 +652,14 @@ function ApiChannelPanel({
             />
           ) : (
             <TemplateEditor
-              key={selected.kind === "draft" ? `draft-${tab}-${clientId}` : `tpl-${selected.id}`}
+              key={
+                selected.kind === "draft" ? `draft-${tab}-${clientId}` : `tpl-${tab}-${selected.id}`
+              }
               channel={tab}
               clientId={clientId}
               clientName={clientName}
               template={selected.kind === "item" ? selectedItem : null}
+              siblings={items}
               onCancelDraft={() => setSelected(null)}
               onCreated={async () => {
                 const list = await refreshOne(tab, clientId);
@@ -664,6 +691,7 @@ function TemplateEditor({
   clientId,
   clientName,
   template,
+  siblings,
   onCancelDraft,
   onCreated,
   onUpdated,
@@ -673,21 +701,43 @@ function TemplateEditor({
   clientId: number;
   clientName: string;
   template: Template | null;
+  /** The other templates of this channel for this client — names must be
+   *  unique among them, on create and on edit alike. */
+  siblings: Template[];
   onCancelDraft: () => void;
   onCreated: () => void | Promise<void>;
   onUpdated: () => void | Promise<void>;
   onDeleted: () => void | Promise<void>;
 }) {
+  const { can } = usePermissions();
+  const canDelete = can("templates.delete");
   const isEmail = channel === "email";
   const isNew = template === null;
+  // A saved template is read-only without templates.edit (new drafts need
+  // templates.create, which gates the "New" button that opens them).
+  const readOnly = !isNew && !can("templates.edit");
 
   const [name, setName] = useState(template?.templateName ?? "");
   const [subject, setSubject] = useState(template?.templateSubject ?? "");
   const [message, setMessage] = useState(template?.templateMessage ?? "");
+  const [docIds, setDocIds] = useState<number[]>(template?.documentTemplateIdList ?? []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  // The client's document templates, offered as email attachments.
+  const [docTemplates, setDocTemplates] = useState<DocumentTemplate[] | null>(null);
+  useEffect(() => {
+    if (!isEmail) return;
+    let cancelled = false;
+    getDocumentTemplates(clientId)
+      .then((list) => !cancelled && setDocTemplates(list))
+      .catch(() => !cancelled && setDocTemplates([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [isEmail, clientId]);
 
   const editorRef = useRef<HTMLDivElement | null>(null);
   const smsRef = useRef<HTMLTextAreaElement | null>(null);
@@ -704,36 +754,71 @@ function TemplateEditor({
     name: template?.templateName ?? "",
     subject: template?.templateSubject ?? "",
     message: template?.templateMessage ?? "",
+    docIds: template?.documentTemplateIdList ?? [],
   };
-  const dirty = name !== orig.name || subject !== orig.subject || message !== orig.message;
+  const sameIds = (a: number[], b: number[]) =>
+    a.length === b.length && [...a].sort().join(",") === [...b].sort().join(",");
+  const dirty =
+    name !== orig.name ||
+    subject !== orig.subject ||
+    message !== orig.message ||
+    (isEmail && !sameIds(docIds, orig.docIds));
 
-  const insertVariable = (key: string) => {
+  // Variables go wherever the user was last typing: the subject line or the
+  // body. The rich-text body remembers its caret, since opening the menu
+  // moves the selection out of the editor.
+  const subjectRef = useRef<HTMLInputElement | null>(null);
+  const lastField = useRef<"subject" | "body">("body");
+  const savedRange = useRef<Range | null>(null);
+  const saveRange = () => {
+    const sel = window.getSelection();
+    const el = editorRef.current;
+    if (sel && sel.rangeCount > 0 && el && el.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      savedRange.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  const insertVariable = (token: string) => {
+    if (isEmail && lastField.current === "subject") {
+      insertIntoField(subjectRef.current, subject, setSubject, token);
+      return;
+    }
     if (isEmail) {
       const el = editorRef.current;
       if (!el) return;
       el.focus();
-      document.execCommand("insertText", false, key);
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        if (savedRange.current) {
+          sel.addRange(savedRange.current);
+        } else {
+          // Never clicked into the body yet — append at the end.
+          const end = document.createRange();
+          end.selectNodeContents(el);
+          end.collapse(false);
+          sel.addRange(end);
+        }
+      }
+      document.execCommand("insertText", false, token);
+      saveRange();
       setMessage(el.innerHTML);
     } else {
-      const el = smsRef.current;
-      if (!el) {
-        setMessage((m) => m + key);
-        return;
-      }
-      const start = el.selectionStart ?? message.length;
-      const end = el.selectionEnd ?? message.length;
-      const next = message.slice(0, start) + key + message.slice(end);
-      setMessage(next);
-      requestAnimationFrame(() => {
-        el.focus();
-        const pos = start + key.length;
-        el.setSelectionRange(pos, pos);
-      });
+      insertIntoField(smsRef.current, message, setMessage, token);
     }
   };
 
+  // Uniqueness is per channel: the same name may exist once as email and once
+  // as SMS, but never twice within one channel. Checked here for edit too —
+  // the backend only rejects duplicates on create.
+  const duplicate =
+    name.trim() !== "" &&
+    siblings.some((t) => t.templateId !== template?.templateId && sameName(t.templateName, name));
+  const duplicateMsg = `An ${isEmail ? "email" : "SMS"} template named "${name.trim()}" already exists for ${clientName || "this client"}.`;
+
   const validate = (): string | null => {
     if (!name.trim()) return "Template name is required.";
+    if (duplicate) return duplicateMsg;
     if (isEmail && !subject.trim()) return "Subject line is required.";
     const plain = isEmail ? message.replace(/<[^>]+>/g, "").trim() : message.trim();
     if (!plain) return "Message content is required.";
@@ -755,6 +840,7 @@ function TemplateEditor({
           templateName: name.trim(),
           templateSubject: isEmail ? subject.trim() : "",
           templateMessage: message,
+          ...(isEmail ? { documentTemplateIdList: docIds } : {}),
         });
         toast.success("Template created.");
         await onCreated();
@@ -765,6 +851,7 @@ function TemplateEditor({
           templateName: name.trim(),
           templateSubject: isEmail ? subject.trim() : "",
           templateMessage: message,
+          ...(isEmail ? { documentTemplateIdList: docIds } : {}),
         });
         toast.success("Template updated.");
         await onUpdated();
@@ -802,7 +889,7 @@ function TemplateEditor({
           <span className="capitalize">{channel}</span>
           <ChevronRight className="h-3 w-3 shrink-0" />
           <span className="text-foreground font-semibold">
-            {isNew ? "New Template" : "Edit Template"}
+            {isNew ? "New Template" : readOnly ? "View Template" : "Edit Template"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -812,7 +899,7 @@ function TemplateEditor({
           >
             <Eye className="h-3.5 w-3.5" /> Preview
           </button>
-          {!isNew && (
+          {!isNew && canDelete && (
             <button
               onClick={() => setConfirmDelete(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10"
@@ -828,23 +915,25 @@ function TemplateEditor({
               <X className="h-3.5 w-3.5" /> Discard
             </button>
           )}
-          <button
-            onClick={save}
-            disabled={saving || (!isNew && !dirty)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-tenant text-white text-xs font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
-          >
-            {saving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}{" "}
-            Save Template
-          </button>
+          {!readOnly && (
+            <button
+              onClick={save}
+              disabled={saving || (!isNew && !dirty)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-tenant text-white text-xs font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}{" "}
+              Save Template
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Form */}
-      <div className="p-6 space-y-5">
+      {/* Form — a native fieldset disables every control in read-only mode. */}
+      <fieldset disabled={readOnly} className="min-w-0 p-6 space-y-5">
         <label className="block">
           <div className="text-xs font-semibold mb-1.5">
             Template Name <span className="text-destructive">*</span>
@@ -853,8 +942,15 @@ function TemplateEditor({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Initial Contact Email"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-tenant"
+            aria-invalid={duplicate}
+            className={cn(
+              "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none",
+              duplicate
+                ? "border-destructive focus:border-destructive"
+                : "border-border focus:border-tenant",
+            )}
           />
+          {duplicate && <p className="mt-1 text-[11px] text-destructive">{duplicateMsg}</p>}
         </label>
 
         {isEmail && (
@@ -863,9 +959,11 @@ function TemplateEditor({
               Subject Line <span className="text-destructive">*</span>
             </div>
             <input
+              ref={subjectRef}
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="e.g. Your outstanding balance with {{creditor_client_name}}"
+              onFocus={() => (lastField.current = "subject")}
+              placeholder="e.g. Your account with {{Creditor name}}"
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-tenant"
             />
           </label>
@@ -883,9 +981,15 @@ function TemplateEditor({
                 </div>
                 <div
                   ref={editorRef}
-                  contentEditable
+                  contentEditable={!readOnly}
                   suppressContentEditableWarning
-                  onInput={(e) => setMessage((e.target as HTMLDivElement).innerHTML)}
+                  onInput={(e) => {
+                    setMessage((e.target as HTMLDivElement).innerHTML);
+                    saveRange();
+                  }}
+                  onFocus={() => (lastField.current = "body")}
+                  onKeyUp={saveRange}
+                  onMouseUp={saveRange}
                   className="min-h-[220px] px-4 py-3 text-sm outline-none prose prose-sm max-w-none"
                   style={{ whiteSpace: "pre-wrap" }}
                 />
@@ -895,7 +999,7 @@ function TemplateEditor({
                 ref={smsRef}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Hi {{first_name}}, your promised payment of {{ptp_amount}} is due {{ptp_date}}."
+                placeholder="Hi {{Debtor first name}}, your balance of {{Current outstanding balance}} is now due."
                 className="w-full min-h-[220px] px-4 py-3 text-sm outline-none bg-background resize-y"
               />
             )}
@@ -911,28 +1015,14 @@ function TemplateEditor({
           )}
         </div>
 
-        <div className="rounded-xl border border-border bg-muted/20 p-4">
-          <div className="flex items-center gap-2 mb-2.5">
-            <span className="text-xs font-semibold text-foreground">Insert a variable</span>
-            <span className="text-[11px] text-muted-foreground">
-              Click to add it at the cursor — replaced with each customer's real data when sent.
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {VARIABLE_LIBRARY.map((v) => (
-              <button
-                key={v.key}
-                type="button"
-                onClick={() => insertVariable(v.key)}
-                title={v.description}
-                className="inline-flex items-center px-2 py-1 rounded-md bg-[color:var(--tenant)]/10 text-tenant border border-[color:var(--tenant)]/20 text-[11px] font-mono font-semibold transition-colors hover:bg-[color:var(--tenant)] hover:text-[color:var(--tenant-foreground)] hover:border-[color:var(--tenant)]"
-              >
-                {v.key}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+        {isEmail && (
+          <AttachmentsField docTemplates={docTemplates} selected={docIds} onChange={setDocIds} />
+        )}
+
+        <VariableHint>
+          <InsertVariableMenu onInsert={insertVariable} disabled={readOnly} />
+        </VariableHint>
+      </fieldset>
 
       {previewOpen && (
         <PreviewModal
@@ -954,6 +1044,95 @@ function TemplateEditor({
         />
       )}
     </>
+  );
+}
+
+/* ------------------------------ variable hint ------------------------------ */
+
+function VariableHint({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      {children}
+      <p className="text-[11px] text-muted-foreground">
+        Variables are the customer-file fields defined in Settings → Data Fields. Each one is
+        replaced with the customer's own value when the message is sent.
+      </p>
+    </div>
+  );
+}
+
+/* ---------------------------- email attachments ---------------------------- */
+
+/** Document templates attached to an email template (documentTemplateIdList).
+ *  Each one is generated for the customer and sent with the email. */
+function AttachmentsField({
+  docTemplates,
+  selected,
+  onChange,
+}: {
+  docTemplates: DocumentTemplate[] | null;
+  selected: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const toggle = (id: number) =>
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  // Ids saved on the template that are no longer in the client's library.
+  const missing = docTemplates
+    ? selected.filter((id) => !docTemplates.some((d) => d.templateId === id))
+    : [];
+
+  return (
+    <div>
+      <div className="text-xs font-semibold mb-1.5">Attachments</div>
+      <p className="text-[11px] text-muted-foreground mb-2">
+        Documents generated for the customer and attached every time this email is sent.
+      </p>
+      {docTemplates === null ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading document templates…
+        </div>
+      ) : docTemplates.length === 0 && missing.length === 0 ? (
+        <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border px-3 py-2.5">
+          This client has no document templates yet — add one in the Documents tab to attach it
+          here.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {docTemplates.map((d) => {
+            const on = selected.includes(d.templateId);
+            return (
+              <button
+                key={d.templateId}
+                type="button"
+                onClick={() => toggle(d.templateId)}
+                title={d.templateOrignalFileName}
+                aria-pressed={on}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed",
+                  on
+                    ? "border-[color:var(--tenant)]/40 bg-[color:var(--tenant)]/10 text-tenant"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {on ? <Check className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+                {d.templateName}
+              </button>
+            );
+          })}
+          {missing.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => toggle(id)}
+              title="No longer in this client's library — click to remove"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs font-medium text-warning-foreground"
+            >
+              <X className="h-3.5 w-3.5" /> Template #{id} (removed)
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1001,7 +1180,7 @@ function PreviewModal({
               <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-1">
                 Subject
               </div>
-              <div className="text-sm font-semibold">{withSamples(subject) || "—"}</div>
+              <div className="text-sm font-semibold">{previewText(subject) || "—"}</div>
             </div>
           )}
           <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-1">
@@ -1010,10 +1189,10 @@ function PreviewModal({
           {isEmail ? (
             <div
               className="prose prose-sm max-w-none text-sm"
-              dangerouslySetInnerHTML={{ __html: withSamples(message) || "—" }}
+              dangerouslySetInnerHTML={{ __html: previewHtml(message) || "—" }}
             />
           ) : (
-            <div className="text-sm whitespace-pre-wrap">{withSamples(message) || "—"}</div>
+            <div className="text-sm whitespace-pre-wrap">{previewText(message) || "—"}</div>
           )}
         </div>
       </div>
@@ -1038,10 +1217,16 @@ function VoiceAgentEditor({
   onUpdated: () => void | Promise<void>;
   onDeleted: () => void | Promise<void>;
 }) {
+  const { can } = usePermissions();
+  const canDelete = can("templates.delete");
   const isNew = agent === null;
+  const readOnly = !isNew && !can("templates.edit");
   const [name, setName] = useState(agent?.templateName ?? "New Voice Agent");
   const [greeting, setGreeting] = useState(agent?.greetingMsg ?? "");
   const [prompt, setPrompt] = useState(agent?.templateMessage ?? "");
+  const greetingRef = useRef<HTMLTextAreaElement | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const agentField = useRef<"greeting" | "prompt">("prompt");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1109,7 +1294,7 @@ function VoiceAgentEditor({
 
   return (
     <div className="flex flex-col flex-1 p-6">
-      <div className="space-y-5 flex-1">
+      <fieldset disabled={readOnly} className="min-w-0 space-y-5 flex-1">
         <label className="block">
           <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
             Agent Name
@@ -1127,8 +1312,10 @@ function VoiceAgentEditor({
             Greeting Message
           </div>
           <textarea
+            ref={greetingRef}
             value={greeting}
             onChange={(e) => setGreeting(e.target.value)}
+            onFocus={() => (agentField.current = "greeting")}
             rows={3}
             placeholder="Hi, this is Alex calling on behalf of…"
             className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-tenant resize-y"
@@ -1143,8 +1330,10 @@ function VoiceAgentEditor({
             System Prompt
           </div>
           <textarea
+            ref={promptRef}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
+            onFocus={() => (agentField.current = "prompt")}
             rows={11}
             placeholder="You are a professional, empathetic collections agent. Your goals are…"
             className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-mono outline-none focus:border-tenant resize-y"
@@ -1153,11 +1342,26 @@ function VoiceAgentEditor({
             Instructions that steer the agent throughout the call.
           </div>
         </label>
-      </div>
+
+        <VariableHint>
+          <InsertVariableMenu
+            disabled={readOnly}
+            onInsert={(token) =>
+              agentField.current === "greeting"
+                ? insertIntoField(greetingRef.current, greeting, setGreeting, token)
+                : insertIntoField(promptRef.current, prompt, setPrompt, token)
+            }
+          />
+        </VariableHint>
+      </fieldset>
 
       <div className="mt-6 pt-4 border-t border-border flex items-center justify-between gap-3 flex-wrap">
         <span className="text-xs text-muted-foreground">
-          {dirty ? "Unsaved changes — save to apply." : "All changes saved."}
+          {readOnly
+            ? "View only — your role can't change this."
+            : dirty
+              ? "Unsaved changes — save to apply."
+              : "All changes saved."}
         </span>
         <div className="flex items-center gap-2">
           {isNew ? (
@@ -1168,21 +1372,25 @@ function VoiceAgentEditor({
               <X className="h-4 w-4" /> Discard
             </button>
           ) : (
+            canDelete && (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" /> Delete
+              </button>
+            )
+          )}
+          {!readOnly && (
             <button
-              onClick={() => setConfirmDelete(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10"
+              onClick={saveAgent}
+              disabled={saving || !dirty}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
             >
-              <Trash2 className="h-4 w-4" /> Delete
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
+              {isNew ? "Create Agent" : "Save Changes"}
             </button>
           )}
-          <button
-            onClick={saveAgent}
-            disabled={saving || !dirty}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
-            {isNew ? "Create Agent" : "Save Changes"}
-          </button>
         </div>
       </div>
 
@@ -1226,6 +1434,7 @@ function AiPromptsPanel({
   onRetry: () => void;
   refreshOne: (clientId: number) => Promise<Template[]>;
 }) {
+  const canCreate = usePermissions().can("templates.create");
   const [clientId, setClientId] = useState<number | null>(null);
   const [selected, setSelected] = useState<{ kind: "item"; id: number } | { kind: "draft" } | null>(
     null,
@@ -1275,12 +1484,14 @@ function AiPromptsPanel({
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] min-h-[560px]">
         {/* Left list */}
         <aside className="border-b lg:border-b-0 lg:border-r border-border bg-muted/20 p-3 space-y-2">
-          <button
-            onClick={() => setSelected({ kind: "draft" })}
-            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90"
-          >
-            <Plus className="h-4 w-4" /> New Prompt
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => setSelected({ kind: "draft" })}
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90"
+            >
+              <Plus className="h-4 w-4" /> New Prompt
+            </button>
+          )}
           <ul className="space-y-2">
             {selected?.kind === "draft" && (
               <li>
@@ -1378,9 +1589,13 @@ function AiPromptEditor({
   onUpdated: () => void | Promise<void>;
   onDeleted: () => void | Promise<void>;
 }) {
+  const { can } = usePermissions();
+  const canDelete = can("templates.delete");
   const isNew = prompt === null;
+  const readOnly = !isNew && !can("templates.edit");
   const [name, setName] = useState(prompt?.templateName ?? "New Prompt");
   const [message, setMessage] = useState(prompt?.templateMessage ?? "");
+  const aiPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1442,7 +1657,7 @@ function AiPromptEditor({
 
   return (
     <div className="flex flex-col flex-1 p-6">
-      <div className="space-y-5 flex-1">
+      <fieldset disabled={readOnly} className="min-w-0 space-y-5 flex-1">
         <label className="block">
           <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
             Prompt Name
@@ -1460,6 +1675,7 @@ function AiPromptEditor({
             Prompt
           </div>
           <textarea
+            ref={aiPromptRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={13}
@@ -1467,11 +1683,22 @@ function AiPromptEditor({
             className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-mono outline-none focus:border-tenant resize-y"
           />
         </label>
-      </div>
+
+        <VariableHint>
+          <InsertVariableMenu
+            disabled={readOnly}
+            onInsert={(token) => insertIntoField(aiPromptRef.current, message, setMessage, token)}
+          />
+        </VariableHint>
+      </fieldset>
 
       <div className="mt-6 pt-4 border-t border-border flex items-center justify-between gap-3 flex-wrap">
         <span className="text-xs text-muted-foreground">
-          {dirty ? "Unsaved changes — save to apply." : "All changes saved."}
+          {readOnly
+            ? "View only — your role can't change this."
+            : dirty
+              ? "Unsaved changes — save to apply."
+              : "All changes saved."}
         </span>
         <div className="flex items-center gap-2">
           {isNew ? (
@@ -1482,21 +1709,25 @@ function AiPromptEditor({
               <X className="h-4 w-4" /> Discard
             </button>
           ) : (
+            canDelete && (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" /> Delete
+              </button>
+            )
+          )}
+          {!readOnly && (
             <button
-              onClick={() => setConfirmDelete(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10"
+              onClick={save}
+              disabled={saving || !dirty}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
             >
-              <Trash2 className="h-4 w-4" /> Delete
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
+              {isNew ? "Create Prompt" : "Save Changes"}
             </button>
           )}
-          <button
-            onClick={save}
-            disabled={saving || !dirty}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
-            {isNew ? "Create Prompt" : "Save Changes"}
-          </button>
         </div>
       </div>
 
@@ -1540,6 +1771,7 @@ function DocumentsPanel({
   onRetry: () => void;
   refreshOne: (clientId: number) => Promise<DocumentTemplate[]>;
 }) {
+  const { can } = usePermissions();
   const [clientId, setClientId] = useState<number | null>(null);
   const [dialog, setDialog] = useState<
     { mode: "create" } | { mode: "edit"; doc: DocumentTemplate } | null
@@ -1604,12 +1836,14 @@ function DocumentsPanel({
               documents from the customer file's Documents tab.
             </p>
           </div>
-          <button
-            onClick={() => setDialog({ mode: "create" })}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 shrink-0"
-          >
-            <Upload className="h-4 w-4" /> Upload template
-          </button>
+          {can("templates.create") && (
+            <button
+              onClick={() => setDialog({ mode: "create" })}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 shrink-0"
+            >
+              <Upload className="h-4 w-4" /> Upload template
+            </button>
+          )}
         </div>
 
         {docs.length === 0 ? (
@@ -1623,8 +1857,10 @@ function DocumentsPanel({
               <DocumentCard
                 key={d.templateId}
                 doc={d}
-                onEdit={() => setDialog({ mode: "edit", doc: d })}
-                onDelete={() => setDeleteTarget(d)}
+                onEdit={
+                  can("templates.edit") ? () => setDialog({ mode: "edit", doc: d }) : undefined
+                }
+                onDelete={can("templates.delete") ? () => setDeleteTarget(d) : undefined}
               />
             ))}
           </div>
@@ -1663,8 +1899,9 @@ function DocumentCard({
   onDelete,
 }: {
   doc: DocumentTemplate;
-  onEdit: () => void;
-  onDelete: () => void;
+  /** Omitted when the role lacks the permission, hiding the control. */
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const updated = new Date(doc.updatedAt);
   const updatedLabel = Number.isNaN(updated.getTime())
@@ -1700,20 +1937,24 @@ function DocumentCard({
         >
           <Download className="h-3.5 w-3.5" />
         </a>
-        <button
-          onClick={onEdit}
-          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-tenant"
-          title="Edit"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={onDelete}
-          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-          title="Delete"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-tenant"
+            title="Edit"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+            title="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1840,17 +2081,18 @@ function DocumentTemplateDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="What this template is used for, and which merge variables it expects (e.g. {{debtor_full_name}}, {{balance_due}})."
+              placeholder="What this template is used for, and which fields it expects (e.g. {{Debtor first name}}, {{Current outstanding balance}})."
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-tenant resize-none"
             />
           </label>
 
           <div className="rounded-lg bg-tenant-soft/50 border border-tenant/20 p-3 text-[11px] text-muted-foreground">
-            <span className="font-semibold text-tenant">Tip:</span> Use{" "}
-            <code className="font-mono">{`{{debtor_full_name}}`}</code>,{" "}
-            <code className="font-mono">{`{{balance_due}}`}</code>,{" "}
-            <code className="font-mono">{`{{account_number}}`}</code>, etc. in your template — the
-            AI will replace these with the customer's actual values during generation.
+            <span className="font-semibold text-tenant">Tip:</span> Write customer fields into the
+            .docx as <code className="font-mono">{`{{Field name}}`}</code> — e.g.{" "}
+            <code className="font-mono">{`{{Debtor first name}}`}</code> or{" "}
+            <code className="font-mono">{`{{Current outstanding balance}}`}</code> — and they're
+            filled with the customer's values when the document is generated. See every available
+            field under Insert variable in the Email or SMS editor.
           </div>
         </div>
 

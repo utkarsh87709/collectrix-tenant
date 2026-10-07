@@ -24,7 +24,7 @@ import { Topbar } from "@/components/admin/Topbar";
 import { PageCard, NativeSelect, Pill } from "@/components/tenant/ui";
 import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { MoveToTeamDialog } from "@/components/tenant/customers/MoveToTeamDialog";
-import { useCustomerPermissions } from "@/lib/customer-permissions";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   getCustomerList,
   updateCustomerStatus,
@@ -112,7 +112,7 @@ function activeFilterCount(f: Filters): number {
 }
 
 function DebtorsPage() {
-  const perms = useCustomerPermissions();
+  const { can } = usePermissions();
 
   // Filter-rail reference data — the real master lists, fetched once.
   const [clients, setClients] = useState<MassUpdateClient[]>([]);
@@ -262,7 +262,8 @@ function DebtorsPage() {
     }
   };
 
-  const showCheckboxes = !perms.loading && perms.canBulkManage;
+  // Row checkboxes only matter when there's a bulk action to apply.
+  const showCheckboxes = can("customers.changeStatus") || can("customers.moveTeam");
 
   return (
     <Shell>
@@ -271,18 +272,24 @@ function DebtorsPage() {
         subtitle="The customer files assigned to you"
         action={
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => toast.message("CSV exported")}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
-            >
-              <Download className="h-4 w-4" /> Export
-            </button>
-            <button
-              onClick={() => toast.message("Manual entry coming")}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-            >
-              <Plus className="h-4 w-4" /> Add customer
-            </button>
+            {can("customers.export") && (
+              <button
+                onClick={() => toast.message("CSV exported")}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+              >
+                <Download className="h-4 w-4" /> Export
+              </button>
+            )}
+            {/* Customers enter the system through Data Intake, so adding one by
+                hand sits behind the same grant as uploading a file. */}
+            {can("imports.upload") && (
+              <button
+                onClick={() => toast.message("Manual entry coming")}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+              >
+                <Plus className="h-4 w-4" /> Add customer
+              </button>
+            )}
           </div>
         }
       />
@@ -344,7 +351,7 @@ function DebtorsPage() {
                       <span className="text-sm font-semibold">
                         {effectiveSelected.length} selected
                       </span>
-                      {perms.canUpdateStatus && (
+                      {can("customers.changeStatus") && (
                         <>
                           <NativeSelect
                             size="sm"
@@ -372,7 +379,7 @@ function DebtorsPage() {
                           </button>
                         </>
                       )}
-                      {perms.canMoveTeam && (
+                      {can("customers.moveTeam") && (
                         <button
                           onClick={() => setMoveDialogOpen(true)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"

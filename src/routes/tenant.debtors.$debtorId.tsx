@@ -27,6 +27,7 @@ import {
   Mail,
   Headphones,
   StickyNote,
+  History,
   Archive,
   ArrowLeftRight,
   Download,
@@ -48,8 +49,13 @@ import {
   ExternalLink,
   Paperclip,
 } from "lucide-react";
-import { useCustomerPermissions, type CustomerPermissions } from "@/lib/customer-permissions";
+import { usePermissions, type Permissions } from "@/lib/permissions/store";
 import { DeleteNoteDialog } from "@/components/tenant/DeleteNoteDialog";
+import { EmailBody } from "@/components/tenant/EmailBody";
+import { CustomerTimeline } from "@/components/tenant/customers/CustomerTimeline";
+import { AttachmentList } from "@/components/tenant/customers/EmailAttachments";
+import { EmailComposer } from "@/components/tenant/EmailComposer";
+import { isEmptyEmailHtml } from "@/lib/email-html";
 import {
   getCustomerDetails,
   customerDisplayName,
@@ -132,7 +138,7 @@ function DebtorProfile() {
   if (!Number.isFinite(id)) throw notFound();
   const navigate = useNavigate();
 
-  const perms = useCustomerPermissions();
+  const perms = usePermissions();
   const [details, setDetails] = useState<CustomerDetails | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -279,7 +285,7 @@ function DebtorProfile() {
                 statusCode={details.statusCode}
                 statusName={details.status}
                 statusColor={details.statusColorCode}
-                canChange={perms.canUpdateStatus}
+                canChange={perms.can("customers.changeStatus")}
                 onChanged={refresh}
               />
               {isArchived && (
@@ -300,7 +306,7 @@ function DebtorProfile() {
             <FlagsPopover
               uploadedDebtorId={id}
               tags={tags}
-              canEdit={perms.canManageFlags}
+              canEdit={perms.can("customers.manageFlags")}
               onChanged={refresh}
             />
           </div>
@@ -347,42 +353,83 @@ function DebtorProfile() {
               <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
               Data profile
             </TabsTrigger>
-            <TabsTrigger value="comms">
-              <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
-              Communication
-            </TabsTrigger>
-            <TabsTrigger value="calls">
-              <Headphones className="h-3.5 w-3.5 mr-1.5" />
-              Calls
-            </TabsTrigger>
-            <TabsTrigger value="documents">
-              <FileText className="h-3.5 w-3.5 mr-1.5" />
-              Documents
-            </TabsTrigger>
-            <TabsTrigger value="notes">
-              <StickyNote className="h-3.5 w-3.5 mr-1.5" />
-              Notes
+            {perms.can("customers.messages.view") && (
+              <TabsTrigger value="comms">
+                <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                Communication
+              </TabsTrigger>
+            )}
+            {perms.can("customers.calls.view") && (
+              <TabsTrigger value="calls">
+                <Headphones className="h-3.5 w-3.5 mr-1.5" />
+                Calls
+              </TabsTrigger>
+            )}
+            {perms.can("customers.documents.view") && (
+              <TabsTrigger value="documents">
+                <FileText className="h-3.5 w-3.5 mr-1.5" />
+                Documents
+              </TabsTrigger>
+            )}
+            {perms.can("customers.notes.view") && (
+              <TabsTrigger value="notes">
+                <StickyNote className="h-3.5 w-3.5 mr-1.5" />
+                Notes
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="timeline">
+              <History className="h-3.5 w-3.5 mr-1.5" />
+              Timeline
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dataprofile" className="mt-4">
             <DataProfileTab
               details={details}
-              canEdit={perms.canEditDetails}
+              canEdit={perms.can("customers.edit")}
               onEdit={() => setEditOpen(true)}
             />
           </TabsContent>
-          <TabsContent value="comms" className="mt-4">
-            <CommunicationTab details={details} />
-          </TabsContent>
-          <TabsContent value="calls" className="mt-4">
-            <CallsTab details={details} />
-          </TabsContent>
-          <TabsContent value="documents" className="mt-4">
-            <DocumentsTab details={details} canManage={perms.canAddNotes} />
-          </TabsContent>
-          <TabsContent value="notes" className="mt-4">
-            <NotesTab details={details} />
+          {perms.can("customers.messages.view") && (
+            <TabsContent value="comms" className="mt-4">
+              <CommunicationTab
+                details={details}
+                canSendSms={perms.can("customers.messages.sendSms")}
+                canSendEmail={perms.can("customers.messages.sendEmail")}
+              />
+            </TabsContent>
+          )}
+          {perms.can("customers.calls.view") && (
+            <TabsContent value="calls" className="mt-4">
+              <CallsTab details={details} canPlaceCall={perms.can("customers.calls.place")} />
+            </TabsContent>
+          )}
+          {perms.can("customers.documents.view") && (
+            <TabsContent value="documents" className="mt-4">
+              <DocumentsTab
+                details={details}
+                canGenerate={perms.can("customers.documents.generate")}
+                canDelete={perms.can("customers.documents.delete")}
+              />
+            </TabsContent>
+          )}
+          {perms.can("customers.notes.view") && (
+            <TabsContent value="notes" className="mt-4">
+              <NotesTab details={details} />
+            </TabsContent>
+          )}
+          <TabsContent value="timeline" className="mt-4">
+            <PageCard>
+              <div className="px-6 py-4 border-b border-border">
+                <div className="font-display font-bold text-lg">Timeline</div>
+                <div className="text-sm text-muted-foreground">
+                  Activity on this file, newest first.
+                </div>
+              </div>
+              <div className="p-6">
+                <CustomerTimeline uploadedDebtorId={details.uploadedDebtorId} />
+              </div>
+            </PageCard>
           </TabsContent>
         </Tabs>
       </section>
@@ -587,7 +634,15 @@ function Field({ label, value }: { label: string; value: string }) {
 
 /* ----------------------------- Communication ------------------------------ */
 
-function CommunicationTab({ details }: { details: CustomerDetails }) {
+function CommunicationTab({
+  details,
+  canSendSms,
+  canSendEmail,
+}: {
+  details: CustomerDetails;
+  canSendSms: boolean;
+  canSendEmail: boolean;
+}) {
   const [channel, setChannel] = useState<"sms" | "email">("sms");
   return (
     <PageCard>
@@ -608,7 +663,11 @@ function CommunicationTab({ details }: { details: CustomerDetails }) {
           </button>
         </div>
       </div>
-      {channel === "sms" ? <SmsPanel details={details} /> : <EmailPanel details={details} />}
+      {channel === "sms" ? (
+        <SmsPanel details={details} canSend={canSendSms} />
+      ) : (
+        <EmailPanel details={details} canSend={canSendEmail} />
+      )}
     </PageCard>
   );
 }
@@ -620,7 +679,16 @@ function oldestFirst<T extends { createdAt: string }>(list: T[]): T[] {
   );
 }
 
-function SmsPanel({ details }: { details: CustomerDetails }) {
+/** Shown in place of a composer when the role can read a channel but not send on it. */
+function SendLocked({ channel }: { channel: "SMS" | "email" }) {
+  return (
+    <div className="border-t border-border pt-4 text-xs text-muted-foreground">
+      Your role can read this conversation but not send {channel}.
+    </div>
+  );
+}
+
+function SmsPanel({ details, canSend }: { details: CustomerDetails; canSend: boolean }) {
   const [messages, setMessages] = useState<CustomerSmsMessage[] | null>(null);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -679,39 +747,44 @@ function SmsPanel({ details }: { details: CustomerDetails }) {
           </div>
         )}
       </div>
-      <div className="border-t border-border pt-4">
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={3}
-          placeholder={`Type your SMS to ${customerDisplayName(details)}…`}
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
-        />
-        <div className="mt-2 flex justify-end">
-          <button
-            onClick={send}
-            disabled={!body.trim() || sending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
-          >
-            {sending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Send className="h-3.5 w-3.5" />
-            )}
-            Send SMS
-          </button>
+      {!canSend ? (
+        <SendLocked channel="SMS" />
+      ) : (
+        <div className="border-t border-border pt-4">
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={3}
+            placeholder={`Type your SMS to ${customerDisplayName(details)}…`}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+          />
+          <div className="mt-2 flex justify-end">
+            <button
+              onClick={send}
+              disabled={!body.trim() || sending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
+            >
+              {sending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              Send SMS
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function EmailPanel({ details }: { details: CustomerDetails }) {
+function EmailPanel({ details, canSend }: { details: CustomerDetails; canSend: boolean }) {
   const [messages, setMessages] = useState<CustomerEmailMessage[] | null>(null);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [subjectTouched, setSubjectTouched] = useState(false);
+  const [attachIds, setAttachIds] = useState<number[]>([]);
 
   const load = () =>
     getCustomerEmail(details.uploadedDebtorId)
@@ -729,15 +802,17 @@ function EmailPanel({ details }: { details: CustomerDetails }) {
   }, [details.uploadedDebtorId]);
 
   const send = async () => {
-    if (!body.trim()) return;
+    if (isEmptyEmailHtml(body) || !subject.trim() || sending) return;
     setSending(true);
     try {
       await sendCustomerEmail({
         uploadedDebtorId: details.uploadedDebtorId,
-        emailSubject: subject,
-        emailBody: body.trim(),
+        emailSubject: subject.trim(),
+        emailBody: body,
+        ...(attachIds.length ? { documentTemplateIdList: attachIds } : {}),
       });
       setBody("");
+      setAttachIds([]);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't send that email.");
@@ -771,43 +846,57 @@ function EmailPanel({ details }: { details: CustomerDetails }) {
                 when={m.createdAt}
                 body={m.emailBody}
                 subject={m.emailSubject}
+                html
+                attachments={m.documentAttachmentList}
               />
             ))}
           </div>
         )}
       </div>
-      <div className="border-t border-border pt-4 space-y-2">
-        <input
-          value={subject}
-          onChange={(e) => {
-            setSubject(e.target.value);
-            setSubjectTouched(true);
-          }}
-          placeholder="Subject"
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
-        />
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={3}
-          placeholder={`Compose email to ${customerDisplayName(details)}…`}
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
-        />
-        <div className="flex justify-end">
-          <button
-            onClick={send}
-            disabled={!body.trim() || sending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
-          >
-            {sending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Send className="h-3.5 w-3.5" />
-            )}
-            Send email
-          </button>
+      {!canSend ? (
+        <SendLocked channel="email" />
+      ) : (
+        <div className="border-t border-border pt-4 space-y-2">
+          <input
+            value={subject}
+            onChange={(e) => {
+              setSubject(e.target.value);
+              setSubjectTouched(true);
+            }}
+            placeholder="Subject"
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+          />
+          <EmailComposer
+            value={body}
+            onChange={setBody}
+            clientId={details.clientId}
+            attachments={attachIds}
+            onAttachmentsChange={setAttachIds}
+            placeholder={`Compose email to ${customerDisplayName(details)}…`}
+            disabled={sending}
+            onSubmit={send}
+          />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] text-muted-foreground">
+              {!subject.trim() && !isEmptyEmailHtml(body)
+                ? "Add a subject to send"
+                : "Sent as email-safe HTML · ⌘/Ctrl+Enter to send"}
+            </span>
+            <button
+              onClick={send}
+              disabled={isEmptyEmailHtml(body) || !subject.trim() || sending}
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold disabled:opacity-50"
+            >
+              {sending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              Send email
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -818,12 +907,18 @@ function MessageBubble({
   when,
   body,
   subject,
+  html = false,
+  attachments,
 }: {
   outgoing: boolean;
   sender: string;
   when: string;
   body: string;
   subject?: string;
+  /** Email bodies may carry markup; SMS is always plain text. */
+  html?: boolean;
+  /** Email only — URLs of documents sent with the message. */
+  attachments?: string[] | null;
 }) {
   return (
     <div className={`flex ${outgoing ? "justify-end" : "justify-start"}`}>
@@ -834,7 +929,8 @@ function MessageBubble({
           {sender} · {timeAgo(when)}
         </div>
         {subject && <div className="font-semibold mb-0.5">{subject}</div>}
-        <div className="whitespace-pre-wrap">{body}</div>
+        {html ? <EmailBody body={body} /> : <div className="whitespace-pre-wrap">{body}</div>}
+        <AttachmentList urls={attachments} onTint={outgoing} />
       </div>
     </div>
   );
@@ -855,7 +951,7 @@ function formatDuration(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-function CallsTab({ details }: { details: CustomerDetails }) {
+function CallsTab({ details, canPlaceCall }: { details: CustomerDetails; canPlaceCall: boolean }) {
   const [calls, setCalls] = useState<CustomerCall[] | null>(null);
   const [openCall, setOpenCall] = useState<CustomerCall | null>(null);
   const [callDialogOpen, setCallDialogOpen] = useState(false);
@@ -887,12 +983,14 @@ function CallsTab({ details }: { details: CustomerDetails }) {
             {calls ? `${calls.length} calls · ~${totalMinutes} min recorded` : "Loading…"}
           </div>
         </div>
-        <button
-          onClick={() => setCallDialogOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold"
-        >
-          <PhoneCall className="h-4 w-4" /> Initiate call
-        </button>
+        {canPlaceCall && (
+          <button
+            onClick={() => setCallDialogOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold"
+          >
+            <PhoneCall className="h-4 w-4" /> Initiate call
+          </button>
+        )}
       </div>
       <div className="divide-y divide-border">
         {calls?.length === 0 && (
@@ -1019,7 +1117,15 @@ function CallDetailModal({
 
 /* ------------------------------- Documents --------------------------------- */
 
-function DocumentsTab({ details, canManage }: { details: CustomerDetails; canManage: boolean }) {
+function DocumentsTab({
+  details,
+  canGenerate,
+  canDelete,
+}: {
+  details: CustomerDetails;
+  canGenerate: boolean;
+  canDelete: boolean;
+}) {
   const [documents, setDocuments] = useState<CustomerDocument[] | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -1055,7 +1161,7 @@ function DocumentsTab({ details, canManage }: { details: CustomerDetails; canMan
         subtitle={`Files generated and collected across the lifecycle for ${customerDisplayName(details)}`}
         icon={<FileText className="h-4 w-4" />}
         action={
-          canManage ? (
+          canGenerate ? (
             <button
               onClick={() => setGenerateOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold"
@@ -1119,7 +1225,7 @@ function DocumentsTab({ details, canManage }: { details: CustomerDetails; canMan
                         >
                           <Download className="h-3.5 w-3.5" />
                         </a>
-                        {canManage && (
+                        {canDelete && (
                           <button
                             onClick={() => remove(doc)}
                             disabled={deletingId === doc.documentId}
@@ -1387,7 +1493,7 @@ function GenerateDocumentDialog({
 /* --------------------------------- Notes ----------------------------------- */
 
 function NotesTab({ details }: { details: CustomerDetails }) {
-  const perms = useCustomerPermissions();
+  const { can } = usePermissions();
   const [notes, setNotes] = useState<CustomerNote[] | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<CustomerNote | null>(null);
@@ -1429,7 +1535,7 @@ function NotesTab({ details }: { details: CustomerDetails }) {
             {notes ? `${notes.length} total` : "Loading…"}
           </div>
         </div>
-        {perms.canAddNotes && (
+        {can("customers.notes.create") && (
           <button
             onClick={() => setAddOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tenant text-white text-sm font-semibold"
@@ -1457,17 +1563,24 @@ function NotesTab({ details }: { details: CustomerDetails }) {
                     · {timeAgo(n.createdAt)}
                   </div>
                 </div>
-                {perms.canAddNotes && (
+                {(can("customers.notes.edit") || can("customers.notes.delete")) && (
                   <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => setEditing(n)} className="p-1.5 rounded hover:bg-muted">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setDeleting(n)}
-                      className="p-1.5 rounded hover:bg-muted text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    {can("customers.notes.edit") && (
+                      <button
+                        onClick={() => setEditing(n)}
+                        className="p-1.5 rounded hover:bg-muted"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {can("customers.notes.delete") && (
+                      <button
+                        onClick={() => setDeleting(n)}
+                        className="p-1.5 rounded hover:bg-muted text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1741,7 +1854,7 @@ function ManageMenu({
   onToggleEngagement,
 }: {
   details: CustomerDetails;
-  perms: CustomerPermissions;
+  perms: Permissions;
   isArchived: boolean;
   isEngaged: boolean;
   engagementBusy: boolean;
@@ -1752,10 +1865,11 @@ function ManageMenu({
   onMoveToTeam: () => void;
   onToggleEngagement: () => void;
 }) {
-  const showArchive = perms.canArchive && !isArchived;
-  // Restoring is the inverse of archiving, so it sits behind the same grant.
-  const showRestore = perms.canArchive && isArchived;
-  const showEngagementToggle = isEngaged ? perms.canStopEngagement : perms.canResumeEngagement;
+  const showArchive = perms.can("customers.archive") && !isArchived;
+  const showRestore = perms.can("archive.restore") && isArchived;
+  const showEngagementToggle = perms.can(
+    isEngaged ? "customers.stopEngagement" : "customers.resumeEngagement",
+  );
 
   return (
     <DropdownMenu>
@@ -1772,20 +1886,22 @@ function ManageMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => {
-            exportCustomerCsv(details, isArchived, isEngaged);
-            onExported();
-          }}
-        >
-          <Download className="h-4 w-4" /> Export
-        </DropdownMenuItem>
-        {perms.canEditDetails && (
+        {perms.can("customers.export") && (
+          <DropdownMenuItem
+            onSelect={() => {
+              exportCustomerCsv(details, isArchived, isEngaged);
+              onExported();
+            }}
+          >
+            <Download className="h-4 w-4" /> Export
+          </DropdownMenuItem>
+        )}
+        {perms.can("customers.edit") && (
           <DropdownMenuItem onSelect={onEdit}>
             <Pencil className="h-4 w-4" /> Edit details
           </DropdownMenuItem>
         )}
-        {perms.canMoveTeam && (
+        {perms.can("customers.moveTeam") && (
           <DropdownMenuItem onSelect={onMoveToTeam}>
             <ArrowLeftRight className="h-4 w-4" /> Move to team
           </DropdownMenuItem>

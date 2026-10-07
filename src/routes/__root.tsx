@@ -11,9 +11,13 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { PortalProvider } from "@/lib/portal-context";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { requiredPermissions } from "@/lib/permissions/routes";
+import { usePermissions } from "@/lib/permissions/store";
+import { NoAccess, PermissionsError, PermissionsLoading } from "@/components/admin/AccessStates";
 
 // Only these tenant modules are enabled (have real API integration). Any other
 // /tenant/* path is blocked — even via direct URL entry — and bounced to Overview.
+// Within them, what a given user may open is decided by PermissionGate below.
 const ENABLED_TENANT_PREFIXES = [
   "/tenant/users",
   "/tenant/roles",
@@ -111,13 +115,30 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Role-based page access. Stands in for the page entirely — so a page the
+// user's role doesn't open never mounts or fires its API calls — when the
+// route needs a permission the signed-in user doesn't hold (see
+// permissions/routes.ts). Pages without a rule, like Overview, always render.
+function PermissionGate({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const perms = usePermissions();
+  const required = requiredPermissions(pathname);
+  if (!required) return <>{children}</>;
+  if (perms.status === "loading") return <PermissionsLoading />;
+  if (perms.status === "error") return <PermissionsError onRetry={perms.retry} />;
+  if (!perms.canAny(...required)) return <NoAccess required={required} />;
+  return <>{children}</>;
+}
+
 function RootComponent() {
   return (
     <AuthProvider>
       <HeadContent />
       <PortalProvider>
         <AuthGate>
-          <Outlet />
+          <PermissionGate>
+            <Outlet />
+          </PermissionGate>
         </AuthGate>
         <Toaster position="top-right" richColors />
       </PortalProvider>

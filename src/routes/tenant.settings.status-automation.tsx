@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   AlertTriangle,
   Building2,
@@ -19,11 +20,9 @@ import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { InitialStatusCard } from "@/components/tenant/statuses/InitialStatusCard";
 import {
   StatusAutomationCard,
-  type MemberOption,
   type TemplateOption,
 } from "@/components/tenant/statuses/StatusAutomationCard";
 import { getTeamList, type TeamListItem } from "@/lib/teams-api";
-import { getTeamDeckAssignUserList, memberName } from "@/lib/team-deck-api";
 import { getClientTemplate, type LibraryType } from "@/lib/template-library-api";
 import {
   CHANNEL_LABEL,
@@ -34,6 +33,7 @@ import {
   formatDuration,
   getClientList,
   getClientTeamStatusList,
+  getDocumentTemplates,
   getStatusAutomationDetails,
   getStatusAutomationList,
   payloadFromConfig,
@@ -44,6 +44,7 @@ import {
   type AutomationClient,
   type ChannelKey,
   type ClientTeamStatus,
+  type DocumentTemplateOption,
   type MessageSource,
   type StatusAutomationConfig,
   type StatusAutomationRow,
@@ -73,7 +74,7 @@ function StatusAutomationPage() {
   const [rows, setRows] = useState<StatusAutomationRow[]>([]);
   const [configs, setConfigs] = useState<Record<number, StatusAutomationConfig>>({});
   const [templates, setTemplates] = useState<TemplateSets>(EMPTY_TEMPLATE_SETS);
-  const [members, setMembers] = useState<MemberOption[]>([]);
+  const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplateOption[]>([]);
   const [loading, setLoading] = useState(false);
   /** Statuses whose getStatusAutomationDetails call is still in flight. */
   const [detailsLoading, setDetailsLoading] = useState<Record<number, boolean>>({});
@@ -132,18 +133,15 @@ function StatusAutomationPage() {
     // here rather than leaving Save disabled on the new pair.
     setDetailsLoading({});
     try {
-      const [statuses, automationRows, assignUsers, email, sms, call, aiPrompt] = await Promise.all(
-        [
-          getClientTeamStatusList({ clientId: cId, teamId: tId }),
-          getStatusAutomationList({ clientId: cId, teamId: tId }),
-          getTeamDeckAssignUserList(tId),
-          getClientTemplate({ clientId: cId, templateType: "email" }),
-          getClientTemplate({ clientId: cId, templateType: "sms" }),
-          // AI voice agents are `call` entries; AI-written email/SMS use aiPrompt.
-          getClientTemplate({ clientId: cId, templateType: "call" }),
-          getClientTemplate({ clientId: cId, templateType: "aiPrompt" }),
-        ],
-      );
+      const [statuses, automationRows, email, sms, aiPrompt, documents] = await Promise.all([
+        getClientTeamStatusList({ clientId: cId, teamId: tId }),
+        getStatusAutomationList({ clientId: cId, teamId: tId }),
+        getClientTemplate({ clientId: cId, templateType: "email" }),
+        getClientTemplate({ clientId: cId, templateType: "sms" }),
+        // AI-written email/SMS use aiPrompt entries.
+        getClientTemplate({ clientId: cId, templateType: "aiPrompt" }),
+        getDocumentTemplates(cId),
+      ]);
       if (reqId.current !== id) return;
 
       setStatusList(statuses);
@@ -151,12 +149,10 @@ function StatusAutomationPage() {
       setTemplates({
         email: email.map((t) => ({ id: t.templateId, name: t.templateName })),
         sms: sms.map((t) => ({ id: t.templateId, name: t.templateName })),
-        call: call.map((t) => ({ id: t.templateId, name: t.templateName })),
+        call: [],
         aiPrompt: aiPrompt.map((t) => ({ id: t.templateId, name: t.templateName })),
       });
-      setMembers(
-        (assignUsers.assignUserList ?? []).map((m) => ({ userId: m.userId, name: memberName(m) })),
-      );
+      setDocumentTemplates(documents);
 
       // Seed from the list, then fill in saved settings for the statuses that
       // have them. A null automationId means this status has never been saved
@@ -264,7 +260,7 @@ function StatusAutomationPage() {
     for (const row of rows) {
       const cfg = configs[row.statusId];
       if (!cfg) continue;
-      const err = validateAutomation(cfg, allowed);
+      const err = validateAutomation(cfg, allowed, !!client.documentEnabled);
       if (err) {
         toast.error(`${row.status}: ${err}`);
         setExpanded((p) => ({ ...p, [row.statusId]: true }));
@@ -318,6 +314,7 @@ function StatusAutomationPage() {
   /* -------------------------------- render ------------------------------ */
 
   const ready = !!client && !!team && !loading && !error;
+  const canEdit = usePermissions().can("statusAutomation.edit");
 
   return (
     <Shell>
@@ -325,23 +322,29 @@ function StatusAutomationPage() {
         title="Status Automation"
         subtitle="Automated behaviour per status, for each team and client"
         action={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleReset}
-              disabled={dirtyIds.length === 0 || saving}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
-            >
-              <RotateCcw className="h-4 w-4" /> Discard changes
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={!ready || dirtyIds.length === 0 || saving || anyDetailsLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save changes{dirtyIds.length > 0 ? ` (${dirtyIds.length})` : ""}
-            </button>
-          </div>
+          canEdit ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleReset}
+                disabled={dirtyIds.length === 0 || saving}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
+              >
+                <RotateCcw className="h-4 w-4" /> Discard changes
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!ready || dirtyIds.length === 0 || saving || anyDetailsLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Save changes{dirtyIds.length > 0 ? ` (${dirtyIds.length})` : ""}
+              </button>
+            </div>
+          ) : undefined
         }
       />
 
@@ -357,9 +360,9 @@ function StatusAutomationPage() {
               <p className="text-sm text-muted-foreground max-w-3xl">
                 Automation follows a hierarchy: <strong>Team → Client → status</strong>. Pick a
                 team, then a client, then configure each status — the status new files land in,
-                outreach and follow-ups, who the file is assigned to, documents to generate,
-                auto-archive and inactivity transitions. Rules bind to your own statuses from the
-                Status Builder, so renames carry over automatically. Every change is audit-logged.
+                outreach and follow-ups, documents to generate, auto-archive and inactivity
+                transitions. Rules bind to your own statuses from the Status Builder, so renames
+                carry over automatically. Every change is audit-logged.
               </p>
             </div>
           </div>
@@ -463,6 +466,7 @@ function StatusAutomationPage() {
               clientId={client.clientId}
               teamId={team.teamId}
               onChanged={() => loadPair(client.clientId, team.teamId)}
+              readOnly={!canEdit}
             />
 
             {rows.length === 0 ? (
@@ -489,10 +493,11 @@ function StatusAutomationPage() {
                     onPreview={() => setPreviewing(row.statusId)}
                     templatesFor={templatesFor}
                     templateName={templateName}
-                    members={members}
                     documentsAllowed={!!client.documentEnabled}
+                    documentTemplates={documentTemplates}
                     otherStatuses={rows.filter((r) => r.statusId !== row.statusId)}
                     loadingDetails={!!detailsLoading[row.statusId]}
+                    readOnly={!canEdit}
                   />
                 );
               })
@@ -508,7 +513,9 @@ function StatusAutomationPage() {
           allowed={allowed}
           templateName={templateName}
           statusName={(id) => rows.find((r) => r.statusId === id)?.status ?? "—"}
-          memberLabel={(id) => members.find((m) => m.userId === id)?.name ?? "—"}
+          documentName={(id) =>
+            documentTemplates.find((d) => d.id === id)?.name ?? (id ? `template #${id}` : "—")
+          }
           onClose={() => setPreviewing(null)}
         />
       )}
@@ -578,7 +585,7 @@ function PreviewModal({
   allowed,
   templateName,
   statusName,
-  memberLabel,
+  documentName,
   onClose,
 }: {
   row: StatusAutomationRow;
@@ -586,7 +593,7 @@ function PreviewModal({
   allowed: ChannelKey[];
   templateName: (id: number | null) => string;
   statusName: (id: number | null) => string;
-  memberLabel: (id: number | null) => string;
+  documentName: (id: number | null) => string;
   onClose: () => void;
 }) {
   const steps = useMemo(() => {
@@ -594,11 +601,8 @@ function PreviewModal({
     const push = (minutes: number, when: string, kind: string, detail: string) =>
       out.push({ minutes, when, kind, detail });
 
-    if (config.assignMember.enabled) {
-      push(0, "On entry", "Assignment", `Assign to ${memberLabel(config.assignMember.userId)}`);
-    }
     if (config.generateDocuments) {
-      push(0, "On entry", "Documents", "Generate this status' documents");
+      push(0, "On entry", "Documents", `Generate ${documentName(config.documentTemplateId)}`);
     }
 
     for (const ch of allowed) {
@@ -641,7 +645,7 @@ function PreviewModal({
     }
 
     return out.sort((a, b) => a.minutes - b.minutes);
-  }, [config, allowed, templateName, statusName, memberLabel]);
+  }, [config, allowed, templateName, statusName, documentName]);
 
   return (
     <div

@@ -16,6 +16,7 @@
 // to see the actual result, rather than trusting the success response alone.
 // All authenticated with the raw token (attached automatically by apiPost).
 import { apiPost } from "./api-client";
+import { invalidatePlaceholders } from "./placeholders-api";
 
 export type DataFieldType = "text" | "number" | "email" | "phoneNumber" | "date" | "boolean";
 
@@ -62,16 +63,18 @@ export function getCustomFields(): Promise<DataField[]> {
   return fetchFieldList("/tenant/getCustomFields");
 }
 
+// Every mutation drops the cached template placeholders (getTenantPlaceholders)
+// so template editors pick up the added/renamed/removed field.
 export function createCustomField(input: CustomFieldInput): Promise<unknown> {
-  return apiPost("/tenant/createCustomFields", { ...input });
+  return apiPost("/tenant/createCustomFields", { ...input }).finally(invalidatePlaceholders);
 }
 
 export function updateCustomField(input: CustomFieldInput & { fieldId: number }): Promise<unknown> {
-  return apiPost("/tenant/updateCustomFields", { ...input });
+  return apiPost("/tenant/updateCustomFields", { ...input }).finally(invalidatePlaceholders);
 }
 
 export function deleteCustomField(fieldId: number): Promise<unknown> {
-  return apiPost("/tenant/deleteCustomFields", { fieldId });
+  return apiPost("/tenant/deleteCustomFields", { fieldId }).finally(invalidatePlaceholders);
 }
 
 /** Builds a header-only CSV from the tenant's full field set (default + custom)

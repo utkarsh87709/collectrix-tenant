@@ -38,6 +38,7 @@ export function InitialStatusCard({
   clientId,
   teamId,
   onChanged,
+  readOnly = false,
 }: {
   statuses: ClientTeamStatus[];
   teamName: string;
@@ -45,6 +46,8 @@ export function InitialStatusCard({
   clientId: number;
   teamId: number;
   onChanged: () => void;
+  /** Without statusAutomation.edit the current initial status shows but can't change. */
+  readOnly?: boolean;
 }) {
   const current = findInitialStatus(statuses);
   const [pending, setPending] = useState<ClientTeamStatus | null>(null);
@@ -121,7 +124,7 @@ export function InitialStatusCard({
               <NativeSelect
                 value={current?.statusId ?? ""}
                 onChange={(e) => handleSelect(e.target.value)}
-                disabled={busy || statuses.length === 0}
+                disabled={readOnly || busy || statuses.length === 0}
               >
                 {/* No status carries initialStatus:1 → this pair has never been configured. */}
                 <option value="">Select initial status…</option>

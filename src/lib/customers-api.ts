@@ -49,7 +49,11 @@
 //     delinquency/createdAt), which looked "static" because most files carry none
 //     of those dates.
 //   POST /tenant/getCustomerEmail  { uploadedDebtorId } -> { emailList[] }
-//   POST /tenant/sendCustomerEmail { uploadedDebtorId, emailSubject, emailBody } -> {}
+//     Each row carries documentAttachmentList: string[] — S3 URLs of the
+//     documents sent with that email (verified live 2026-10-07 on debtor 167).
+//   POST /tenant/sendCustomerEmail { uploadedDebtorId, emailSubject, emailBody, documentTemplateIdList? } -> {}
+//     documentTemplateIdList: document template ids (getCustomerDocumentTemplateList)
+//     the backend generates for this file and attaches to the email.
 //     Load the most recent thread subject as the default so a reply stays on the same thread.
 //   POST /tenant/getCustomerSms    { uploadedDebtorId } -> { emailList[] }
 //     NOTE: the backend's own key for this endpoint is literally "emailList" (a
@@ -251,6 +255,8 @@ export type CustomerDetails = {
   unreadMsgCount: number;
   /** The file's tags/flags. null when none; confirmed live as string[] when populated — read via normalizeTags. */
   customerTags: unknown;
+  /** The file's client — confirmed live 2026-10-07. Scopes document templates. */
+  clientId: number;
   clientName: string;
   clientNumber: string;
   teamName: string | null;
@@ -378,6 +384,8 @@ export type CustomerEmailMessage = {
   emailSubject: string;
   emailBody: string;
   direction: "outgoing" | "incoming";
+  /** URLs of documents attached to this email; null/absent when none. */
+  documentAttachmentList?: string[] | null;
   createdBy: number | null;
   senderName: string;
 };
@@ -392,6 +400,8 @@ export function sendCustomerEmail(input: {
   uploadedDebtorId: number;
   emailSubject: string;
   emailBody: string;
+  /** Document templates to generate and attach. */
+  documentTemplateIdList?: number[];
 }): Promise<unknown> {
   return apiPost("/tenant/sendCustomerEmail", { ...input });
 }

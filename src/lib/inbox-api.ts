@@ -54,6 +54,8 @@ export type InboxCustomer = {
   debtorMiddleName: string | null;
   debtorLastName: string | null;
   creditorName: string;
+  /** Confirmed live 2026-10-07. */
+  clientId: number;
   clientName: string;
   clientNumber: string;
   teamName: string | null;

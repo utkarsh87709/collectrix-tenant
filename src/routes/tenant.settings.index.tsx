@@ -29,6 +29,10 @@ import { getTimezoneList, type TimezoneItem } from "@/lib/profile-api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SettingsSkeleton } from "@/components/admin/Skeletons";
 import { DataFieldsSection } from "@/components/tenant/data-fields/DataFieldsSection";
+import { usePermissions } from "@/lib/permissions/store";
+
+// Tailwind needs whole class names, so the tab strip picks one per tab count.
+const TAB_COLS = ["grid-cols-1", "grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"];
 
 export const Route = createFileRoute("/tenant/settings/")({
   head: () => ({ meta: [{ title: "Tenant Settings · Tenant Admin" }] }),
@@ -80,8 +84,15 @@ function detailsToWeekly(d: TenantDetails): WeeklyHours {
 }
 
 function SettingsPage() {
-  const [tab, setTab] = useState<TabKey>("organization");
-  const [loading, setLoading] = useState(true);
+  // The route opens with either grant: settings.view shows Organization, Hours
+  // and Connectors; dataFields.view shows the Data Fields tab.
+  const { can } = usePermissions();
+  const canViewSettings = can("settings.view");
+  const canEditSettings = can("settings.edit");
+  const canViewFields = can("dataFields.view");
+  const tabCount = (canViewSettings ? 3 : 0) + (canViewFields ? 1 : 0);
+  const [tab, setTab] = useState<TabKey>(canViewSettings ? "organization" : "dataFields");
+  const [loading, setLoading] = useState(canViewSettings);
   const [saving, setSaving] = useState(false);
   const [timezones, setTimezones] = useState<TimezoneItem[]>([]);
 
@@ -120,6 +131,7 @@ function SettingsPage() {
 
   // Hydrate the form from the tenant record (and load timezone options).
   useEffect(() => {
+    if (!canViewSettings) return;
     let active = true;
     Promise.all([getTenantDetails(), getTimezoneList()])
       .then(([d, { timezoneList }]) => {
@@ -142,7 +154,7 @@ function SettingsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [canViewSettings]);
 
   // updateTenantDetails replaces the whole record, so every save sends the full
   // payload assembled from current state — partial saves stay non-destructive.
@@ -213,14 +225,16 @@ function SettingsPage() {
         title="Tenant Settings"
         subtitle="Configure your workspace and operating hours"
         action={
-          <button
-            onClick={saveAll}
-            disabled={loading || saving}
-            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
-            Save changes
-          </button>
+          canViewSettings && canEditSettings ? (
+            <button
+              onClick={saveAll}
+              disabled={loading || saving}
+              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
+              Save changes
+            </button>
+          ) : undefined
         }
       />
 
@@ -231,230 +245,282 @@ function SettingsPage() {
           {/* Tabs */}
           <section className="px-6 lg:px-10 py-6">
             <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-              <TabsList className="grid grid-cols-4 w-full max-w-3xl mb-5 bg-muted/60">
-                <TabsTrigger
-                  value="organization"
-                  className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
-                >
-                  <Building2 className="h-4 w-4 mr-1.5" /> Organization
-                </TabsTrigger>
-                <TabsTrigger
-                  value="availability"
-                  className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
-                >
-                  <Clock className="h-4 w-4 mr-1.5" /> Hours
-                </TabsTrigger>
-                <TabsTrigger
-                  value="integrations"
-                  className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
-                >
-                  <Plug className="h-4 w-4 mr-1.5" /> Connectors
-                </TabsTrigger>
-                <TabsTrigger
-                  value="dataFields"
-                  className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
-                >
-                  <Table2 className="h-4 w-4 mr-1.5" /> Data Fields
-                </TabsTrigger>
+              <TabsList className={`grid ${TAB_COLS[tabCount]} w-full max-w-3xl mb-5 bg-muted/60`}>
+                {canViewSettings && (
+                  <>
+                    <TabsTrigger
+                      value="organization"
+                      className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                    >
+                      <Building2 className="h-4 w-4 mr-1.5" /> Organization
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="availability"
+                      className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                    >
+                      <Clock className="h-4 w-4 mr-1.5" /> Hours
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="integrations"
+                      className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                    >
+                      <Plug className="h-4 w-4 mr-1.5" /> Connectors
+                    </TabsTrigger>
+                  </>
+                )}
+                {canViewFields && (
+                  <TabsTrigger
+                    value="dataFields"
+                    className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                  >
+                    <Table2 className="h-4 w-4 mr-1.5" /> Data Fields
+                  </TabsTrigger>
+                )}
               </TabsList>
 
+              {canViewSettings && !canEditSettings && (
+                <p className="mb-4 text-xs text-muted-foreground">
+                  Your role can view these settings but not change them.
+                </p>
+              )}
+
               {/* Organization */}
-              <TabsContent value="organization" className="mt-0">
-                <Section
-                  title="Organization profile"
-                  desc="Visible to your users and on outbound communications"
-                  icon={<Building2 className="h-5 w-5" />}
-                >
-                  <div className="grid md:grid-cols-2 gap-5">
-                    <Field label="Company name" hint="Shown on emails, letters, and the portal">
-                      <input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
-                      />
-                    </Field>
-                    <Field
-                      label="Timezone"
-                      hint="Default timezone for operating hours and scheduling"
-                    >
-                      <SelectInput value={tz} onChange={(e) => setTz(e.target.value)}>
-                        {/* Keep the saved value selectable even if not in the option list. */}
-                        {tz && !timezones.some((t) => t.timezone === tz) && (
-                          <option value={tz}>{tz}</option>
-                        )}
-                        {timezones.map((t) => (
-                          <option key={t.timezone} value={t.timezone}>
-                            {t.timezone}
-                          </option>
-                        ))}
-                      </SelectInput>
-                    </Field>
-                  </div>
-
-                  <SectionFooter onSave={saveProfile} label="Save profile" saving={saving} />
-                </Section>
-              </TabsContent>
-
-              {/* Availability */}
-              <TabsContent value="availability" className="mt-0">
-                <Section
-                  title="Operating hours"
-                  desc="When live agents can take escalated customer calls"
-                  icon={<Clock className="h-5 w-5" />}
-                >
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    {DAY_KEYS.map((d, i) => (
-                      <div
-                        key={d}
-                        className={`flex items-center gap-4 px-4 py-3 ${i !== DAY_KEYS.length - 1 ? "border-b border-border" : ""} ${weekly[d].enabled ? "bg-card" : "bg-muted/30"}`}
+              {canViewSettings && (
+                <>
+                  <TabsContent value="organization" className="mt-0">
+                    <fieldset disabled={!canEditSettings} className="min-w-0">
+                      <Section
+                        title="Organization profile"
+                        desc="Visible to your users and on outbound communications"
+                        icon={<Building2 className="h-5 w-5" />}
                       >
-                        <div className="flex items-center gap-3 w-40">
-                          <Toggle
-                            checked={weekly[d].enabled}
-                            onChange={(v) =>
-                              setWeekly((p) => ({ ...p, [d]: { ...p[d], enabled: v } }))
-                            }
-                            label={`Toggle ${DAY_LABELS[d]}`}
-                          />
-                          <span
-                            className={`font-semibold text-sm ${!weekly[d].enabled ? "text-muted-foreground" : ""}`}
+                        <div className="grid md:grid-cols-2 gap-5">
+                          <Field
+                            label="Company name"
+                            hint="Shown on emails, letters, and the portal"
                           >
-                            {DAY_LABELS[d]}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <input
-                            type="time"
-                            disabled={!weekly[d].enabled}
-                            value={weekly[d].start}
-                            onChange={(e) =>
-                              setWeekly((p) => ({ ...p, [d]: { ...p[d], start: e.target.value } }))
-                            }
-                            className="h-9 px-2 rounded-md bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:opacity-40"
-                          />
-                          <span className="text-muted-foreground text-xs">to</span>
-                          <input
-                            type="time"
-                            disabled={!weekly[d].enabled}
-                            value={weekly[d].end}
-                            onChange={(e) =>
-                              setWeekly((p) => ({ ...p, [d]: { ...p[d], end: e.target.value } }))
-                            }
-                            className="h-9 px-2 rounded-md bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:opacity-40"
-                          />
-                        </div>
-                        {!weekly[d].enabled && (
-                          <span className="ml-auto text-[11px] text-muted-foreground">Closed</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-tenant/5 border border-tenant/20 text-xs text-muted-foreground">
-                    <Calendar className="h-4 w-4 text-tenant shrink-0 mt-0.5" />
-                    <div>
-                      Outside these hours, the AI offers a callback at the customer's preferred time.
-                    </div>
-                  </div>
-
-                  <SectionFooter onSave={saveHours} label="Save hours" saving={saving} />
-                </Section>
-              </TabsContent>
-
-              {/* Integrations */}
-              <TabsContent value="integrations" className="mt-0 space-y-6">
-                {/* Email Configuration */}
-                <div className="rounded-2xl border border-border bg-card shadow-elegant overflow-hidden">
-                  <button
-                    onClick={() => setEmailExpanded((s) => !s)}
-                    className="w-full flex items-start gap-3 px-6 py-5 border-b border-border text-left hover:bg-muted/30 transition"
-                  >
-                    <div className="h-10 w-10 rounded-lg bg-tenant-soft text-tenant flex items-center justify-center shrink-0">
-                      <Mail className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="font-display text-lg font-bold tracking-tight">
-                        Email Configuration
-                      </h2>
-                      <p className="text-sm text-muted-foreground mt-0.5">
-                        Configure the email account used for sending invites and communication
-                        messages.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${emailConnected ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-muted-foreground border border-border"}`}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />{" "}
-                        {emailConnected ? "Connected" : "Not connected"}
-                      </span>
-                      <ChevronDown
-                        className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${emailExpanded ? "rotate-180" : ""}`}
-                      />
-                    </div>
-                  </button>
-                  {emailExpanded && (
-                    <div className="px-6 py-6">
-                      <div className="grid md:grid-cols-2 gap-5">
-                        <Field label="Email Provider" hint="Service used to deliver outbound email">
-                          <SelectInput
-                            value={emailProvider}
-                            onChange={(e) => setEmailProvider(e.target.value)}
-                          >
-                            {EMAIL_PROVIDERS.map((p) => (
-                              <option key={p.value} value={p.value}>
-                                {p.label}
-                              </option>
-                            ))}
-                          </SelectInput>
-                        </Field>
-                        <Field label="Sender Email" hint="Email address used for sending messages">
-                          <input
-                            value={senderEmail}
-                            onChange={(e) => setSenderEmail(e.target.value)}
-                            placeholder="collections@yourdomain.com"
-                            className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
-                          />
-                        </Field>
-                        <Field
-                          label="Sender Password"
-                          hint="Authentication credential for the email account"
-                        >
-                          <div className="relative">
                             <input
-                              type={showPwd ? "text" : "password"}
-                              value={senderPassword}
-                              onChange={(e) => setSenderPassword(e.target.value)}
-                              className="w-full h-10 px-3 pr-10 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
+                              value={name}
+                              onChange={(e) => setName(e.target.value)}
+                              className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
                             />
-                            <button
-                              type="button"
-                              onClick={() => setShowPwd((s) => !s)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
-                            >
-                              {showPwd ? (
-                                <EyeOff className="h-4 w-4" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
+                          </Field>
+                          <Field
+                            label="Timezone"
+                            hint="Default timezone for operating hours and scheduling"
+                          >
+                            <SelectInput value={tz} onChange={(e) => setTz(e.target.value)}>
+                              {/* Keep the saved value selectable even if not in the option list. */}
+                              {tz && !timezones.some((t) => t.timezone === tz) && (
+                                <option value={tz}>{tz}</option>
                               )}
-                            </button>
+                              {timezones.map((t) => (
+                                <option key={t.timezone} value={t.timezone}>
+                                  {t.timezone}
+                                </option>
+                              ))}
+                            </SelectInput>
+                          </Field>
+                        </div>
+
+                        {canEditSettings && (
+                          <SectionFooter
+                            onSave={saveProfile}
+                            label="Save profile"
+                            saving={saving}
+                          />
+                        )}
+                      </Section>
+                    </fieldset>
+                  </TabsContent>
+
+                  {/* Availability */}
+                  <TabsContent value="availability" className="mt-0">
+                    <fieldset disabled={!canEditSettings} className="min-w-0">
+                      <Section
+                        title="Operating hours"
+                        desc="When live agents can take escalated customer calls"
+                        icon={<Clock className="h-5 w-5" />}
+                      >
+                        <div className="rounded-xl border border-border overflow-hidden">
+                          {DAY_KEYS.map((d, i) => (
+                            <div
+                              key={d}
+                              className={`flex items-center gap-4 px-4 py-3 ${i !== DAY_KEYS.length - 1 ? "border-b border-border" : ""} ${weekly[d].enabled ? "bg-card" : "bg-muted/30"}`}
+                            >
+                              <div className="flex items-center gap-3 w-40">
+                                <Toggle
+                                  checked={weekly[d].enabled}
+                                  onChange={(v) =>
+                                    setWeekly((p) => ({ ...p, [d]: { ...p[d], enabled: v } }))
+                                  }
+                                  label={`Toggle ${DAY_LABELS[d]}`}
+                                />
+                                <span
+                                  className={`font-semibold text-sm ${!weekly[d].enabled ? "text-muted-foreground" : ""}`}
+                                >
+                                  {DAY_LABELS[d]}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="time"
+                                  disabled={!weekly[d].enabled}
+                                  value={weekly[d].start}
+                                  onChange={(e) =>
+                                    setWeekly((p) => ({
+                                      ...p,
+                                      [d]: { ...p[d], start: e.target.value },
+                                    }))
+                                  }
+                                  className="h-9 px-2 rounded-md bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:opacity-40"
+                                />
+                                <span className="text-muted-foreground text-xs">to</span>
+                                <input
+                                  type="time"
+                                  disabled={!weekly[d].enabled}
+                                  value={weekly[d].end}
+                                  onChange={(e) =>
+                                    setWeekly((p) => ({
+                                      ...p,
+                                      [d]: { ...p[d], end: e.target.value },
+                                    }))
+                                  }
+                                  className="h-9 px-2 rounded-md bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:opacity-40"
+                                />
+                              </div>
+                              {!weekly[d].enabled && (
+                                <span className="ml-auto text-[11px] text-muted-foreground">
+                                  Closed
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-tenant/5 border border-tenant/20 text-xs text-muted-foreground">
+                          <Calendar className="h-4 w-4 text-tenant shrink-0 mt-0.5" />
+                          <div>
+                            Outside these hours, the AI offers a callback at the customer's
+                            preferred time.
                           </div>
-                        </Field>
+                        </div>
+
+                        {canEditSettings && (
+                          <SectionFooter onSave={saveHours} label="Save hours" saving={saving} />
+                        )}
+                      </Section>
+                    </fieldset>
+                  </TabsContent>
+
+                  {/* Integrations */}
+                  <TabsContent value="integrations" className="mt-0">
+                    <fieldset disabled={!canEditSettings} className="min-w-0 space-y-6">
+                      {/* Email Configuration */}
+                      <div className="rounded-2xl border border-border bg-card shadow-elegant overflow-hidden">
+                        <button
+                          onClick={() => setEmailExpanded((s) => !s)}
+                          className="w-full flex items-start gap-3 px-6 py-5 border-b border-border text-left hover:bg-muted/30 transition"
+                        >
+                          <div className="h-10 w-10 rounded-lg bg-tenant-soft text-tenant flex items-center justify-center shrink-0">
+                            <Mail className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1">
+                            <h2 className="font-display text-lg font-bold tracking-tight">
+                              Email Configuration
+                            </h2>
+                            <p className="text-sm text-muted-foreground mt-0.5">
+                              Configure the email account used for sending invites and communication
+                              messages.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${emailConnected ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-muted-foreground border border-border"}`}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />{" "}
+                              {emailConnected ? "Connected" : "Not connected"}
+                            </span>
+                            <ChevronDown
+                              className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${emailExpanded ? "rotate-180" : ""}`}
+                            />
+                          </div>
+                        </button>
+                        {emailExpanded && (
+                          <div className="px-6 py-6">
+                            <div className="grid md:grid-cols-2 gap-5">
+                              <Field
+                                label="Email Provider"
+                                hint="Service used to deliver outbound email"
+                              >
+                                <SelectInput
+                                  value={emailProvider}
+                                  onChange={(e) => setEmailProvider(e.target.value)}
+                                >
+                                  {EMAIL_PROVIDERS.map((p) => (
+                                    <option key={p.value} value={p.value}>
+                                      {p.label}
+                                    </option>
+                                  ))}
+                                </SelectInput>
+                              </Field>
+                              <Field
+                                label="Sender Email"
+                                hint="Email address used for sending messages"
+                              >
+                                <input
+                                  value={senderEmail}
+                                  onChange={(e) => setSenderEmail(e.target.value)}
+                                  placeholder="collections@yourdomain.com"
+                                  className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
+                                />
+                              </Field>
+                              <Field
+                                label="Sender Password"
+                                hint="Authentication credential for the email account"
+                              >
+                                <div className="relative">
+                                  <input
+                                    type={showPwd ? "text" : "password"}
+                                    value={senderPassword}
+                                    onChange={(e) => setSenderPassword(e.target.value)}
+                                    className="w-full h-10 px-3 pr-10 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPwd((s) => !s)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                                  >
+                                    {showPwd ? (
+                                      <EyeOff className="h-4 w-4" />
+                                    ) : (
+                                      <Eye className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                </div>
+                              </Field>
+                            </div>
+                            {canEditSettings && (
+                              <SectionFooter
+                                onSave={saveEmail}
+                                label="Save Email Settings"
+                                saving={saving}
+                              />
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <SectionFooter
-                        onSave={saveEmail}
-                        label="Save Email Settings"
-                        saving={saving}
-                      />
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
+                    </fieldset>
+                  </TabsContent>
+                </>
+              )}
 
               {/* Data Fields */}
-              <TabsContent value="dataFields" className="mt-0">
-                <DataFieldsSection companyName={name} />
-              </TabsContent>
+              {canViewFields && (
+                <TabsContent value="dataFields" className="mt-0">
+                  <DataFieldsSection companyName={name} />
+                </TabsContent>
+              )}
             </Tabs>
           </section>
         </>

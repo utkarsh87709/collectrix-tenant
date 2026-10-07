@@ -19,6 +19,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   getAuditLogs,
   getEventList,
@@ -59,6 +60,7 @@ function formatDate(iso: string) {
 }
 
 function AuditPage() {
+  const canExport = usePermissions().can("audit.export");
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -203,13 +205,15 @@ function AuditPage() {
         title="Audit"
         subtitle="Tamper-resistant compliance log · every account and security event"
         action={
-          <button
-            onClick={exportCsv}
-            disabled={exporting || totalCount === 0}
-            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
-          >
-            <Download className="h-4 w-4" /> {exporting ? "Exporting…" : "Export report"}
-          </button>
+          canExport ? (
+            <button
+              onClick={exportCsv}
+              disabled={exporting || totalCount === 0}
+              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" /> {exporting ? "Exporting…" : "Export report"}
+            </button>
+          ) : undefined
         }
       />
 

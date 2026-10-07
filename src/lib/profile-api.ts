@@ -1,5 +1,5 @@
 // Tenant profile calls to the separately-hosted backend.
-//   POST /tenant/myProfile               {}  -> profile
+//   POST /tenant/myProfile               {}  -> profile (incl. the caller's own `permissions`)
 //   POST /tenant/getTimezoneList         {}  -> { timezoneList: [{timezone, timezoneValue}] }
 //   POST /tenant/updateProfile           { firstName, lastName, phoneNo, timezone }
 //   POST /tenant/uploadProfilePic        (multipart: file)
@@ -21,6 +21,9 @@ export type MyProfile = {
   timezone: string;
   profilePic: string | null;
   lastPasswordChanged: string | null;
+  /** The caller's own permission keys (permissions/catalog.ts). Absent until the
+   *  backend ships the redesigned roles contract — see permissions/store.ts. */
+  permissions?: string[];
 };
 
 export type TimezoneItem = { timezone: string; timezoneValue: number };
@@ -72,7 +75,11 @@ export async function uploadProfilePic(file: File): Promise<Partial<MyProfile>> 
 // These use a bare fetch (not apiFetch/apiPost) on purpose: the visitor is
 // logged out, so a 401/expired-code response must surface as an inline error
 // rather than tripping the global "session expired" redirect to /login.
-async function publicPost(path: string, body: Record<string, unknown>, failMsg: string): Promise<unknown> {
+async function publicPost(
+  path: string,
+  body: Record<string, unknown>,
+  failMsg: string,
+): Promise<unknown> {
   const res = await fetch(apiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },

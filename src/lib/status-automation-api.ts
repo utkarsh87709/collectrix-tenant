@@ -22,17 +22,20 @@
 //
 // Supporting lookups:
 //   POST /tenant/getClientTemplate         { clientId, templateType }  (template-library-api)
-//   POST /tenant/getTeamDeckAssignUserList { teamId }                  (team-deck-api)
+//   POST /tenant/getClientTemplate         { clientId, templateType: "document" }
+//      -> the client's document templates, picked when "Generate documents" is
+//      on and saved as documentTemplateId (getDocumentTemplates below).
 //
 // Backend behaviour worth knowing (all confirmed by probing devapi):
 //   • Every duration on the wire is in MINUTES.
-//   • There is no initialCallMsgSource — a call is always placed by an AI
-//     agent, so the voice channel has no template/AI choice.
 //   • The backend does NOT validate that a templateId belongs to the client, or
 //     that a channel is one the client has switched on. Both are enforced here.
-//   • An invalid assignUserId comes back as meta.status false "Server Error".
 //   • enabledFlag 0 with a full config is a valid saved row, so switching a
 //     status off preserves everything that was configured.
+//
+// Removed from Status Automation (2026-10-07): the AI voice call channel
+// (initialCall* fields, "call" follow-ups) and auto-assign to a team member
+// (assignUserId). Neither is read nor sent any more.
 import { apiFetch, apiPost } from "./api-client";
 
 /* ------------------------------- lookups -------------------------------- */
@@ -150,15 +153,12 @@ export async function getStatusAutomationList(input: {
 
 /* ------------------------------- wire types ----------------------------- */
 
-export type ChannelKey = "email" | "sms" | "call";
+export type ChannelKey = "email" | "sms";
 
 /**
  * Where an outbound message's body comes from:
  *   "template" — a fixed body from the Template Library (email/sms type).
  *   "ai"       — generated at send time from an aiPrompt library entry.
- * The voice channel has neither choice nor field: a call is always placed by an
- * agent, and initialCallTemplateId points at a `call` library entry (the agent's
- * greeting + prompt).
  */
 export type MessageSource = "template" | "ai";
 
@@ -168,7 +168,6 @@ export type AutomationFollowup = {
   automationId?: number;
   followupChannel: ChannelKey;
   followupTime: number;
-  /** Always "ai" when followupChannel is "call". */
   followupMsgSource: MessageSource;
   followupTemplateId: number | null;
 };
@@ -194,14 +193,9 @@ export type AutomationDetails = {
   initialSmsMsgSource: MessageSource | null;
   initialSmsTemplateId: number | null;
 
-  initialCallEnabled: number;
-  initialCallFollowupTime: number | null;
-  /** A `call` library entry — the AI voice agent. No MsgSource counterpart. */
-  initialCallTemplateId: number | null;
-
-  /** null when auto-assignment is off. */
-  assignUserId: number | null;
   generateDocumentEnabled: number;
+  /** The document template generated on entry; null when generation is off. */
+  documentTemplateId?: number | null;
 
   autoArchiveEnabled: number;
   /** Minutes in the status before archiving. */
@@ -229,11 +223,8 @@ export type AutomationPayload = {
   initialSmsFollowupTime: number | null;
   initialSmsMsgSource: MessageSource | null;
   initialSmsTemplateId: number | null;
-  initialCallEnabled: number;
-  initialCallFollowupTime: number | null;
-  initialCallTemplateId: number | null;
-  assignUserId: number | null;
   generateDocumentEnabled: number;
+  documentTemplateId: number | null;
   autoArchiveEnabled: number;
   autoArchiveDuration: number | null;
   inactiveStatusTransitionEnabled: number;
@@ -255,6 +246,16 @@ export function getStatusAutomationDetails(automationId: number): Promise<Automa
 
 export function updateAutomation(payload: AutomationPayload): Promise<unknown> {
   return apiPost("/tenant/updateAutomation", { ...payload });
+}
+
+/** A document template from the client's library (getClientTemplate "document"). */
+export type DocumentTemplateOption = { id: number; name: string };
+
+export async function getDocumentTemplates(clientId: number): Promise<DocumentTemplateOption[]> {
+  const res = await apiPost<{
+    templateList?: { templateId: number; templateName: string }[];
+  }>("/tenant/getClientTemplate", { clientId, templateType: "document" });
+  return (res?.templateList ?? []).map((t) => ({ id: t.templateId, name: t.templateName }));
 }
 
 /* -------------------------------- durations ------------------------------ */
@@ -297,12 +298,11 @@ export type ChannelConfig = {
   enabled: boolean;
   /** Wait this long after the file enters the status before the first send. */
   startAfter: Duration;
-  /** Always "ai" for the voice channel (the wire has no field for it). */
   messageSource: MessageSource;
   /**
    * Template Library id. Which library it points into depends on the channel
    * and source: an email/sms template when source is "template", the aiPrompt
-   * agent when it is "ai", and for voice the `call` agent.
+   * agent when it is "ai".
    */
   templateId: number | null;
 };
@@ -326,11 +326,9 @@ export type StatusAutomationConfig = {
   /** UI-only: the wire simply has an empty followupList. */
   followUpsEnabled: boolean;
   followUps: FollowUp[];
-  /** Auto-assign the file to one team member on entering this status. */
-  assignMember: { enabled: boolean; userId: number | null };
-  /** Generate documents on entering this status (a flag only — the backend
-   *  takes no document template ids). */
+  /** Generate a document on entering this status, from documentTemplateId. */
   generateDocuments: boolean;
+  documentTemplateId: number | null;
   /** Drop the file out of active workload/aging (recoverable, records kept). */
   autoArchive: { enabled: boolean; after: Duration };
   /** Move the file to another status after a period of no activity. */
@@ -340,26 +338,18 @@ export type StatusAutomationConfig = {
 export const CHANNEL_LABEL: Record<ChannelKey, string> = {
   email: "Email",
   sms: "SMS",
-  call: "AI Voice Call",
 };
 
-export const CHANNEL_ORDER: ChannelKey[] = ["email", "sms", "call"];
-
-/** Voice is always AI-driven — there is no fixed-template option for a call. */
-export function isAiOnlyChannel(channel: ChannelKey): boolean {
-  return channel === "call";
-}
+export const CHANNEL_ORDER: ChannelKey[] = ["email", "sms"];
 
 /**
  * Which Template Library list a channel picks from, per message source.
- * "ai" resolves to the aiPrompt library (the agents), except for voice, whose
- * agents live in the `call` library (greeting + prompt per agent).
+ * "ai" resolves to the aiPrompt library (the agents).
  */
 export function templateTypeFor(
   channel: ChannelKey,
   source: MessageSource,
-): "email" | "sms" | "call" | "aiPrompt" {
-  if (channel === "call") return "call";
+): "email" | "sms" | "aiPrompt" {
   if (source === "ai") return "aiPrompt";
   return channel;
 }
@@ -367,9 +357,7 @@ export function templateTypeFor(
 /** Channels the selected client permits (per its *Enabled flags). */
 export function allowedChannels(client: AutomationClient | null): ChannelKey[] {
   if (!client) return [];
-  return CHANNEL_ORDER.filter((c) =>
-    c === "email" ? client.emailEnabled : c === "sms" ? client.smsEnabled : client.callEnabled,
-  );
+  return CHANNEL_ORDER.filter((c) => (c === "email" ? client.emailEnabled : client.smsEnabled));
 }
 
 const DEFAULT_START: Duration = { value: 1, unit: "days" };
@@ -377,11 +365,11 @@ const DEFAULT_FOLLOWUP: Duration = { value: 3, unit: "days" };
 const DEFAULT_ARCHIVE: Duration = { value: 30, unit: "days" };
 const DEFAULT_INACTIVITY: Duration = { value: 30, unit: "days" };
 
-export function emptyChannel(channel: ChannelKey = "email"): ChannelConfig {
+export function emptyChannel(): ChannelConfig {
   return {
     enabled: false,
     startAfter: { ...DEFAULT_START },
-    messageSource: isAiOnlyChannel(channel) ? "ai" : "template",
+    messageSource: "template",
     templateId: null,
   };
 }
@@ -393,14 +381,13 @@ export function emptyAutomationConfig(statusId: number): StatusAutomationConfig 
     automationId: null,
     enabled: false,
     channels: {
-      email: emptyChannel("email"),
-      sms: emptyChannel("sms"),
-      call: emptyChannel("call"),
+      email: emptyChannel(),
+      sms: emptyChannel(),
     },
     followUpsEnabled: false,
     followUps: [],
-    assignMember: { enabled: false, userId: null },
     generateDocuments: false,
+    documentTemplateId: null,
     autoArchive: { enabled: false, after: { ...DEFAULT_ARCHIVE } },
     inactivity: { enabled: false, after: { ...DEFAULT_INACTIVITY }, toStatusId: null },
   };
@@ -414,7 +401,7 @@ export function newFollowUp(channel: ChannelKey): FollowUp {
     key: `fu-${followUpSeq}`,
     channel,
     after: { ...DEFAULT_FOLLOWUP },
-    messageSource: isAiOnlyChannel(channel) ? "ai" : "template",
+    messageSource: "template",
     templateId: null,
   };
 }
@@ -439,20 +426,22 @@ function textChannelSource(
 /** Saved row → editor model. */
 export function configFromDetails(d: AutomationDetails): StatusAutomationConfig {
   const base = emptyAutomationConfig(d.statusId);
-  const followUps = (d.followupList ?? []).map((f) => {
-    followUpSeq += 1;
-    return {
-      key: `fu-${followUpSeq}`,
-      channel: f.followupChannel,
-      after: fromMinutes(f.followupTime, { ...DEFAULT_FOLLOWUP }),
-      messageSource: isAiOnlyChannel(f.followupChannel)
-        ? "ai"
-        : (f.followupMsgSource ?? "template"),
-      // Same field regardless of source: an aiPrompt id when AI-generated, a
-      // template id otherwise (or the call agent id for voice).
-      templateId: f.followupTemplateId ?? null,
-    };
-  });
+  // Rows saved while the voice channel existed may still hold "call"
+  // follow-ups; they are dropped here and disappear on the next save.
+  const followUps = (d.followupList ?? [])
+    .filter((f) => CHANNEL_ORDER.includes(f.followupChannel))
+    .map((f) => {
+      followUpSeq += 1;
+      return {
+        key: `fu-${followUpSeq}`,
+        channel: f.followupChannel,
+        after: fromMinutes(f.followupTime, { ...DEFAULT_FOLLOWUP }),
+        messageSource: f.followupMsgSource ?? "template",
+        // Same field regardless of source: an aiPrompt id when AI-generated, a
+        // template id otherwise.
+        templateId: f.followupTemplateId ?? null,
+      };
+    });
 
   return {
     statusId: d.statusId,
@@ -469,17 +458,11 @@ export function configFromDetails(d: AutomationDetails): StatusAutomationConfig 
         startAfter: fromMinutes(d.initialSmsFollowupTime, base.channels.sms.startAfter),
         ...textChannelSource(d.initialSmsMsgSource, d.initialSmsTemplateId ?? null),
       },
-      call: {
-        enabled: d.initialCallEnabled === 1,
-        startAfter: fromMinutes(d.initialCallFollowupTime, base.channels.call.startAfter),
-        messageSource: "ai",
-        templateId: d.initialCallTemplateId ?? null,
-      },
     },
     followUpsEnabled: followUps.length > 0,
     followUps,
-    assignMember: { enabled: d.assignUserId != null, userId: d.assignUserId ?? null },
     generateDocuments: d.generateDocumentEnabled === 1,
+    documentTemplateId: d.documentTemplateId ?? null,
     autoArchive: {
       enabled: d.autoArchiveEnabled === 1,
       after: fromMinutes(d.autoArchiveDuration, base.autoArchive.after),
@@ -527,13 +510,9 @@ export function payloadFromConfig(
     initialSmsMsgSource: source("sms"),
     initialSmsTemplateId: tmpl("sms"),
 
-    initialCallEnabled: flag(on("call")),
-    initialCallFollowupTime: minutes("call"),
-    // No initialCallMsgSource on the wire — a call is always agent-driven.
-    initialCallTemplateId: tmpl("call"),
-
-    assignUserId: cfg.assignMember.enabled ? cfg.assignMember.userId : null,
     generateDocumentEnabled: flag(cfg.generateDocuments && ctx.documentsAllowed),
+    documentTemplateId:
+      cfg.generateDocuments && ctx.documentsAllowed ? cfg.documentTemplateId : null,
 
     autoArchiveEnabled: flag(cfg.autoArchive.enabled),
     autoArchiveDuration: cfg.autoArchive.enabled ? toMinutes(cfg.autoArchive.after) : null,
@@ -548,7 +527,7 @@ export function payloadFromConfig(
           .map((f) => ({
             followupChannel: f.channel,
             followupTime: toMinutes(f.after),
-            followupMsgSource: isAiOnlyChannel(f.channel) ? "ai" : f.messageSource,
+            followupMsgSource: f.messageSource,
             followupTemplateId: f.templateId,
           }))
       : [],
@@ -560,15 +539,13 @@ export function payloadFromConfig(
 /**
  * Whether a channel's template id is mandatory.
  *
- * A call cannot be placed without a script, so the voice channel always needs
- * its `call` agent. For email/SMS a fixed template is likewise mandatory, but an
- * AI-written message is allowed to go out with no aiPrompt attached — the
+ * A fixed template is mandatory, but an AI-written message is allowed to go out with no aiPrompt attached — the
  * backend stores initialXMsgSource "ai" with a null templateId happily, and the
  * aiPrompt library has no management screen yet, so requiring one here would
  * lock the AI option out entirely.
  */
-export function templateRequired(channel: ChannelKey, source: MessageSource): boolean {
-  return channel === "call" || source === "template";
+export function templateRequired(source: MessageSource): boolean {
+  return source === "template";
 }
 
 /**
@@ -580,26 +557,24 @@ export function templateRequired(channel: ChannelKey, source: MessageSource): bo
 export function validateAutomation(
   cfg: StatusAutomationConfig,
   allowed: ChannelKey[],
+  documentsAllowed = true,
 ): string | null {
   if (!cfg.enabled) return null;
 
   const activeChannels = allowed.filter((c) => cfg.channels[c].enabled);
+  // Switched off at client level, the flag is saved as off (payloadFromConfig),
+  // so it neither counts as a behaviour nor needs a template.
+  const documentsOn = cfg.generateDocuments && documentsAllowed;
   const hasBehavior =
-    activeChannels.length > 0 ||
-    cfg.assignMember.enabled ||
-    cfg.generateDocuments ||
-    cfg.autoArchive.enabled ||
-    cfg.inactivity.enabled;
+    activeChannels.length > 0 || documentsOn || cfg.autoArchive.enabled || cfg.inactivity.enabled;
   if (!hasBehavior) {
-    return "Turn on at least one behaviour (channel, member, document, archive, or inactivity).";
+    return "Turn on at least one behaviour (channel, document, archive, or inactivity).";
   }
 
   for (const c of activeChannels) {
     const ch = cfg.channels[c];
-    if (templateRequired(c, ch.messageSource) && !ch.templateId) {
-      return c === "call"
-        ? "Select the AI agent that places the call."
-        : `Select a template for ${CHANNEL_LABEL[c]}.`;
+    if (templateRequired(ch.messageSource) && !ch.templateId) {
+      return `Select a template for ${CHANNEL_LABEL[c]}.`;
     }
   }
 
@@ -609,17 +584,15 @@ export function validateAutomation(
       if (!allowed.includes(fu.channel)) {
         return `Follow-up #${i + 1} uses a channel this client has switched off.`;
       }
-      if (templateRequired(fu.channel, fu.messageSource) && !fu.templateId) {
-        return fu.channel === "call"
-          ? `Select the AI agent for follow-up #${i + 1}.`
-          : `Select a template for follow-up #${i + 1}.`;
+      if (templateRequired(fu.messageSource) && !fu.templateId) {
+        return `Select a template for follow-up #${i + 1}.`;
       }
       if (toMinutes(fu.after) <= 0) return `Set when follow-up #${i + 1} should send.`;
     }
   }
 
-  if (cfg.assignMember.enabled && !cfg.assignMember.userId) {
-    return "Pick the team member files should be assigned to.";
+  if (documentsOn && !cfg.documentTemplateId) {
+    return "Select the document template to generate.";
   }
   if (cfg.autoArchive.enabled && toMinutes(cfg.autoArchive.after) <= 0) {
     return "Set how long a file waits in this status before it is archived.";
@@ -664,7 +637,6 @@ export function summarizeAutomation(
   }
   const followUps = cfg.followUpsEnabled ? cfg.followUps.length : 0;
   if (followUps) parts.push(`${followUps} follow-up${followUps === 1 ? "" : "s"}`);
-  if (cfg.assignMember.enabled) parts.push("Auto-assign");
   if (cfg.generateDocuments) parts.push("Documents");
   if (cfg.autoArchive.enabled) parts.push(`Archive after ${formatDuration(cfg.autoArchive.after)}`);
   if (cfg.inactivity.enabled) {

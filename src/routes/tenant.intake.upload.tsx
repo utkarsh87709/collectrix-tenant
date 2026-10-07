@@ -8,6 +8,7 @@ import {
   ArrowRight, ArrowLeft, RefreshCw, Eye, Search, Users, Pencil, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { getAllClients, type Client } from "@/lib/clients-api";
 import {
@@ -75,6 +76,7 @@ function parseCsvPreview(text: string, maxRows = 5): { headers: string[]; rows: 
 /* --------------------------------- page ------------------------------------ */
 
 function UploadDebtorPage() {
+  const canUpload = usePermissions().can("imports.upload");
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,12 +112,14 @@ function UploadDebtorPage() {
         title="Upload Customer Data"
         subtitle="Import customer files into this tenant"
         action={
-          <button
-            onClick={() => setWizardOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-          >
-            <Upload className="h-4 w-4" /> New import
-          </button>
+          canUpload ? (
+            <button
+              onClick={() => setWizardOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+            >
+              <Upload className="h-4 w-4" /> New import
+            </button>
+          ) : undefined
         }
       />
 
@@ -133,12 +137,14 @@ function UploadDebtorPage() {
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">No imports yet. Upload your first customer file.</p>
-              <button
-                onClick={() => setWizardOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-              >
-                <Upload className="h-4 w-4" /> New import
-              </button>
+              {canUpload && (
+                <button
+                  onClick={() => setWizardOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+                >
+                  <Upload className="h-4 w-4" /> New import
+                </button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -516,6 +522,10 @@ function ImportWizard({ clients, onClose, onComplete }: { clients: Client[]; onC
 /* ------------------------------- file detail -------------------------------- */
 
 function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }) {
+  const { can } = usePermissions();
+  // Selecting records only feeds "Assign to team"; Edit fixes flagged records.
+  const canAssign = can("imports.assignTeam");
+  const canFix = can("imports.edit");
   const [tab, setTab] = useState<"new" | "assigned">("new");
   const [search, setSearch] = useState("");
   const [debtors, setDebtors] = useState<DebtorRecord[]>([]);
@@ -612,7 +622,7 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-tenant/30"
               />
             </div>
-            {debtors.length > 0 && (
+            {debtors.length > 0 && canAssign && (
               <button onClick={toggleAll} className="text-sm text-tenant hover:underline whitespace-nowrap">
                 {allSelected ? "Clear selection" : "Select all filtered"}
               </button>
@@ -636,7 +646,7 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
                 const issues = d.invalidAttribute?.length ?? 0;
                 return (
                   <li key={id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
-                    {tab === "new" && (
+                    {tab === "new" && canAssign && (
                       <input
                         type="checkbox"
                         checked={selected.has(id)}
@@ -660,7 +670,7 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
                         <AlertTriangle className="h-3.5 w-3.5" /> {issues} issue{issues > 1 ? "s" : ""}
                       </span>
                     )}
-                    {tab === "new" && (
+                    {tab === "new" && canFix && (
                       <button
                         onClick={() => setEditing(d)}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs hover:bg-muted shrink-0"
@@ -683,7 +693,7 @@ function FileDetail({ file, onBack }: { file: UploadedFile; onBack: () => void }
       </section>
 
       {/* Assign action bar */}
-      {tab === "new" && selected.size > 0 && (
+      {tab === "new" && canAssign && selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 rounded-xl border border-border bg-card px-5 py-3 shadow-elegant">
           <span className="text-sm font-semibold">{selected.size} selected</span>
           <button

@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/lib/permissions/store";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -111,6 +112,10 @@ function Modal({
 /* --------------------------------- page ------------------------------------ */
 
 function PhoneNumbersPage() {
+  const { can } = usePermissions();
+  const canBuy = can("phoneNumbers.buy");
+  const canEdit = can("phoneNumbers.edit");
+  const canRelease = can("phoneNumbers.release");
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,12 +181,14 @@ function PhoneNumbersPage() {
         title="Phone Numbers"
         subtitle="Purchase and manage the numbers used for SMS and voice"
         action={
-          <button
-            onClick={() => setBuyOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-          >
-            <Plus className="h-4 w-4" /> Buy Numbers
-          </button>
+          canBuy ? (
+            <button
+              onClick={() => setBuyOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+            >
+              <Plus className="h-4 w-4" /> Buy Numbers
+            </button>
+          ) : undefined
         }
       />
 
@@ -206,14 +213,18 @@ function PhoneNumbersPage() {
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <Phone className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                No numbers yet. Buy your first number to get started.
+                {canBuy
+                  ? "No numbers yet. Buy your first number to get started."
+                  : "No numbers yet."}
               </p>
-              <button
-                onClick={() => setBuyOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-              >
-                <Plus className="h-4 w-4" /> Buy Numbers
-              </button>
+              {canBuy && (
+                <button
+                  onClick={() => setBuyOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
+                >
+                  <Plus className="h-4 w-4" /> Buy Numbers
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -330,32 +341,36 @@ function PhoneNumbersPage() {
                               </td>
                               <td className="px-6 py-4 align-middle">
                                 <div className="flex items-center justify-end gap-2">
-                                  {released ? (
+                                  {released || (!canEdit && !canRelease) ? (
                                     <span className="text-xs text-muted-foreground">
                                       No actions
                                     </span>
                                   ) : (
                                     <>
-                                      <button
-                                        onClick={() => setConfiguring(n)}
-                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm font-medium hover:bg-muted hover:border-tenant/40 transition-colors"
-                                      >
-                                        <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />{" "}
-                                        Configure
-                                      </button>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            onClick={() => setReleasing(n)}
-                                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                          >
-                                            Release
-                                          </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">
-                                          Release this number back to Twilio
-                                        </TooltipContent>
-                                      </Tooltip>
+                                      {canEdit && (
+                                        <button
+                                          onClick={() => setConfiguring(n)}
+                                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm font-medium hover:bg-muted hover:border-tenant/40 transition-colors"
+                                        >
+                                          <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />{" "}
+                                          Configure
+                                        </button>
+                                      )}
+                                      {canRelease && (
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              onClick={() => setReleasing(n)}
+                                              className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                            >
+                                              Release
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">
+                                            Release this number back to Twilio
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      )}
                                     </>
                                   )}
                                 </div>

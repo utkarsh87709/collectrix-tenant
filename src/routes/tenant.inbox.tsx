@@ -10,7 +10,7 @@ import { ConversationList } from "@/components/tenant/inbox/ConversationList";
 import { EMPTY_INBOX_FILTERS, type InboxFilters } from "@/components/tenant/inbox/inbox-utils";
 import { ConversationThread } from "@/components/tenant/inbox/ConversationThread";
 import { DetailsPanel } from "@/components/tenant/inbox/DetailsPanel";
-import { useCustomerPermissions } from "@/lib/customer-permissions";
+import { usePermissions } from "@/lib/permissions/store";
 import {
   customerDisplayName,
   getCustomerDetails,
@@ -50,7 +50,7 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 function InboxPage() {
-  const perms = useCustomerPermissions();
+  const perms = usePermissions();
 
   /* --------------------------- Reference data --------------------------- */
   const [clients, setClients] = useState<MassUpdateClient[]>([]);

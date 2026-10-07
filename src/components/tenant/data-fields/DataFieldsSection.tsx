@@ -31,6 +31,7 @@ import {
   updateCustomField,
   type DataField,
 } from "@/lib/data-fields-api";
+import { usePermissions } from "@/lib/permissions/store";
 
 type SubTab = "custom" | "default";
 
@@ -41,6 +42,8 @@ const dateFmt = new Intl.DateTimeFormat("en-US", {
 });
 
 export function DataFieldsSection({ companyName }: { companyName: string }) {
+  const { can } = usePermissions();
+  const canCreate = can("dataFields.create");
   const [subTab, setSubTab] = useState<SubTab>("custom");
   const [defaultFields, setDefaultFields] = useState<DataField[]>([]);
   const [customFields, setCustomFields] = useState<DataField[]>([]);
@@ -157,13 +160,15 @@ export function DataFieldsSection({ companyName }: { companyName: string }) {
           >
             <Download className="h-4 w-4" /> Download sample template
           </button>
-          <button
-            onClick={openCreate}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 transition-opacity disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" /> Add custom field
-          </button>
+          {canCreate && (
+            <button
+              onClick={openCreate}
+              disabled={loading}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 transition-opacity disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" /> Add custom field
+            </button>
+          )}
         </div>
       </div>
 
@@ -196,9 +201,9 @@ export function DataFieldsSection({ companyName }: { companyName: string }) {
         ) : subTab === "custom" ? (
           <CustomFieldsTable
             fields={customFields}
-            onEdit={openEdit}
-            onDelete={setDeleting}
-            onAdd={openCreate}
+            onEdit={can("dataFields.edit") ? openEdit : undefined}
+            onDelete={can("dataFields.delete") ? setDeleting : undefined}
+            onAdd={canCreate ? openCreate : undefined}
           />
         ) : (
           <DefaultFieldsTable fields={defaultFields} />
@@ -286,9 +291,10 @@ function CustomFieldsTable({
   onAdd,
 }: {
   fields: DataField[];
-  onEdit: (f: DataField) => void;
-  onDelete: (f: DataField) => void;
-  onAdd: () => void;
+  /** Each handler is omitted when the role lacks that permission, hiding its control. */
+  onEdit?: (f: DataField) => void;
+  onDelete?: (f: DataField) => void;
+  onAdd?: () => void;
 }) {
   return (
     <div>
@@ -300,12 +306,14 @@ function CustomFieldsTable({
         <div className="rounded-xl border border-dashed border-border py-12 text-center">
           <FileSpreadsheet className="h-6 w-6 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">No custom fields yet.</p>
-          <button
-            onClick={onAdd}
-            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 transition-opacity"
-          >
-            <Plus className="h-4 w-4" /> Add custom field
-          </button>
+          {onAdd && (
+            <button
+              onClick={onAdd}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-95 transition-opacity"
+            >
+              <Plus className="h-4 w-4" /> Add custom field
+            </button>
+          )}
         </div>
       ) : (
         <div className="rounded-xl border border-border overflow-hidden">
@@ -315,7 +323,9 @@ function CustomFieldsTable({
                 <th className="px-4 py-2.5 font-semibold">Field name</th>
                 <th className="px-4 py-2.5 font-semibold">Data type</th>
                 <th className="px-4 py-2.5 font-semibold">Added</th>
-                <th className="px-4 py-2.5 font-semibold text-right">Actions</th>
+                {(onEdit || onDelete) && (
+                  <th className="px-4 py-2.5 font-semibold text-right">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -328,24 +338,30 @@ function CustomFieldsTable({
                   <td className="px-4 py-3 text-muted-foreground">
                     {f.createdAt ? dateFmt.format(new Date(f.createdAt)) : "—"}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => onEdit(f)}
-                        aria-label={`Edit ${f.fieldName}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => onDelete(f)}
-                        aria-label={`Remove ${f.fieldName}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
+                  {(onEdit || onDelete) && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {onEdit && (
+                          <button
+                            onClick={() => onEdit(f)}
+                            aria-label={`Edit ${f.fieldName}`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            onClick={() => onDelete(f)}
+                            aria-label={`Remove ${f.fieldName}`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

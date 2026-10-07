@@ -13,9 +13,11 @@ import {
   Inbox,
   Tag,
   Zap,
-  FileText,
   FolderOpen,
 } from "lucide-react";
+import { useMemo } from "react";
+import { canOpen } from "@/lib/permissions/routes";
+import { usePermissions } from "@/lib/permissions/store";
 
 export type NavSubItem = {
   to: string;
@@ -41,8 +43,8 @@ export type NavGroup = {
 
 /* ---------------------------------- TENANT ---------------------------------- */
 
-// Enabled modules are visible and routable (see __root.tsx). Debtors is
-// demo-only for now — it renders mock data with no API behind it.
+// Enabled modules are routable (see __root.tsx). Each link is only shown to
+// users whose role opens it — see permissions/routes.ts.
 export const tenantGroups: NavGroup[] = [
   {
     label: "Workspace",
@@ -178,35 +180,61 @@ export const tenantGroups: NavGroup[] = [
         icon: Zap,
         description: "Automated behaviour per status, for each team and client",
         keywords:
-          "status automation outreach follow-up initial status team client archive inactivity documents ai voice",
-      },
-      {
-        to: "/tenant/settings/document-automation",
-        label: "Document Automation",
-        icon: FileText,
-        description: "AI-generated letters scheduled by status and time",
-        keywords: "document automation ai generated letters schedule status",
+          "status automation outreach follow-up initial status team client archive inactivity documents",
       },
     ],
   },
 ];
 
+/* ------------------------------ ROLE FILTERING ------------------------------ */
+
+/**
+ * Trim the nav to the destinations `isAllowed` accepts. An expandable module
+ * stays only while at least one of its submodules does; a group with nothing
+ * left is dropped.
+ */
+export function filterNav(groups: NavGroup[], isAllowed: (to: string) => boolean): NavGroup[] {
+  return groups
+    .map((g) => ({
+      ...g,
+      items: g.items.flatMap((i): NavItem[] => {
+        if (i.submodules?.length) {
+          const subs = i.submodules.filter((s) => !s.disabled && isAllowed(s.to));
+          return subs.length ? [{ ...i, submodules: subs }] : [];
+        }
+        return isAllowed(i.to) ? [i] : [];
+      }),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+/** The nav groups the signed-in user's role can open (see permissions/routes.ts). */
+export function useVisibleNav(): NavGroup[] {
+  const { canAny } = usePermissions();
+  return useMemo(() => filterNav(tenantGroups, (to) => canOpen(to, canAny)), [canAny]);
+}
+
 /* --------------------------- SEARCHABLE FLAT LIST --------------------------- */
 
-/** Used by the global ⌘K palette — only the enabled destinations. */
-export const allRoutes: NavItem[] = tenantGroups.flatMap((g) =>
-  g.items.flatMap((i) => {
-    // Expandable modules contribute their enabled submodules as destinations.
-    if (i.submodules?.length) {
-      return i.submodules
-        .filter((s) => !s.disabled)
-        .map((s) => ({
-          to: s.to,
-          label: s.label,
-          icon: i.icon,
-          keywords: `tenant ${g.label} ${i.label} ${s.label}`,
-        }));
-    }
-    return [{ ...i, keywords: `tenant ${g.label} ${i.keywords ?? ""}` }];
-  }),
-);
+/** Every enabled destination in `groups`, flattened — used by the ⌘K palette. */
+export function flattenNav(groups: NavGroup[]): NavItem[] {
+  return groups.flatMap((g) =>
+    g.items.flatMap((i) => {
+      // Expandable modules contribute their enabled submodules as destinations.
+      if (i.submodules?.length) {
+        return i.submodules
+          .filter((s) => !s.disabled)
+          .map((s) => ({
+            to: s.to,
+            label: s.label,
+            icon: i.icon,
+            keywords: `tenant ${g.label} ${i.label} ${s.label}`,
+          }));
+      }
+      return [{ ...i, keywords: `tenant ${g.label} ${i.keywords ?? ""}` }];
+    }),
+  );
+}
+
+/** All destinations regardless of role — used for breadcrumb labels. */
+export const allRoutes: NavItem[] = flattenNav(tenantGroups);
