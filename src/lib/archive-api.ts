@@ -72,6 +72,16 @@ export function archiveSource(d: ArchivedDebtor): ArchiveSource | null {
   return "manual";
 }
 
+/** Who archived the file, for display: the user's name for a manual archive,
+ *  "System (automation)" for a status rule, or null when the backend doesn't say. */
+export function archivedByLabel(d: ArchivedDebtor): string | null {
+  const source = archiveSource(d);
+  if (source === "auto") return "System (automation)";
+  if (source !== "manual") return null;
+  const name = [d.archivedUserFirstName, d.archivedUserLastName].filter(Boolean).join(" ");
+  return name || `User #${d.archivedBy}`;
+}
+
 /** "just now" / "3 hours ago" / "yesterday" / "14 days ago", or null when the
  *  row carries no usable archive timestamp. */
 export function archivedAgo(

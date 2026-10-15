@@ -4,7 +4,6 @@ import { motion } from "motion/react";
 import {
   Copy,
   Eye,
-  Info,
   Loader2,
   MoreHorizontal,
   Pencil,
@@ -49,7 +48,6 @@ import {
   deleteRole,
   getAllRoles,
   updateRole,
-  type PermissionSchema,
   type Role,
   type RoleInput,
 } from "@/lib/roles-api";
@@ -66,7 +64,6 @@ type EditorState = { mode: RoleEditorMode; role: Role | null; draft: RoleDraft }
 function RolesPage() {
   const perms = usePermissions();
   const [roles, setRoles] = useState<Role[]>([]);
-  const [schema, setSchema] = useState<PermissionSchema>("v2");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -77,9 +74,7 @@ function RolesPage() {
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      const res = await getAllRoles();
-      setRoles(res.roles);
-      setSchema(res.schema);
+      setRoles(await getAllRoles());
     } catch (e) {
       if (!quiet) setError(e instanceof Error ? e.message : "Failed to load roles.");
     } finally {
@@ -91,12 +86,9 @@ function RolesPage() {
     load();
   }, [load]);
 
-  // The old backend format can be displayed but not written back safely, so
-  // every write is off until the backend serves the new one.
-  const legacy = schema === "legacy";
-  const canCreate = perms.can("roles.create") && !legacy;
-  const canEdit = perms.can("roles.edit") && !legacy;
-  const canDelete = perms.can("roles.delete") && !legacy;
+  const canCreate = perms.can("roles.create");
+  const canEdit = perms.can("roles.edit");
+  const canDelete = perms.can("roles.delete");
   const assignedUsers = useMemo(() => roles.reduce((n, r) => n + r.userCount, 0), [roles]);
 
   const open = (mode: RoleEditorMode, role: Role | null, draft?: Partial<RoleDraft>) =>
@@ -184,20 +176,6 @@ function RolesPage() {
           </div>
         ) : (
           <>
-            {legacy && (
-              <div className="flex items-start gap-3 rounded-2xl border border-[color:var(--tenant)]/25 bg-[color:var(--tenant)]/5 px-5 py-4 text-sm">
-                <Info className="h-4 w-4 shrink-0 mt-0.5 text-tenant" />
-                <div>
-                  <div className="font-semibold">Roles are read-only for now</div>
-                  <p className="mt-0.5 text-muted-foreground">
-                    The server still stores roles in the old permission format. Each role below
-                    shows what it can do today, mapped to the new permissions. Creating, editing and
-                    deleting roles unlocks as soon as the backend switches to the new format.
-                  </p>
-                </div>
-              </div>
-            )}
-
             <p className="text-xs text-muted-foreground">
               {roles.length} custom {roles.length === 1 ? "role" : "roles"} · {assignedUsers}{" "}
               {assignedUsers === 1 ? "user" : "users"} assigned · {TOTAL} permissions across{" "}
@@ -253,7 +231,6 @@ function RolesPage() {
           initial={editor.draft}
           takenNames={roles.filter((r) => r.roleId !== editor.role?.roleId).map((r) => r.roleName)}
           isOwnRole={!!editor.role && perms.roleId === editor.role.roleId}
-          legacy={legacy}
           onClose={() => setEditor(null)}
           onSave={save}
         />

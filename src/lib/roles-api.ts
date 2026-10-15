@@ -1,26 +1,20 @@
 // Roles & Permissions calls to the separately-hosted backend.
-//   POST /tenant/getAllRole  {}                                                 -> { roles[], permissionSchema: 2 }
-//   POST /tenant/createRole  { roleName, roleDescription, permissions[] }        -> { roleId }
+//   POST /tenant/getAllRole  {}                                                 -> { permissionSchema: 2, roles[] }
+//   POST /tenant/createRole  { roleName, roleDescription, permissions[] }        -> {}
 //   POST /tenant/updateRole  { roleId, roleName, roleDescription, permissions[] } -> {}
-//   POST /tenant/deleteRole  { roleId }                                         -> {}  (rejected while users hold the role)
+//   POST /tenant/deleteRole  { roleId }                                         -> {}
 // `permissions` are string keys from src/lib/permissions/catalog.ts — the full
-// contract (validation, per-endpoint enforcement, migration) is in
-// docs/roles-and-permissions.md. The catalog itself lives in the frontend, so
-// the old POST /tenant/getConfiguredRoles is no longer called.
+// contract is in docs/roles-and-permissions.md. The catalog itself lives in the
+// frontend; the old POST /tenant/getConfiguredRoles no longer exists.
 //
-// TRANSITION: until the backend ships that contract, getAllRole answers in the
-// legacy shape — { roles: [{ roleId, roleName, userCount, allowedConfiguration:
-// number[] }], totalConfiguration }, no roleDescription. getAllRoles() reads
-// both and reports which one it got: legacy roles are translated by
-// permissions/legacy.ts and the editor stays read-only, because sending the new
-// payload to the old updateRole would wipe the role's grants.
+// Verified live 2026-10-14: the backend stores `permissions` exactly as sent —
+// it doesn't reject unknown keys, add missing requirements or refuse an empty
+// roleName — so reads go through normalizePermissions() and the editor
+// validates the name itself. deleteRole reports success even for an unknown
+// roleId; the UI only offers it for roles nobody is on.
 // All authenticated with the raw token (attached automatically by apiPost).
 import { apiPost } from "./api-client";
 import { normalizePermissions, type PermissionKey } from "./permissions/catalog";
-import { legacyRoleDescription, permissionsFromLegacy } from "./permissions/legacy";
-
-/** "v2" once the backend serves string permission keys; "legacy" before that. */
-export type PermissionSchema = "v2" | "legacy";
 
 export type Role = {
   roleId: number;
@@ -31,8 +25,6 @@ export type Role = {
   /** Closed set (every requirement included), in catalog order. */
   permissions: PermissionKey[];
 };
-
-export type RolesResult = { roles: Role[]; schema: PermissionSchema };
 
 export type RoleInput = {
   roleName: string;
@@ -46,29 +38,17 @@ type RawRole = {
   roleDescription?: string | null;
   userCount?: number | null;
   permissions?: unknown;
-  allowedConfiguration?: unknown;
 };
 
-type RawRoles = { roles?: RawRole[]; permissionSchema?: number };
-
-export async function getAllRoles(): Promise<RolesResult> {
-  const data = await apiPost<RawRoles>("/tenant/getAllRole");
-  const rows = data?.roles ?? [];
-  const v2 = data?.permissionSchema === 2 || rows.some((r) => Array.isArray(r.permissions));
-  return {
-    schema: v2 ? "v2" : "legacy",
-    roles: rows.map((r) => ({
-      roleId: r.roleId,
-      roleName: r.roleName,
-      roleDescription: r.roleDescription ?? (v2 ? "" : legacyRoleDescription(r.roleName)),
-      userCount: r.userCount ?? 0,
-      permissions: v2
-        ? normalizePermissions(Array.isArray(r.permissions) ? r.permissions : [])
-        : permissionsFromLegacy(
-            Array.isArray(r.allowedConfiguration) ? r.allowedConfiguration : [],
-          ),
-    })),
-  };
+export async function getAllRoles(): Promise<Role[]> {
+  const data = await apiPost<{ roles?: RawRole[] }>("/tenant/getAllRole");
+  return (data?.roles ?? []).map((r) => ({
+    roleId: r.roleId,
+    roleName: r.roleName,
+    roleDescription: r.roleDescription ?? "",
+    userCount: r.userCount ?? 0,
+    permissions: normalizePermissions(Array.isArray(r.permissions) ? r.permissions : []),
+  }));
 }
 
 export function createRole(input: RoleInput): Promise<unknown> {

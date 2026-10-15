@@ -19,6 +19,7 @@ import { ChangeStatusMenu } from "@/components/tenant/customers/ChangeStatusMenu
 import { FlagsPopover } from "@/components/tenant/customers/FlagsPopover";
 import { EditCustomerDialog } from "@/components/tenant/customers/EditCustomerDialog";
 import { InitiateCallDialog } from "@/components/tenant/customers/InitiateCallDialog";
+import { AssignmentTab } from "@/components/tenant/customers/AssignmentTab";
 import { csvCell, downloadTextFile } from "@/lib/csv";
 import {
   ChevronLeft,
@@ -48,11 +49,12 @@ import {
   Eye,
   ExternalLink,
   Paperclip,
+  UserRound,
 } from "lucide-react";
 import { usePermissions, type Permissions } from "@/lib/permissions/store";
 import { DeleteNoteDialog } from "@/components/tenant/DeleteNoteDialog";
 import { EmailBody } from "@/components/tenant/EmailBody";
-import { CustomerTimeline } from "@/components/tenant/customers/CustomerTimeline";
+import { TimelineTab } from "@/components/tenant/customers/TimelineTab";
 import { AttachmentList } from "@/components/tenant/customers/EmailAttachments";
 import { EmailComposer } from "@/components/tenant/EmailComposer";
 import { isEmptyEmailHtml } from "@/lib/email-html";
@@ -147,6 +149,7 @@ function DebtorProfile() {
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [moveTeamId, setMoveTeamId] = useState<number | undefined>();
   const [engagementBusy, setEngagementBusy] = useState(false);
 
   useEffect(() => {
@@ -377,6 +380,10 @@ function DebtorProfile() {
                 Notes
               </TabsTrigger>
             )}
+            <TabsTrigger value="assignment">
+              <UserRound className="h-3.5 w-3.5 mr-1.5" />
+              Assignment
+            </TabsTrigger>
             <TabsTrigger value="timeline">
               <History className="h-3.5 w-3.5 mr-1.5" />
               Timeline
@@ -418,18 +425,27 @@ function DebtorProfile() {
               <NotesTab details={details} />
             </TabsContent>
           )}
+          <TabsContent value="assignment" className="mt-4">
+            <AssignmentTab
+              details={details}
+              canReassign={perms.can("teamDeck.assign")}
+              canChangeTeam={perms.can("customers.moveTeam")}
+              // Tenant admins only, by design — team leads hold customers.moveTeam
+              // in the default presets but must never see this button here.
+              showMoveButton={perms.isTenantAdmin}
+              isArchived={isArchived}
+              onMoveToTeam={(teamId) => {
+                setMoveTeamId(teamId);
+                setMoveDialogOpen(true);
+              }}
+              onChanged={refresh}
+            />
+          </TabsContent>
           <TabsContent value="timeline" className="mt-4">
-            <PageCard>
-              <div className="px-6 py-4 border-b border-border">
-                <div className="font-display font-bold text-lg">Timeline</div>
-                <div className="text-sm text-muted-foreground">
-                  Activity on this file, newest first.
-                </div>
-              </div>
-              <div className="p-6">
-                <CustomerTimeline uploadedDebtorId={details.uploadedDebtorId} />
-              </div>
-            </PageCard>
+            <TimelineTab
+              uploadedDebtorId={details.uploadedDebtorId}
+              canViewAudit={perms.can("audit.view")}
+            />
           </TabsContent>
         </Tabs>
       </section>
@@ -481,7 +497,11 @@ function DebtorProfile() {
         <MoveToTeamDialog
           count={1}
           uploadedDebtorIdList={[id]}
-          onClose={() => setMoveDialogOpen(false)}
+          initialTeamId={moveTeamId}
+          onClose={() => {
+            setMoveDialogOpen(false);
+            setMoveTeamId(undefined);
+          }}
           onMoved={() => {
             // The file loses its assignment and drops off this agent's book on
             // a successful move — nothing left here to refresh into.

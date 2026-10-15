@@ -15,6 +15,7 @@ export type StatusDraft = {
 };
 
 const DEFAULT_COLOR = "#1EC9A0";
+const NAME_MAX = 60;
 const AI_CONTEXT_MAX = 2000;
 
 /**
@@ -64,7 +65,12 @@ export function StatusFormDrawer({
     trimmedCode !== (status?.statusCode?.toUpperCase() ?? "") &&
     existingCodes.includes(trimmedCode);
 
-  const nameError = !trimmedName ? "Name is required." : "";
+  const nameTooLong = trimmedName.length > NAME_MAX;
+  const nameError = !trimmedName
+    ? "Name is required."
+    : nameTooLong
+      ? `Name must be ${NAME_MAX} characters or fewer (currently ${trimmedName.length}).`
+      : "";
   const codeError = !trimmedCode
     ? "Code is required."
     : trimmedCode.length < 2 || trimmedCode.length > 4
@@ -120,7 +126,8 @@ export function StatusFormDrawer({
           </div>
 
           {/* Name */}
-          <Field label="Name" required error={touched ? nameError : ""}>
+          {/* Over-length shows straight away rather than waiting for Save. */}
+          <Field label="Name" required error={touched || nameTooLong ? nameError : ""}>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}

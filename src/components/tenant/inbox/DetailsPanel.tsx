@@ -772,7 +772,8 @@ function TagsSection({
 function TimelineSection({ details }: { details: CustomerDetails }) {
   return (
     <Section icon={<History className="h-3.5 w-3.5" />} title="Timeline">
-      <CustomerTimeline uploadedDebtorId={details.uploadedDebtorId} />
+      {/* details is refetched after a status/flag/team change — reload with it. */}
+      <CustomerTimeline uploadedDebtorId={details.uploadedDebtorId} refreshKey={details} />
     </Section>
   );
 }

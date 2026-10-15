@@ -81,7 +81,6 @@ export function RoleEditor({
   initial,
   takenNames,
   isOwnRole,
-  legacy,
   onClose,
   onSave,
 }: {
@@ -91,8 +90,6 @@ export function RoleEditor({
   takenNames: string[];
   /** The signed-in user holds this role, so removing role access locks them out. */
   isOwnRole: boolean;
-  /** The backend still stores roles in the old format (read-only). */
-  legacy: boolean;
   onClose: () => void;
   /** Persist the role; throw to keep the editor open with the error shown. */
   onSave: (input: RoleInput) => Promise<void>;
@@ -374,15 +371,8 @@ export function RoleEditor({
                   </label>
                 </div>
 
-                {(legacy || locksSelfOut || (!readOnly && selected.size === 0)) && (
+                {(locksSelfOut || (!readOnly && selected.size === 0)) && (
                   <div className="space-y-2 px-5 pt-4 sm:px-6">
-                    {legacy && (
-                      <Notice tone="info">
-                        The server still stores roles in the old format, so this shows what the role
-                        can do today in terms of the new permissions. Editing unlocks once the
-                        backend is upgraded.
-                      </Notice>
-                    )}
                     {locksSelfOut && (
                       <Notice tone="warning">
                         This is your own role. Without Roles &amp; permissions · Edit you won't be

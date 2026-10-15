@@ -9,10 +9,10 @@
 //
 // Where the grants come from:
 //   • the built-in tenantAdmin role (not a row in getAllRole) → everything;
-//   • otherwise POST /tenant/myProfile's `permissions` (string keys);
-//   • TRANSITION: a backend that hasn't shipped the redesign sends no
-//     `permissions`, so the user's role is looked up in getAllRole and its
-//     legacy configIds are translated (legacy.ts) — today's behaviour, unchanged.
+//   • otherwise POST /tenant/myProfile's `permissions` (string keys), once the
+//     backend sends them;
+//   • until then (myProfile has no `permissions` as of 2026-10-14), the user's
+//     roleId is looked up in getAllRole and that role's keys are used.
 //
 // One snapshot backs every mounted hook (useSyncExternalStore). It is cached in
 // localStorage so a reload paints the right sidebar straight away, and is
@@ -21,9 +21,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { AUTH_USER_KEY, PERMISSIONS_CACHE_KEY } from "../auth-token";
 import { getMyProfile } from "../profile-api";
-import { getAllRoles, type PermissionSchema } from "../roles-api";
+import { getAllRoles } from "../roles-api";
 import { ALL_PERMISSION_KEYS, normalizePermissions, type PermissionKey } from "./catalog";
-import { permissionsFromLegacy } from "./legacy";
 
 export type PermissionStatus = "loading" | "ready" | "error";
 
@@ -35,8 +34,6 @@ type Snapshot = {
   granted: ReadonlySet<PermissionKey>;
   /** The user's custom role (null for the tenant administrator or when unknown). */
   roleId: number | null;
-  /** The format the backend answered in — "legacy" until it ships the redesign. */
-  schema: PermissionSchema | null;
 };
 
 export type Permissions = Snapshot & {
@@ -53,7 +50,6 @@ type CachedGrants = {
   userId: number;
   isTenantAdmin: boolean;
   roleId: number | null;
-  schema: PermissionSchema | null;
   permissions: string[];
 };
 
@@ -64,8 +60,10 @@ const LOADING: Snapshot = {
   isTenantAdmin: false,
   granted: NONE,
   roleId: null,
-  schema: null,
 };
+
+/** getRoleList lists the built-in tenant administrator as roleId 0 ("Tenant Admin"). */
+const TENANT_ADMIN_ROLE_ID = 0;
 
 /** "tenantAdmin" as login/myProfile spell it, tolerant of "Tenant Admin" / "tenant_admin". */
 export function isTenantAdminRole(role: string | null | undefined): boolean {
@@ -85,14 +83,12 @@ function ready(
   isTenantAdmin: boolean,
   permissions: readonly PermissionKey[],
   roleId: number | null,
-  schema: PermissionSchema | null,
 ): Snapshot {
   return {
     status: "ready",
     isTenantAdmin,
     granted: isTenantAdmin ? EVERYTHING : new Set(permissions),
     roleId,
-    schema,
   };
 }
 
@@ -103,7 +99,7 @@ function readCache(userId: number | undefined): Snapshot | null {
     if (!raw) return null;
     const c = JSON.parse(raw) as CachedGrants;
     if (c.userId !== userId) return null;
-    return ready(c.isTenantAdmin, normalizePermissions(c.permissions ?? []), c.roleId, c.schema);
+    return ready(c.isTenantAdmin, normalizePermissions(c.permissions ?? []), c.roleId);
   } catch {
     return null;
   }
@@ -116,7 +112,6 @@ function writeCache(snap: Snapshot): void {
     userId,
     isTenantAdmin: snap.isTenantAdmin,
     roleId: snap.roleId,
-    schema: snap.schema,
     permissions: snap.isTenantAdmin ? [] : [...snap.granted],
   };
   try {
@@ -129,22 +124,22 @@ function writeCache(snap: Snapshot): void {
 function initialSnapshot(): Snapshot {
   const user = storedUser();
   // The login record already names the tenant admin — no need to wait.
-  if (user && isTenantAdminRole(user.role)) return ready(true, [], null, null);
+  if (user && isTenantAdminRole(user.role)) return ready(true, [], null);
   return readCache(user?.userId) ?? LOADING;
 }
 
 async function fetchSnapshot(): Promise<Snapshot> {
   const profile = await getMyProfile();
-  const schema: PermissionSchema = Array.isArray(profile.permissions) ? "v2" : "legacy";
   const roleId = profile.roleId ?? null;
-  if (isTenantAdminRole(profile.role)) return ready(true, [], null, schema);
-  if (profile.permissions) {
-    return ready(false, normalizePermissions(profile.permissions), roleId, schema);
+  if (isTenantAdminRole(profile.role) || roleId === TENANT_ADMIN_ROLE_ID) {
+    return ready(true, [], null);
   }
-  const { roles } = await getAllRoles();
-  const role = roles.find((r) => r.roleId === profile.roleId);
-  // No matching row means no legacy grants — the old screens treated it the same way.
-  return ready(false, role ? role.permissions : permissionsFromLegacy([]), roleId, schema);
+  if (Array.isArray(profile.permissions)) {
+    return ready(false, normalizePermissions(profile.permissions), roleId);
+  }
+  const role = (await getAllRoles()).find((r) => r.roleId === roleId);
+  // A role that no longer exists grants nothing.
+  return ready(false, role?.permissions ?? [], roleId);
 }
 
 /* --------------------------------- store --------------------------------- */

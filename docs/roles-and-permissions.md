@@ -1,8 +1,23 @@
 # Roles & Permissions — permission model and backend contract
 
-This replaces the placeholder permission catalog (numeric `configId`s from `getConfiguredRoles`) with a model built from the APIs each module actually calls. The frontend side is done. The backend needs the changes in sections 2–4 for the new model to take effect.
+This replaces the placeholder permission catalog (numeric `configId`s from `getConfiguredRoles`) with a model built from the APIs each module actually calls. The frontend side is done. The backend shipped the role endpoints in section 2; see **Backend status** below for what is still open.
 
 The source of truth is [`src/lib/permissions/catalog.ts`](../src/lib/permissions/catalog.ts). The tables in section 5 were generated from it. If the two ever disagree, the code wins.
+
+## Backend status (verified live 2026-10-14)
+
+| Item | Status |
+| --- | --- |
+| `getAllRole` returns `permissionSchema: 2`, `roleDescription`, `permissions`, `userCount` | Done |
+| `createRole` / `updateRole` accept `permissions` | Done |
+| `deleteRole` | Done |
+| `getConfiguredRoles` removed | Done (404) |
+| Duplicate `roleName` rejected (case-insensitive) | Done |
+| Empty `roleName` rejected | **Open** — saves a role with an empty name |
+| Unknown permission keys rejected | **Open** — stored as sent |
+| `deleteRole` refuses a role users are on | Not verified (not tested on a live role); unknown `roleId` returns success |
+| `myProfile` returns `permissions` | **Open** — frontend falls back to `getAllRole` |
+| Endpoints check the caller's permission key (section 3) | **Open** — e.g. `deleteClient` succeeds without `clients.delete` |
 
 ## 1. The model
 
@@ -66,7 +81,7 @@ All endpoints keep the existing conventions: `POST`, raw token in `Authorization
 { "roleName": "Team lead", "roleDescription": "Runs a team", "permissions": ["customers.view", "teamDeck.assign"] }
 // updateRole request — same plus roleId
 { "roleId": 4, "roleName": "Team lead", "roleDescription": "Runs a team", "permissions": ["..."] }
-// response data: createRole → { "roleId": 9 }, updateRole → {}
+// response data: createRole → {}, updateRole → {}
 ```
 
 Validation, all returned as `meta.status: false` with the message shown to the user:
@@ -311,5 +326,5 @@ The account lifecycle and what happens automatically at each step.
 
 - **Where things live.** The catalog, its dependency rules and the role presets are in `src/lib/permissions/`. Runtime checks use `usePermissions().can(key)` from `store.ts`, and page access is mapped in `routes.ts`. That one table drives the route guard in `__root.tsx`, the sidebar and the ⌘K palette.
 - **Adding a permission.** Add the action to `catalog.ts`, gate the control with `can("<key>")`, and add the key to the backend's list and endpoint check. If it opens a new page, add a rule to `routes.ts`.
-- **Transition behaviour.** Until `getAllRole` returns `permissionSchema: 2` or `permissions` arrays, and `myProfile` returns `permissions`, the frontend reads the legacy ids through `src/lib/permissions/legacy.ts`. Roles & Permissions then shows each role in the new terms but stays read-only, because sending the new payload to the old `updateRole` would wipe a role's grants. Delete `legacy.ts` once the backend has shipped and existing roles are migrated.
+- **Where a user's grants come from.** `myProfile.permissions` when present; until the backend adds it, the store looks the user's `roleId` up in `getAllRole`. Every read goes through `normalizePermissions()`, which drops unknown keys and adds missing requirements, because the backend stores `permissions` exactly as sent. The legacy configId shim (`legacy.ts`) was removed on 2026-10-14.
 - **Removed.** Document Automation (mock only, no backend) is gone from the sidebar and routes, along with the old `customer-permissions.ts`, `permission-modules.ts` and `role-permissions.ts`.

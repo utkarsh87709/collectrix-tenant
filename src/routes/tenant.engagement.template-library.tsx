@@ -141,58 +141,16 @@ function TemplateLibraryPage() {
     return clientsLoading ? [] : FALLBACK_CLIENTS;
   }, [apiClients, clientsLoading]);
 
-  /* --------------------- templates cache (email / sms / call) ----------------- */
+  /* ------------------------------ template caches ---------------------------- */
+  // Each list is fetched the first time its client is picked on a tab (see
+  // useClientList) and kept here so switching back doesn't refetch. Nothing
+  // needs every client's list up front now that the tab/pill counts are gone.
 
-  // One getClientTemplate call per client per type, fetched up front — client
-  // lists are small (a handful of clients), so prefetching keeps the tab
-  // counts and per-client pill counts accurate without a spinner on every
-  // pill click.
   const [cache, setCache] = useState<Record<ApiTab, Record<number, Template[]>>>({
     email: {},
     sms: {},
     call: {},
   });
-  const [typeLoading, setTypeLoading] = useState<Record<ApiTab, boolean>>({
-    email: true,
-    sms: true,
-    call: true,
-  });
-  const [typeError, setTypeError] = useState<Record<ApiTab, string | null>>({
-    email: null,
-    sms: null,
-    call: null,
-  });
-  const prefetched = useRef<Record<ApiTab, boolean>>({ email: false, sms: false, call: false });
-
-  const prefetchType = useCallback(async (type: ApiTab, clients: TemplateClient[]) => {
-    setTypeLoading((p) => ({ ...p, [type]: true }));
-    setTypeError((p) => ({ ...p, [type]: null }));
-    try {
-      const lists = await Promise.all(
-        clients.map((c) => getClientTemplate({ clientId: c.clientId, templateType: type })),
-      );
-      setCache((prev) => {
-        const next = { ...prev[type] };
-        clients.forEach((c, i) => {
-          next[c.clientId] = lists[i];
-        });
-        return { ...prev, [type]: next };
-      });
-    } catch (e) {
-      setTypeError((p) => ({ ...p, [type]: e instanceof Error ? e.message : "Failed to load." }));
-    } finally {
-      setTypeLoading((p) => ({ ...p, [type]: false }));
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!apiClients) return;
-    (["email", "sms", "call"] as ApiTab[]).forEach((t) => {
-      if (prefetched.current[t]) return;
-      prefetched.current[t] = true;
-      prefetchType(t, apiClients[t]);
-    });
-  }, [apiClients, prefetchType]);
 
   const refreshOne = useCallback(async (type: ApiTab, clientId: number): Promise<Template[]> => {
     const list = await getClientTemplate({ clientId, templateType: type });
@@ -200,42 +158,9 @@ function TemplateLibraryPage() {
     return list;
   }, []);
 
-  /* ------------------- AI messaging prompts (per designClients) -------------- */
-  // aiPrompt has no client list of its own on getTemplateClients, so — like
-  // Documents — it's fetched per client across the deduped `designClients` set
-  // rather than through the cache/prefetchType machinery above.
-
+  // aiPrompt and document templates have no client list of their own on
+  // getTemplateClients, so their panels use the deduped `designClients` set.
   const [aiPromptCache, setAiPromptCache] = useState<Record<number, Template[]>>({});
-  const [aiPromptLoading, setAiPromptLoading] = useState(true);
-  const [aiPromptError, setAiPromptError] = useState<string | null>(null);
-  const aiPromptPrefetched = useRef(false);
-
-  const prefetchAiPrompts = useCallback(async (clients: TemplateClient[]) => {
-    setAiPromptLoading(true);
-    setAiPromptError(null);
-    try {
-      const lists = await Promise.all(
-        clients.map((c) => getClientTemplate({ clientId: c.clientId, templateType: "aiPrompt" })),
-      );
-      setAiPromptCache((prev) => {
-        const next = { ...prev };
-        clients.forEach((c, i) => {
-          next[c.clientId] = lists[i];
-        });
-        return next;
-      });
-    } catch (e) {
-      setAiPromptError(e instanceof Error ? e.message : "Failed to load.");
-    } finally {
-      setAiPromptLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (aiPromptPrefetched.current || designClients.length === 0) return;
-    aiPromptPrefetched.current = true;
-    prefetchAiPrompts(designClients);
-  }, [designClients, prefetchAiPrompts]);
 
   const refreshOneAiPrompt = useCallback(async (clientId: number): Promise<Template[]> => {
     const list = await getClientTemplate({ clientId, templateType: "aiPrompt" });
@@ -243,56 +168,13 @@ function TemplateLibraryPage() {
     return list;
   }, []);
 
-  /* ----------------------- document templates (per designClients) ------------ */
-  // Same shape as the aiPrompt block above: document templates have no
-  // per-channel client list of their own on getTemplateClients, so they're
-  // fetched per client across the deduped `designClients` set.
-
   const [docCache, setDocCache] = useState<Record<number, DocumentTemplate[]>>({});
-  const [docLoading, setDocLoading] = useState(true);
-  const [docError, setDocError] = useState<string | null>(null);
-  const docPrefetched = useRef(false);
-
-  const prefetchDocs = useCallback(async (clients: TemplateClient[]) => {
-    setDocLoading(true);
-    setDocError(null);
-    try {
-      const lists = await Promise.all(clients.map((c) => getDocumentTemplates(c.clientId)));
-      setDocCache((prev) => {
-        const next = { ...prev };
-        clients.forEach((c, i) => {
-          next[c.clientId] = lists[i];
-        });
-        return next;
-      });
-    } catch (e) {
-      setDocError(e instanceof Error ? e.message : "Failed to load.");
-    } finally {
-      setDocLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (docPrefetched.current || designClients.length === 0) return;
-    docPrefetched.current = true;
-    prefetchDocs(designClients);
-  }, [designClients, prefetchDocs]);
 
   const refreshOneDoc = useCallback(async (clientId: number): Promise<DocumentTemplate[]> => {
     const list = await getDocumentTemplates(clientId);
     setDocCache((prev) => ({ ...prev, [clientId]: list }));
     return list;
   }, []);
-
-  /* --------------------------------- counts ---------------------------------- */
-
-  const counts: Record<Tab, number> = {
-    email: Object.values(cache.email).reduce((n, l) => n + l.length, 0),
-    sms: Object.values(cache.sms).reduce((n, l) => n + l.length, 0),
-    call: Object.values(cache.call).reduce((n, l) => n + l.length, 0),
-    documents: Object.values(docCache).reduce((n, l) => n + l.length, 0),
-    aiPrompt: Object.values(aiPromptCache).reduce((n, l) => n + l.length, 0),
-  };
 
   const TABS: { id: Tab; label: string; icon: typeof Mail }[] = [
     { id: "email", label: "Email", icon: Mail },
@@ -327,14 +209,6 @@ function TemplateLibraryPage() {
                   )}
                 >
                   <Icon className="h-4 w-4" /> {t.label}
-                  <span
-                    className={cn(
-                      "text-[11px] px-1.5 py-0.5 rounded-md",
-                      active ? "bg-tenant-soft text-tenant" : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {counts[t.id]}
-                  </span>
                 </button>
               );
             })}
@@ -352,9 +226,6 @@ function TemplateLibraryPage() {
               clientsError={clientsError}
               onRetryClients={loadClients}
               byClient={cache[tab]}
-              loading={typeLoading[tab]}
-              error={typeError[tab]}
-              onRetry={() => apiClients && prefetchType(tab, apiClients[tab])}
               refreshOne={refreshOne}
             />
           ) : tab === "documents" ? (
@@ -364,9 +235,6 @@ function TemplateLibraryPage() {
               clientsError={clientsError}
               onRetryClients={loadClients}
               byClient={docCache}
-              loading={docLoading}
-              error={docError}
-              onRetry={() => prefetchDocs(designClients)}
               refreshOne={refreshOneDoc}
             />
           ) : (
@@ -376,9 +244,6 @@ function TemplateLibraryPage() {
               clientsError={clientsError}
               onRetryClients={loadClients}
               byClient={aiPromptCache}
-              loading={aiPromptLoading}
-              error={aiPromptError}
-              onRetry={() => prefetchAiPrompts(designClients)}
               refreshOne={refreshOneAiPrompt}
             />
           )}
@@ -392,12 +257,10 @@ function TemplateLibraryPage() {
 
 function ClientPills({
   clients,
-  counts,
   value,
   onChange,
 }: {
   clients: TemplateClient[];
-  counts: Record<number, number>;
   value: number | null;
   onChange: (clientId: number) => void;
 }) {
@@ -414,21 +277,13 @@ function ClientPills({
               key={c.clientId}
               onClick={() => onChange(c.clientId)}
               className={cn(
-                "inline-flex items-center gap-2 h-8 pl-3.5 pr-1.5 rounded-full border text-xs font-semibold whitespace-nowrap transition-colors",
+                "inline-flex items-center h-8 px-3.5 rounded-full border text-xs font-semibold whitespace-nowrap transition-colors",
                 active
                   ? "bg-gradient-tenant text-white border-transparent shadow-tenant"
                   : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-[color:var(--tenant)]/40",
               )}
             >
               {c.clientName}
-              <span
-                className={cn(
-                  "min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full text-[10px] font-bold tabular-nums",
-                  active ? "bg-white/25 text-white" : "bg-muted text-muted-foreground",
-                )}
-              >
-                {counts[c.clientId] ?? 0}
-              </span>
             </button>
           );
         })}
@@ -438,6 +293,39 @@ function ClientPills({
 }
 
 /* ------------------------------- shared states ------------------------------ */
+
+/** Fetches the picked client's list the first time it's picked (later picks
+ *  read the page's cache). `load` is the page's refreshOne, which fills it. */
+function useClientList<T>(
+  clientId: number | null,
+  byClient: Record<number, T[]>,
+  load: (clientId: number) => Promise<T[]>,
+) {
+  const loaded = clientId != null && byClient[clientId] !== undefined;
+  const [failed, setFailed] = useState<{ clientId: number; message: string } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (clientId == null || loaded) return;
+    let cancelled = false;
+    setFailed(null);
+    load(clientId).catch((e) => {
+      if (!cancelled)
+        setFailed({ clientId, message: e instanceof Error ? e.message : "Failed to load." });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // `load` is recreated each render by the panels; clientId/loaded/attempt drive it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, loaded, attempt]);
+
+  return {
+    loaded,
+    error: failed && failed.clientId === clientId ? failed.message : null,
+    retry: () => setAttempt((n) => n + 1),
+  };
+}
 
 function PanelSpinner() {
   return (
@@ -471,9 +359,6 @@ function ApiChannelPanel({
   clientsError,
   onRetryClients,
   byClient,
-  loading,
-  error,
-  onRetry,
   refreshOne,
 }: {
   tab: ApiTab;
@@ -482,9 +367,6 @@ function ApiChannelPanel({
   clientsError: string | null;
   onRetryClients: () => void;
   byClient: Record<number, Template[]>;
-  loading: boolean;
-  error: string | null;
-  onRetry: () => void;
   refreshOne: (type: ApiTab, clientId: number) => Promise<Template[]>;
 }) {
   const canCreate = usePermissions().can("templates.create");
@@ -503,30 +385,29 @@ function ApiChannelPanel({
     );
   }, [clients]);
 
+  const list = useClientList(clientId, byClient, (id) => refreshOne(tab, id));
+
   const items = useMemo(
     () => (clientId != null ? (byClient[clientId] ?? []) : []),
     [byClient, clientId],
   );
   const clientName = clients.find((c) => c.clientId === clientId)?.clientName ?? "";
-  const pillCounts = Object.fromEntries(
-    clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]),
-  );
 
-  // Reset the selection when the client changes; auto-pick the first item for
-  // "call" (matches the design's always-something-selected voice agent list).
+  // Reset the selection when the client changes (or its list first arrives);
+  // auto-pick the first item for "call" (matches the design's
+  // always-something-selected voice agent list).
   useEffect(() => {
     setSelected(
       tab === "call" && items.length > 0 ? { kind: "item", id: items[0].templateId } : null,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+  }, [clientId, list.loaded]);
 
   const selectedItem =
     selected?.kind === "item" ? (items.find((t) => t.templateId === selected.id) ?? null) : null;
 
   if (clientsError) return <PanelError message={clientsError} onRetry={onRetryClients} />;
-  if (clientsLoading || loading) return <PanelSpinner />;
-  if (error) return <PanelError message={error} onRetry={onRetry} />;
+  if (clientsLoading) return <PanelSpinner />;
   if (clients.length === 0) {
     const label = tab === "call" ? "call-enabled" : tab;
     return (
@@ -543,143 +424,151 @@ function ApiChannelPanel({
 
   return (
     <>
-      <ClientPills clients={clients} counts={pillCounts} value={clientId} onChange={setClientId} />
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] min-h-[560px]">
-        {/* Left list */}
-        <aside className="border-b lg:border-b-0 lg:border-r border-border bg-muted/20 flex flex-col">
-          <div className="px-3 pt-3 pb-2 flex items-center justify-between gap-2">
-            <span className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
-              {tab === "call" ? "Voice Agents" : "Templates"}
-            </span>
-            <span className="min-w-5 px-1.5 rounded-full bg-muted text-[11px] font-semibold tabular-nums text-muted-foreground">
-              {items.length}
-            </span>
-          </div>
-          {canCreate && (
-            <div className="px-3 pb-2">
-              <button
-                onClick={() => setSelected({ kind: "draft" })}
-                className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 transition-opacity"
-              >
-                <Plus className="h-4 w-4" /> {newLabel}
-              </button>
+      <ClientPills clients={clients} value={clientId} onChange={setClientId} />
+      {list.error ? (
+        <PanelError message={list.error} onRetry={list.retry} />
+      ) : !list.loaded ? (
+        <PanelSpinner />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] min-h-[560px]">
+          {/* Left list */}
+          <aside className="border-b lg:border-b-0 lg:border-r border-border bg-muted/20 flex flex-col">
+            <div className="px-3 pt-3 pb-2 flex items-center justify-between gap-2">
+              <span className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+                {tab === "call" ? "Voice Agents" : "Templates"}
+              </span>
+              <span className="min-w-5 px-1.5 rounded-full bg-muted text-[11px] font-semibold tabular-nums text-muted-foreground">
+                {items.length}
+              </span>
             </div>
-          )}
-          <ul className="px-2 pb-3 space-y-1 overflow-y-auto">
-            {selected?.kind === "draft" && (
-              <li>
-                <div className="rounded-lg px-3 py-2.5 border border-[color:var(--tenant)]/40 bg-[color:var(--tenant)]/10">
-                  <div className="text-sm font-semibold truncate text-tenant">{newLabel}</div>
-                  <div className="mt-1">
-                    <span className="inline-flex items-center text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-warning/15 text-warning-foreground">
-                      Unsaved draft
-                    </span>
+            {canCreate && (
+              <div className="px-3 pb-2">
+                <button
+                  onClick={() => setSelected({ kind: "draft" })}
+                  className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 transition-opacity"
+                >
+                  <Plus className="h-4 w-4" /> {newLabel}
+                </button>
+              </div>
+            )}
+            <ul className="px-2 pb-3 space-y-1 overflow-y-auto">
+              {selected?.kind === "draft" && (
+                <li>
+                  <div className="rounded-lg px-3 py-2.5 border border-[color:var(--tenant)]/40 bg-[color:var(--tenant)]/10">
+                    <div className="text-sm font-semibold truncate text-tenant">{newLabel}</div>
+                    <div className="mt-1">
+                      <span className="inline-flex items-center text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-warning/15 text-warning-foreground">
+                        Unsaved draft
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </li>
-            )}
-            {items.length === 0 && selected?.kind !== "draft" && (
-              <li className="flex flex-col items-center gap-1.5 text-muted-foreground px-3 py-10 text-center">
-                <FileText className="h-6 w-6 opacity-50" />
-                <span className="text-xs">Nothing for this client yet.</span>
-              </li>
-            )}
-            {items.map((t) => {
-              const active = selectedItem?.templateId === t.templateId;
-              return (
-                <li key={t.templateId}>
-                  <button
-                    onClick={() => setSelected({ kind: "item", id: t.templateId })}
-                    className={cn(
-                      "w-full text-left cursor-pointer rounded-lg px-3 py-2.5 border transition-colors",
-                      active
-                        ? "bg-[color:var(--tenant)]/10 border-[color:var(--tenant)]/40"
-                        : "bg-card border-border hover:border-[color:var(--tenant)]/30 hover:bg-muted/40",
-                    )}
-                  >
-                    <div
+                </li>
+              )}
+              {items.length === 0 && selected?.kind !== "draft" && (
+                <li className="flex flex-col items-center gap-1.5 text-muted-foreground px-3 py-10 text-center">
+                  <FileText className="h-6 w-6 opacity-50" />
+                  <span className="text-xs">Nothing for this client yet.</span>
+                </li>
+              )}
+              {items.map((t) => {
+                const active = selectedItem?.templateId === t.templateId;
+                return (
+                  <li key={t.templateId}>
+                    <button
+                      onClick={() => setSelected({ kind: "item", id: t.templateId })}
                       className={cn(
-                        "text-sm font-semibold truncate",
-                        active ? "text-tenant" : "text-foreground",
+                        "w-full text-left cursor-pointer rounded-lg px-3 py-2.5 border transition-colors",
+                        active
+                          ? "bg-[color:var(--tenant)]/10 border-[color:var(--tenant)]/40"
+                          : "bg-card border-border hover:border-[color:var(--tenant)]/30 hover:bg-muted/40",
                       )}
                     >
-                      {t.templateName}
-                    </div>
-                    {tab === "call" ? (
-                      <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-tenant">
-                        <PhoneCall className="h-3 w-3" /> {clientName}
+                      <div
+                        className={cn(
+                          "text-sm font-semibold truncate",
+                          active ? "text-tenant" : "text-foreground",
+                        )}
+                      >
+                        {t.templateName}
                       </div>
-                    ) : (
-                      <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-                        {bodyPreview(t) || "—"}
-                      </div>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </aside>
+                      {tab === "call" ? (
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-tenant">
+                          <PhoneCall className="h-3 w-3" /> {clientName}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                          {bodyPreview(t) || "—"}
+                        </div>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </aside>
 
-        {/* Right editor */}
-        <div className="flex flex-col">
-          {!selected || clientId == null || (selected.kind === "item" && !selectedItem) ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-12 text-center">
-              Select {tab === "call" ? "a voice agent" : "a template"} from the left or create a new
-              one.
-            </div>
-          ) : tab === "call" ? (
-            <VoiceAgentEditor
-              key={selected.kind === "draft" ? `draft-${clientId}` : `agent-${selected.id}`}
-              agent={selected.kind === "item" ? selectedItem : null}
-              clientId={clientId}
-              onCancelDraft={() => setSelected(null)}
-              onCreated={async () => {
-                const list = await refreshOne("call", clientId);
-                const newest = list.reduce<Template | null>(
-                  (max, t) => (!max || t.templateId > max.templateId ? t : max),
-                  null,
-                );
-                setSelected(newest ? { kind: "item", id: newest.templateId } : null);
-              }}
-              onUpdated={async () => {
-                await refreshOne("call", clientId);
-              }}
-              onDeleted={async () => {
-                await refreshOne("call", clientId);
-                setSelected(null);
-              }}
-            />
-          ) : (
-            <TemplateEditor
-              key={
-                selected.kind === "draft" ? `draft-${tab}-${clientId}` : `tpl-${tab}-${selected.id}`
-              }
-              channel={tab}
-              clientId={clientId}
-              clientName={clientName}
-              template={selected.kind === "item" ? selectedItem : null}
-              siblings={items}
-              onCancelDraft={() => setSelected(null)}
-              onCreated={async () => {
-                const list = await refreshOne(tab, clientId);
-                const newest = list.reduce<Template | null>(
-                  (max, t) => (!max || t.templateId > max.templateId ? t : max),
-                  null,
-                );
-                setSelected(newest ? { kind: "item", id: newest.templateId } : null);
-              }}
-              onUpdated={async () => {
-                await refreshOne(tab, clientId);
-              }}
-              onDeleted={async () => {
-                await refreshOne(tab, clientId);
-                setSelected(null);
-              }}
-            />
-          )}
+          {/* Right editor */}
+          <div className="flex flex-col">
+            {!selected || clientId == null || (selected.kind === "item" && !selectedItem) ? (
+              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-12 text-center">
+                Select {tab === "call" ? "a voice agent" : "a template"} from the left or create a
+                new one.
+              </div>
+            ) : tab === "call" ? (
+              <VoiceAgentEditor
+                key={selected.kind === "draft" ? `draft-${clientId}` : `agent-${selected.id}`}
+                agent={selected.kind === "item" ? selectedItem : null}
+                clientId={clientId}
+                onCancelDraft={() => setSelected(null)}
+                onCreated={async () => {
+                  const list = await refreshOne("call", clientId);
+                  const newest = list.reduce<Template | null>(
+                    (max, t) => (!max || t.templateId > max.templateId ? t : max),
+                    null,
+                  );
+                  setSelected(newest ? { kind: "item", id: newest.templateId } : null);
+                }}
+                onUpdated={async () => {
+                  await refreshOne("call", clientId);
+                }}
+                onDeleted={async () => {
+                  await refreshOne("call", clientId);
+                  setSelected(null);
+                }}
+              />
+            ) : (
+              <TemplateEditor
+                key={
+                  selected.kind === "draft"
+                    ? `draft-${tab}-${clientId}`
+                    : `tpl-${tab}-${selected.id}`
+                }
+                channel={tab}
+                clientId={clientId}
+                clientName={clientName}
+                template={selected.kind === "item" ? selectedItem : null}
+                siblings={items}
+                onCancelDraft={() => setSelected(null)}
+                onCreated={async () => {
+                  const list = await refreshOne(tab, clientId);
+                  const newest = list.reduce<Template | null>(
+                    (max, t) => (!max || t.templateId > max.templateId ? t : max),
+                    null,
+                  );
+                  setSelected(newest ? { kind: "item", id: newest.templateId } : null);
+                }}
+                onUpdated={async () => {
+                  await refreshOne(tab, clientId);
+                }}
+                onDeleted={async () => {
+                  await refreshOne(tab, clientId);
+                  setSelected(null);
+                }}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
@@ -1419,9 +1308,6 @@ function AiPromptsPanel({
   clientsError,
   onRetryClients,
   byClient,
-  loading,
-  error,
-  onRetry,
   refreshOne,
 }: {
   clients: TemplateClient[];
@@ -1429,9 +1315,6 @@ function AiPromptsPanel({
   clientsError: string | null;
   onRetryClients: () => void;
   byClient: Record<number, Template[]>;
-  loading: boolean;
-  error: string | null;
-  onRetry: () => void;
   refreshOne: (clientId: number) => Promise<Template[]>;
 }) {
   const canCreate = usePermissions().can("templates.create");
@@ -1450,12 +1333,11 @@ function AiPromptsPanel({
     );
   }, [clients]);
 
+  const list = useClientList(clientId, byClient, refreshOne);
+
   const items = useMemo(
     () => (clientId != null ? (byClient[clientId] ?? []) : []),
     [byClient, clientId],
-  );
-  const pillCounts = Object.fromEntries(
-    clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]),
   );
 
   // Reset the selection when the client changes.
@@ -1467,8 +1349,7 @@ function AiPromptsPanel({
     selected?.kind === "item" ? (items.find((t) => t.templateId === selected.id) ?? null) : null;
 
   if (clientsError) return <PanelError message={clientsError} onRetry={onRetryClients} />;
-  if (clientsLoading || loading) return <PanelSpinner />;
-  if (error) return <PanelError message={error} onRetry={onRetry} />;
+  if (clientsLoading) return <PanelSpinner />;
   if (clients.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-24 text-center">
@@ -1480,96 +1361,102 @@ function AiPromptsPanel({
 
   return (
     <>
-      <ClientPills clients={clients} counts={pillCounts} value={clientId} onChange={setClientId} />
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] min-h-[560px]">
-        {/* Left list */}
-        <aside className="border-b lg:border-b-0 lg:border-r border-border bg-muted/20 p-3 space-y-2">
-          {canCreate && (
-            <button
-              onClick={() => setSelected({ kind: "draft" })}
-              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90"
-            >
-              <Plus className="h-4 w-4" /> New Prompt
-            </button>
-          )}
-          <ul className="space-y-2">
-            {selected?.kind === "draft" && (
-              <li>
-                <div className="rounded-lg px-3 py-2.5 border border-[color:var(--tenant)]/40 bg-[color:var(--tenant)]/10">
-                  <div className="text-sm font-semibold truncate text-tenant">New Prompt</div>
-                  <div className="mt-1">
-                    <span className="inline-flex items-center text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-warning/15 text-warning-foreground">
-                      Unsaved draft
-                    </span>
+      <ClientPills clients={clients} value={clientId} onChange={setClientId} />
+      {list.error ? (
+        <PanelError message={list.error} onRetry={list.retry} />
+      ) : !list.loaded ? (
+        <PanelSpinner />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] min-h-[560px]">
+          {/* Left list */}
+          <aside className="border-b lg:border-b-0 lg:border-r border-border bg-muted/20 p-3 space-y-2">
+            {canCreate && (
+              <button
+                onClick={() => setSelected({ kind: "draft" })}
+                className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90"
+              >
+                <Plus className="h-4 w-4" /> New Prompt
+              </button>
+            )}
+            <ul className="space-y-2">
+              {selected?.kind === "draft" && (
+                <li>
+                  <div className="rounded-lg px-3 py-2.5 border border-[color:var(--tenant)]/40 bg-[color:var(--tenant)]/10">
+                    <div className="text-sm font-semibold truncate text-tenant">New Prompt</div>
+                    <div className="mt-1">
+                      <span className="inline-flex items-center text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-warning/15 text-warning-foreground">
+                        Unsaved draft
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </li>
-            )}
-            {items.length === 0 && selected?.kind !== "draft" && (
-              <li className="flex flex-col items-center gap-1.5 text-muted-foreground px-3 py-10 text-center">
-                <Bot className="h-6 w-6 opacity-50" />
-                <span className="text-xs">No AI messaging prompts for this client yet.</span>
-              </li>
-            )}
-            {items.map((p) => {
-              const active = selectedItem?.templateId === p.templateId;
-              return (
-                <li key={p.templateId}>
-                  <button
-                    onClick={() => setSelected({ kind: "item", id: p.templateId })}
-                    className={cn(
-                      "w-full text-left cursor-pointer rounded-lg px-3 py-2.5 border transition-colors",
-                      active
-                        ? "bg-[color:var(--tenant)]/10 border-[color:var(--tenant)]/40"
-                        : "bg-card border-border hover:border-[color:var(--tenant)]/30 hover:bg-muted/40",
-                    )}
-                  >
-                    <div
+                </li>
+              )}
+              {items.length === 0 && selected?.kind !== "draft" && (
+                <li className="flex flex-col items-center gap-1.5 text-muted-foreground px-3 py-10 text-center">
+                  <Bot className="h-6 w-6 opacity-50" />
+                  <span className="text-xs">No AI messaging prompts for this client yet.</span>
+                </li>
+              )}
+              {items.map((p) => {
+                const active = selectedItem?.templateId === p.templateId;
+                return (
+                  <li key={p.templateId}>
+                    <button
+                      onClick={() => setSelected({ kind: "item", id: p.templateId })}
                       className={cn(
-                        "text-sm font-semibold truncate",
-                        active ? "text-tenant" : "text-foreground",
+                        "w-full text-left cursor-pointer rounded-lg px-3 py-2.5 border transition-colors",
+                        active
+                          ? "bg-[color:var(--tenant)]/10 border-[color:var(--tenant)]/40"
+                          : "bg-card border-border hover:border-[color:var(--tenant)]/30 hover:bg-muted/40",
                       )}
                     >
-                      {p.templateName || "Untitled Prompt"}
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </aside>
-
-        {/* Right editor */}
-        <div className="flex flex-col">
-          {!selected || clientId == null ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-12 text-center">
-              Select a prompt from the left or create a new one.
-            </div>
-          ) : (
-            <AiPromptEditor
-              key={selected.kind === "draft" ? `draft-${clientId}` : `prompt-${selected.id}`}
-              prompt={selected.kind === "item" ? selectedItem : null}
-              clientId={clientId}
-              onCancelDraft={() => setSelected(null)}
-              onCreated={async () => {
-                const list = await refreshOne(clientId);
-                const newest = list.reduce<Template | null>(
-                  (max, t) => (!max || t.templateId > max.templateId ? t : max),
-                  null,
+                      <div
+                        className={cn(
+                          "text-sm font-semibold truncate",
+                          active ? "text-tenant" : "text-foreground",
+                        )}
+                      >
+                        {p.templateName || "Untitled Prompt"}
+                      </div>
+                    </button>
+                  </li>
                 );
-                setSelected(newest ? { kind: "item", id: newest.templateId } : null);
-              }}
-              onUpdated={async () => {
-                await refreshOne(clientId);
-              }}
-              onDeleted={async () => {
-                await refreshOne(clientId);
-                setSelected(null);
-              }}
-            />
-          )}
+              })}
+            </ul>
+          </aside>
+
+          {/* Right editor */}
+          <div className="flex flex-col">
+            {!selected || clientId == null ? (
+              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-12 text-center">
+                Select a prompt from the left or create a new one.
+              </div>
+            ) : (
+              <AiPromptEditor
+                key={selected.kind === "draft" ? `draft-${clientId}` : `prompt-${selected.id}`}
+                prompt={selected.kind === "item" ? selectedItem : null}
+                clientId={clientId}
+                onCancelDraft={() => setSelected(null)}
+                onCreated={async () => {
+                  const list = await refreshOne(clientId);
+                  const newest = list.reduce<Template | null>(
+                    (max, t) => (!max || t.templateId > max.templateId ? t : max),
+                    null,
+                  );
+                  setSelected(newest ? { kind: "item", id: newest.templateId } : null);
+                }}
+                onUpdated={async () => {
+                  await refreshOne(clientId);
+                }}
+                onDeleted={async () => {
+                  await refreshOne(clientId);
+                  setSelected(null);
+                }}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
@@ -1748,7 +1635,7 @@ function AiPromptEditor({
 // Backed by getClientTemplate/createDocumentTemplate/updateDocumentTemplate/
 // deleteTemplate. Like AI Messaging Prompt, document templates have no
 // per-channel client list of their own, so the client set is `designClients`
-// and byClient/loading/error/refreshOne are supplied by the page above.
+// and byClient/refreshOne are supplied by the page above.
 
 function DocumentsPanel({
   clients,
@@ -1756,9 +1643,6 @@ function DocumentsPanel({
   clientsError,
   onRetryClients,
   byClient,
-  loading,
-  error,
-  onRetry,
   refreshOne,
 }: {
   clients: TemplateClient[];
@@ -1766,9 +1650,6 @@ function DocumentsPanel({
   clientsError: string | null;
   onRetryClients: () => void;
   byClient: Record<number, DocumentTemplate[]>;
-  loading: boolean;
-  error: string | null;
-  onRetry: () => void;
   refreshOne: (clientId: number) => Promise<DocumentTemplate[]>;
 }) {
   const { can } = usePermissions();
@@ -1789,15 +1670,13 @@ function DocumentsPanel({
     );
   }, [clients]);
 
+  const list = useClientList(clientId, byClient, refreshOne);
+
   const docs = clientId != null ? (byClient[clientId] ?? []) : [];
   const clientName = clients.find((c) => c.clientId === clientId)?.clientName ?? "";
-  const pillCounts = Object.fromEntries(
-    clients.map((c) => [c.clientId, byClient[c.clientId]?.length ?? 0]),
-  );
 
   if (clientsError) return <PanelError message={clientsError} onRetry={onRetryClients} />;
-  if (clientsLoading || loading) return <PanelSpinner />;
-  if (error) return <PanelError message={error} onRetry={onRetry} />;
+  if (clientsLoading) return <PanelSpinner />;
   if (clients.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-24 text-center">
@@ -1824,48 +1703,54 @@ function DocumentsPanel({
 
   return (
     <>
-      <ClientPills clients={clients} counts={pillCounts} value={clientId} onChange={setClientId} />
-      <div className="p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-          <div>
-            <h3 className="font-display text-lg font-bold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-tenant" /> Document Templates
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-              Upload .docx templates — the AI merges each customer's details into them to generate
-              documents from the customer file's Documents tab.
-            </p>
+      <ClientPills clients={clients} value={clientId} onChange={setClientId} />
+      {list.error ? (
+        <PanelError message={list.error} onRetry={list.retry} />
+      ) : !list.loaded ? (
+        <PanelSpinner />
+      ) : (
+        <div className="p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+            <div>
+              <h3 className="font-display text-lg font-bold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-tenant" /> Document Templates
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+                Upload .docx templates — the AI merges each customer's details into them to generate
+                documents from the customer file's Documents tab.
+              </p>
+            </div>
+            {can("templates.create") && (
+              <button
+                onClick={() => setDialog({ mode: "create" })}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 shrink-0"
+              >
+                <Upload className="h-4 w-4" /> Upload template
+              </button>
+            )}
           </div>
-          {can("templates.create") && (
-            <button
-              onClick={() => setDialog({ mode: "create" })}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant hover:opacity-90 shrink-0"
-            >
-              <Upload className="h-4 w-4" /> Upload template
-            </button>
+
+          {docs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+              No document templates for {clientName || "this client"} yet. Upload your first
+              template to get started.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {docs.map((d) => (
+                <DocumentCard
+                  key={d.templateId}
+                  doc={d}
+                  onEdit={
+                    can("templates.edit") ? () => setDialog({ mode: "edit", doc: d }) : undefined
+                  }
+                  onDelete={can("templates.delete") ? () => setDeleteTarget(d) : undefined}
+                />
+              ))}
+            </div>
           )}
         </div>
-
-        {docs.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-            No document templates for {clientName || "this client"} yet. Upload your first template
-            to get started.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {docs.map((d) => (
-              <DocumentCard
-                key={d.templateId}
-                doc={d}
-                onEdit={
-                  can("templates.edit") ? () => setDialog({ mode: "edit", doc: d }) : undefined
-                }
-                onDelete={can("templates.delete") ? () => setDeleteTarget(d) : undefined}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       {dialog && clientId != null && (
         <DocumentTemplateDialog

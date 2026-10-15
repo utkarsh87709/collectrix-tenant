@@ -39,11 +39,15 @@
 //     with backend before treating the reason requirement as fully closed.
 //   All three mutations return an empty data object — refetch getCustomerNotes after each.
 //   POST /tenant/getCustomerTimeline { uploadedDebtorId } -> { timelineList[] }
-//     The file's activity history (status changes, etc.). Confirmed live 2026-09-29:
-//     { timelineId, createdAt, createdBy, uploadedDebtorId, message, header }. Every
-//     event seen so far has header === message === "Status Changed" (createdBy is a
-//     userId, not a name) — treat header as the display title and message as detail
-//     text since backend may vary them for other event types later. This replaces
+//     The file's activity history (status changes, etc.). Re-confirmed live 2026-10-15:
+//     { timelineId, createdAt, createdBy, uploadedDebtorId, message, header, userName }.
+//     Headers seen: "Status Changed" (message "new -> Suspended"), "Team Changed"
+//     ("Legal -> Recovery Team"), "Assigned user", "Flag Removed" ("Flag : skip-trace"),
+//     "Customer Archived", "Customer Un-Archived" (message ""). Rows headed "Flag Added"/
+//     "Flag Removed" make up the profile's Flag history, the rest its Status history.
+//     userName currently has "System" glued onto every name ("Emily WilsonSystem") — a
+//     backend bug, stripped for display by timelineActor() in customer-timeline.ts.
+//     Treat header as the display title and message as detail text (hidden when ""). This replaces
 //     the client-side timeline the inbox's DetailsPanel used to synthesize from a
 //     handful of date fields on CustomerDetails (archivedAt/movedAt/last payment/
 //     delinquency/createdAt), which looked "static" because most files carry none
@@ -366,6 +370,8 @@ export type CustomerTimelineEvent = {
   uploadedDebtorId: number;
   header: string;
   message: string;
+  /** Who made the change. */
+  userName?: string | null;
 };
 
 export function getCustomerTimeline(

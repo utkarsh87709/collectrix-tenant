@@ -14,16 +14,19 @@ import {
 export function MoveToTeamDialog({
   count,
   uploadedDebtorIdList,
+  initialTeamId,
   onClose,
   onMoved,
 }: {
   count: number;
   uploadedDebtorIdList: number[];
+  /** Pre-selects the destination, e.g. the team picked on the Assignment tab. */
+  initialTeamId?: number;
   onClose: () => void;
   onMoved: () => void;
 }) {
   const [teams, setTeams] = useState<AssignableTeam[]>([]);
-  const [teamId, setTeamId] = useState<number | "">("");
+  const [teamId, setTeamId] = useState<number | "">(initialTeamId ?? "");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 

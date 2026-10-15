@@ -21,8 +21,8 @@ export type MyProfile = {
   timezone: string;
   profilePic: string | null;
   lastPasswordChanged: string | null;
-  /** The caller's own permission keys (permissions/catalog.ts). Absent until the
-   *  backend ships the redesigned roles contract — see permissions/store.ts. */
+  /** The caller's own permission keys (permissions/catalog.ts). Not sent yet
+   *  (2026-10-14); permissions/store.ts falls back to the role in getAllRole. */
   permissions?: string[];
 };
 

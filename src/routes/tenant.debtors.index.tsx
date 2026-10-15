@@ -14,8 +14,6 @@ import {
   CalendarClock,
   Wallet,
   ArrowLeftRight,
-  Download,
-  Plus,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -267,32 +265,7 @@ function DebtorsPage() {
 
   return (
     <Shell>
-      <Topbar
-        title="Customers"
-        subtitle="The customer files assigned to you"
-        action={
-          <div className="flex items-center gap-2">
-            {can("customers.export") && (
-              <button
-                onClick={() => toast.message("CSV exported")}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
-              >
-                <Download className="h-4 w-4" /> Export
-              </button>
-            )}
-            {/* Customers enter the system through Data Intake, so adding one by
-                hand sits behind the same grant as uploading a file. */}
-            {can("imports.upload") && (
-              <button
-                onClick={() => toast.message("Manual entry coming")}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant"
-              >
-                <Plus className="h-4 w-4" /> Add customer
-              </button>
-            )}
-          </div>
-        }
-      />
+      <Topbar title="Customers" subtitle="The customer files assigned to you" />
 
       <section className="px-6 lg:px-10 py-6">
         {loadError ? (

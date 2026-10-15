@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
@@ -17,7 +17,11 @@ import { Topbar } from "@/components/admin/Topbar";
 import { PageCard, CardHead, NativeSelect, Pill } from "@/components/tenant/ui";
 import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { UsersTableSkeleton } from "@/components/admin/Skeletons";
-import { RestoreFileDialog } from "@/components/tenant/customers/RestoreFileDialog";
+import {
+  RestoreFileDialog,
+  type RestoreFileStatus,
+} from "@/components/tenant/customers/RestoreFileDialog";
+import { ArchivedFileDrawer } from "@/components/tenant/customers/ArchivedFileDrawer";
 import { usePermissions } from "@/lib/permissions/store";
 import {
   getArchivedCustomers,
@@ -172,6 +176,29 @@ function ArchivePage() {
   const statusFor = (d: ArchivedDebtor) =>
     d.statusId != null ? statusById.get(d.statusId) : undefined;
 
+  // Pill props for the Restore dialog and View drawer: the master status when
+  // we have it, else whatever the row itself carries.
+  const statusInfo = (d: ArchivedDebtor): RestoreFileStatus | null => {
+    const st = statusFor(d);
+    if (st) return { code: st.statusCode, name: st.status, color: st.statusColorCode };
+    if (d.status)
+      return {
+        code: d.statusCode ?? d.status,
+        name: d.status,
+        color: d.statusColorCode ?? "#64748b",
+      };
+    return null;
+  };
+
+  // View opens a read-only drawer rather than the customer page — an archived
+  // file isn't worked. viewTarget outlives viewOpen so the drawer can animate out.
+  const [viewTarget, setViewTarget] = useState<ArchivedDebtor | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
+  const openView = (d: ArchivedDebtor) => {
+    setViewTarget(d);
+    setViewOpen(true);
+  };
+
   const exportCsv = () => {
     if (debtors.length === 0) return;
     const rows = debtors.map((d) => {
@@ -210,8 +237,6 @@ function ArchivePage() {
       `Exported ${debtors.length} archived ${debtors.length === 1 ? "file" : "files"} (this page).`,
     );
   };
-
-  const restoreStatus = restoreTarget ? statusFor(restoreTarget) : undefined;
 
   return (
     <Shell>
@@ -407,13 +432,12 @@ function ArchivePage() {
                           {fileRef}
                         </td>
                         <td className="px-4 py-3">
-                          <Link
-                            to="/tenant/debtors/$debtorId"
-                            params={{ debtorId: String(d.uploadedDebtorId) }}
-                            className="font-semibold hover:text-tenant hover:underline"
+                          <button
+                            onClick={() => openView(d)}
+                            className="font-semibold text-left hover:text-tenant hover:underline"
                           >
                             {name || "—"}
-                          </Link>
+                          </button>
                         </td>
                         <td className="px-4 py-3">
                           <div className="font-medium">{d.clientName || "—"}</div>
@@ -456,13 +480,12 @@ function ArchivePage() {
                         </td>
                         <td className="px-6 py-3">
                           <div className="flex justify-end gap-2">
-                            <Link
-                              to="/tenant/debtors/$debtorId"
-                              params={{ debtorId: String(d.uploadedDebtorId) }}
+                            <button
+                              onClick={() => openView(d)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border border-border hover:bg-muted transition"
                             >
                               <Eye className="h-3.5 w-3.5" /> View
-                            </Link>
+                            </button>
                             {showRestore && (
                               <button
                                 onClick={() => setRestoreTarget(d)}
@@ -514,6 +537,20 @@ function ArchivePage() {
         </PageCard>
       </section>
 
+      {viewTarget && (
+        <ArchivedFileDrawer
+          open={viewOpen}
+          debtor={viewTarget}
+          status={statusInfo(viewTarget)}
+          canRestore={showRestore}
+          onOpenChange={setViewOpen}
+          onRestore={() => {
+            setViewOpen(false);
+            setRestoreTarget(viewTarget);
+          }}
+        />
+      )}
+
       {restoreTarget && (
         <RestoreFileDialog
           uploadedDebtorId={restoreTarget.uploadedDebtorId}
@@ -521,21 +558,7 @@ function ArchivePage() {
           fileRef={restoreTarget.ourFileNo || `#${restoreTarget.uploadedDebtorId}`}
           clientName={restoreTarget.clientName}
           teamName={restoreTarget.teamName}
-          status={
-            restoreStatus
-              ? {
-                  code: restoreStatus.statusCode,
-                  name: restoreStatus.status,
-                  color: restoreStatus.statusColorCode,
-                }
-              : restoreTarget.status
-                ? {
-                    code: restoreTarget.statusCode ?? restoreTarget.status,
-                    name: restoreTarget.status,
-                    color: restoreTarget.statusColorCode ?? "#64748b",
-                  }
-                : null
-          }
+          status={statusInfo(restoreTarget)}
           onClose={() => setRestoreTarget(null)}
           onRestored={() => {
             setRestoreTarget(null);
