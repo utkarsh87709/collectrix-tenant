@@ -460,11 +460,12 @@ export function getCustomerCalls(uploadedDebtorId: number): Promise<{ callList: 
 
 export type CustomerCallTranscriptLine = { text: string; speaker: string };
 
+/** Summary, transcript and recording id are null when the call never connected (e.g. missed). */
 export type CustomerCallDetails = CustomerCall & {
   callId: string | null;
-  recordingId: string;
-  callSummary: string;
-  conversation: CustomerCallTranscriptLine[];
+  recordingId: string | null;
+  callSummary: string | null;
+  conversation: CustomerCallTranscriptLine[] | null;
 };
 
 export function getCustomerCallDetails(

@@ -73,8 +73,8 @@ export function StatusFormDrawer({
       : "";
   const codeError = !trimmedCode
     ? "Code is required."
-    : trimmedCode.length < 2 || trimmedCode.length > 4
-      ? "Code must be 2–4 characters."
+    : trimmedCode.length < 2 || trimmedCode.length > 6
+      ? "Code must be 2–6 characters."
       : codeTaken
         ? "That code is already in use."
         : "";
@@ -140,14 +140,14 @@ export function StatusFormDrawer({
           <Field
             label="Code"
             required
-            help="2–4 characters, auto-uppercased. Unique across your statuses."
+            help="2–6 characters, auto-uppercased. Unique across your statuses."
             error={touched ? codeError : ""}
           >
             <Input
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 4))}
+              onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
               placeholder="ACT"
-              maxLength={4}
+              maxLength={6}
               className="font-mono tracking-wide"
             />
           </Field>

@@ -1097,6 +1097,20 @@ function CallDetailModal({
           <div className="text-xs text-muted-foreground">
             {new Date(call.createdAt).toLocaleString()} · {formatDuration(call.recordingDuration)}
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-1">
+                Call from
+              </div>
+              <div className="font-mono text-sm">{call.fromPhoneNo || "—"}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-1">
+                Call to
+              </div>
+              <div className="font-mono text-sm">{call.toPhoneNo || "—"}</div>
+            </div>
+          </div>
           {!full ? (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           ) : (
@@ -1110,22 +1124,30 @@ function CallDetailModal({
                 <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-1.5">
                   Summary
                 </div>
-                <p className="whitespace-pre-wrap text-sm">{full.callSummary}</p>
+                {full.callSummary ? (
+                  <p className="whitespace-pre-wrap text-sm">{full.callSummary}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No summary available.</p>
+                )}
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2">
                   Transcript
                 </div>
-                <div className="space-y-2">
-                  {full.conversation.map((line, i) => (
-                    <div key={i} className="flex gap-2">
-                      <span className="font-semibold shrink-0 w-20 text-tenant">
-                        {line.speaker}
-                      </span>
-                      <span>{line.text}</span>
-                    </div>
-                  ))}
-                </div>
+                {full.conversation?.length ? (
+                  <div className="space-y-2">
+                    {full.conversation.map((line, i) => (
+                      <div key={i} className="flex gap-2">
+                        <span className="font-semibold shrink-0 w-20 text-tenant">
+                          {line.speaker}
+                        </span>
+                        <span>{line.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No transcript available.</p>
+                )}
               </div>
             </>
           )}

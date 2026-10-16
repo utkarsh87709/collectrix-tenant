@@ -4,17 +4,7 @@
 // asks first.
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import {
-  ChevronDown,
-  Info,
-  Layers,
-  Loader2,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { Info, Layers, Loader2, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -27,14 +17,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   ALL_PERMISSION_KEYS,
@@ -45,7 +27,6 @@ import {
   type PermissionKey,
   type PermissionModule,
 } from "@/lib/permissions/catalog";
-import { ROLE_PRESETS, type RolePreset } from "@/lib/permissions/presets";
 import {
   applyChange,
   moduleAccess,
@@ -180,13 +161,6 @@ export function RoleEditor({
       setModuleAccess(selected, module, level),
       module.resources.flatMap((r) => r.actions.map((a) => a.key)),
     );
-
-  const applyPreset = (preset: RolePreset) => {
-    setSelected(new Set(preset.permissions));
-    toast.message(`Started from "${preset.label}"`, {
-      description: "Adjust anything you need before saving.",
-    });
-  };
 
   const jumpTo = (moduleId: string) => {
     setQuery("");
@@ -401,33 +375,6 @@ export function RoleEditor({
                   </div>
                   {!readOnly && (
                     <>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted">
-                            <Sparkles className="h-4 w-4 text-tenant" /> Start from preset
-                            <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-80">
-                          <DropdownMenuLabel>Start from a preset</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {ROLE_PRESETS.map((p) => (
-                            <DropdownMenuItem
-                              key={p.id}
-                              onSelect={() => applyPreset(p)}
-                              className="flex-col items-start gap-0.5 py-2"
-                            >
-                              <span className="text-sm font-medium">
-                                {p.label}{" "}
-                                <span className="text-xs font-normal text-muted-foreground">
-                                  · {p.permissions.length} permissions
-                                </span>
-                              </span>
-                              <span className="text-xs text-muted-foreground">{p.description}</span>
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                       <button
                         onClick={() =>
                           setSelected(applyChange(selected, ALL_PERMISSION_KEYS, []).next)
