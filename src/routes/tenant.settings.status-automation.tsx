@@ -22,8 +22,10 @@ import {
   StatusAutomationCard,
   type TemplateOption,
 } from "@/components/tenant/statuses/StatusAutomationCard";
-import { getTeamList, type TeamListItem } from "@/lib/teams-api";
+import { getTeamDeckAssignUserList, type AssignableMember } from "@/lib/team-deck-api";
+import { getTeamList, type TeamListItem, type TeamPhoneNumber } from "@/lib/teams-api";
 import { getClientTemplate, type LibraryType } from "@/lib/template-library-api";
+import { getTeamPhoneNumber } from "@/lib/users-api";
 import {
   CHANNEL_LABEL,
   CHANNEL_ORDER,
@@ -75,6 +77,8 @@ function StatusAutomationPage() {
   const [configs, setConfigs] = useState<Record<number, StatusAutomationConfig>>({});
   const [templates, setTemplates] = useState<TemplateSets>(EMPTY_TEMPLATE_SETS);
   const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplateOption[]>([]);
+  const [teamMembers, setTeamMembers] = useState<AssignableMember[]>([]);
+  const [teamPhoneNumbers, setTeamPhoneNumbers] = useState<TeamPhoneNumber[]>([]);
   const [loading, setLoading] = useState(false);
   /** Statuses whose getStatusAutomationDetails call is still in flight. */
   const [detailsLoading, setDetailsLoading] = useState<Record<number, boolean>>({});
@@ -133,15 +137,20 @@ function StatusAutomationPage() {
     // here rather than leaving Save disabled on the new pair.
     setDetailsLoading({});
     try {
-      const [statuses, automationRows, email, sms, aiPrompt, documents] = await Promise.all([
-        getClientTeamStatusList({ clientId: cId, teamId: tId }),
-        getStatusAutomationList({ clientId: cId, teamId: tId }),
-        getClientTemplate({ clientId: cId, templateType: "email" }),
-        getClientTemplate({ clientId: cId, templateType: "sms" }),
-        // AI-written email/SMS use aiPrompt entries.
-        getClientTemplate({ clientId: cId, templateType: "aiPrompt" }),
-        getDocumentTemplates(cId),
-      ]);
+      const [statuses, automationRows, email, sms, call, documents, members, numbers] =
+        await Promise.all([
+          getClientTeamStatusList({ clientId: cId, teamId: tId }),
+          getStatusAutomationList({ clientId: cId, teamId: tId }),
+          getClientTemplate({ clientId: cId, templateType: "email" }),
+          getClientTemplate({ clientId: cId, templateType: "sms" }),
+          // The AI voice agents that place outbound calls. (AI-written email/SMS
+          // no longer pick an aiPrompt, so that library isn't loaded.)
+          getClientTemplate({ clientId: cId, templateType: "call" }),
+          getDocumentTemplates(cId),
+          // Who a call step can ring, and which numbers it can call from.
+          getTeamDeckAssignUserList(tId),
+          getTeamPhoneNumber(tId),
+        ]);
       if (reqId.current !== id) return;
 
       setStatusList(statuses);
@@ -149,10 +158,12 @@ function StatusAutomationPage() {
       setTemplates({
         email: email.map((t) => ({ id: t.templateId, name: t.templateName })),
         sms: sms.map((t) => ({ id: t.templateId, name: t.templateName })),
-        call: [],
-        aiPrompt: aiPrompt.map((t) => ({ id: t.templateId, name: t.templateName })),
+        call: call.map((t) => ({ id: t.templateId, name: t.templateName })),
+        aiPrompt: [],
       });
       setDocumentTemplates(documents);
+      setTeamMembers(members?.assignUserList ?? []);
+      setTeamPhoneNumbers(numbers?.phoneNoList ?? []);
 
       // Seed from the list, then fill in saved settings for the statuses that
       // have them. A null automationId means this status has never been saved
@@ -260,7 +271,7 @@ function StatusAutomationPage() {
     for (const row of rows) {
       const cfg = configs[row.statusId];
       if (!cfg) continue;
-      const err = validateAutomation(cfg, allowed, !!client.documentEnabled);
+      const err = validateAutomation(cfg, allowed, !!client.documentEnabled, !!client.callEnabled);
       if (err) {
         toast.error(`${row.status}: ${err}`);
         setExpanded((p) => ({ ...p, [row.statusId]: true }));
@@ -284,6 +295,7 @@ function StatusAutomationPage() {
             teamId,
             allowed,
             documentsAllowed: !!client.documentEnabled,
+            callAllowed: !!client.callEnabled,
           }),
         );
         saved.push(statusId);
@@ -495,6 +507,10 @@ function StatusAutomationPage() {
                     templateName={templateName}
                     documentsAllowed={!!client.documentEnabled}
                     documentTemplates={documentTemplates}
+                    callAllowed={!!client.callEnabled}
+                    callAgents={templates.call}
+                    teamMembers={teamMembers}
+                    teamPhoneNumbers={teamPhoneNumbers}
                     otherStatuses={rows.filter((r) => r.statusId !== row.statusId)}
                     loadingDetails={!!detailsLoading[row.statusId]}
                     readOnly={!canEdit}
@@ -511,6 +527,7 @@ function StatusAutomationPage() {
           row={rows.find((r) => r.statusId === previewing)!}
           config={configs[previewing]}
           allowed={allowed}
+          callAllowed={!!client?.callEnabled}
           templateName={templateName}
           statusName={(id) => rows.find((r) => r.statusId === id)?.status ?? "—"}
           documentName={(id) =>
@@ -583,6 +600,7 @@ function PreviewModal({
   row,
   config,
   allowed,
+  callAllowed,
   templateName,
   statusName,
   documentName,
@@ -591,6 +609,7 @@ function PreviewModal({
   row: StatusAutomationRow;
   config: StatusAutomationConfig;
   allowed: ChannelKey[];
+  callAllowed: boolean;
   templateName: (id: number | null) => string;
   statusName: (id: number | null) => string;
   documentName: (id: number | null) => string;
@@ -616,13 +635,28 @@ function PreviewModal({
       );
     }
 
+    if (config.outboundCall.enabled && callAllowed) {
+      config.outboundCall.steps.forEach((s, i) => {
+        push(
+          toMinutes(s.placeAfter),
+          formatDuration(s.placeAfter),
+          `Call step #${i + 1}`,
+          `${s.name.trim() || "Untitled call step"} · ${
+            s.mode === "ai" ? `AI agent · ${templateName(s.agentId)}` : "Direct patch"
+          }${s.businessHoursOnly ? " · business hours only" : ""}`,
+        );
+      });
+    }
+
     if (config.followUpsEnabled) {
       config.followUps.forEach((fu, i) => {
         push(
           toMinutes(fu.after),
           formatDuration(fu.after),
           `Follow-up #${i + 1}`,
-          `${CHANNEL_LABEL[fu.channel]} · ${fu.messageSource === "ai" ? "AI" : "Template"} · ${templateName(fu.templateId)}`,
+          fu.messageSource === "ai"
+            ? `${CHANNEL_LABEL[fu.channel]} · AI-generated`
+            : `${CHANNEL_LABEL[fu.channel]} · Template · ${templateName(fu.templateId)}`,
         );
       });
     }
@@ -645,7 +679,7 @@ function PreviewModal({
     }
 
     return out.sort((a, b) => a.minutes - b.minutes);
-  }, [config, allowed, templateName, statusName, documentName]);
+  }, [config, allowed, callAllowed, templateName, statusName, documentName]);
 
   return (
     <div

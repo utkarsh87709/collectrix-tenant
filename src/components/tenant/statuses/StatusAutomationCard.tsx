@@ -9,23 +9,30 @@ import {
   FileText,
   Mail,
   MessageSquare,
+  PhoneOutgoing,
   Plus,
   Trash2,
 } from "lucide-react";
 import { StatusPill } from "@/components/tenant/statuses/StatusPill";
+import { OutboundCallSteps } from "@/components/tenant/statuses/OutboundCallSteps";
+import {
+  DurationField,
+  FieldLabel,
+  SectionLabel,
+} from "@/components/tenant/statuses/automation-fields";
 import { NativeSelect } from "@/components/tenant/ui";
+import type { AssignableMember } from "@/lib/team-deck-api";
+import type { TeamPhoneNumber } from "@/lib/teams-api";
 import {
   CHANNEL_LABEL,
-  DURATION_UNIT_LABEL,
   conflictingChannels,
+  newCallStep,
   newFollowUp,
   summarizeAutomation,
   validateAutomation,
   type ChannelConfig,
   type ChannelKey,
   type DocumentTemplateOption,
-  type Duration,
-  type DurationUnit,
   type FollowUp,
   type MessageSource,
   type StatusAutomationConfig,
@@ -52,6 +59,10 @@ export function StatusAutomationCard({
   templateName,
   documentsAllowed,
   documentTemplates,
+  callAllowed,
+  callAgents,
+  teamMembers,
+  teamPhoneNumbers,
   otherStatuses,
   loadingDetails,
   readOnly = false,
@@ -70,14 +81,22 @@ export function StatusAutomationCard({
   documentsAllowed: boolean;
   /** The client's document templates (getClientTemplate "document"). */
   documentTemplates: DocumentTemplateOption[];
+  /** False when the client has calling switched off. */
+  callAllowed: boolean;
+  /** The client's AI voice agents (getClientTemplate "call"). */
+  callAgents: TemplateOption[];
+  /** The selected team's members and numbers, for call steps. */
+  teamMembers: AssignableMember[];
+  teamPhoneNumbers: TeamPhoneNumber[];
   otherStatuses: StatusAutomationRow[];
   loadingDetails: boolean;
   /** Without statusAutomation.edit the card still expands and previews, but nothing changes. */
   readOnly?: boolean;
 }) {
-  const error = validateAutomation(config, allowed, documentsAllowed);
-  const summary = summarizeAutomation(config, allowed, templateName);
+  const error = validateAutomation(config, allowed, documentsAllowed, callAllowed);
+  const summary = summarizeAutomation(config, allowed, templateName, callAllowed);
   const conflicts = conflictingChannels(config, allowed);
+  const callConflict = config.outboundCall.enabled && !callAllowed;
 
   const patchChannel = (ch: ChannelKey, patch: Partial<ChannelConfig>) =>
     onChange({ channels: { ...config.channels, [ch]: { ...config.channels[ch], ...patch } } });
@@ -155,6 +174,15 @@ export function StatusAutomationCard({
               <span>
                 {conflicts.map((c) => CHANNEL_LABEL[c]).join(", ")} is configured here but switched
                 off for this client. Saving will turn it off and drop its follow-ups.
+              </span>
+            </div>
+          )}
+          {callConflict && (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs flex items-start gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
+              <span>
+                Outbound calls are on here but calling is switched off for this client. Saving will
+                turn them off; the call steps are kept.
               </span>
             </div>
           )}
@@ -271,6 +299,39 @@ export function StatusAutomationCard({
             )}
           </section>
 
+          {/* ── Outbound call ──────────────────────────────────────────── */}
+          <BehaviorRow
+            icon={<PhoneOutgoing className="h-4 w-4 text-tenant" />}
+            title="Outbound call"
+            subtitle={
+              callAllowed
+                ? "A step is one call: who places it, the number it comes from, when it goes out and who it reaches."
+                : "This client has calling switched off."
+            }
+            enabled={config.outboundCall.enabled}
+            disabled={!callAllowed}
+            onToggle={(enabled) =>
+              onChange({
+                outboundCall: {
+                  enabled,
+                  // Switching on with nothing configured starts the first step.
+                  steps:
+                    enabled && config.outboundCall.steps.length === 0
+                      ? [newCallStep(teamMembers.map((m) => m.userId))]
+                      : config.outboundCall.steps,
+                },
+              })
+            }
+          >
+            <OutboundCallSteps
+              steps={config.outboundCall.steps}
+              onChange={(steps) => onChange({ outboundCall: { ...config.outboundCall, steps } })}
+              agents={callAgents}
+              members={teamMembers}
+              phoneNumbers={teamPhoneNumbers}
+            />
+          </BehaviorRow>
+
           {/* ── Follow-ups ─────────────────────────────────────────────── */}
           {allowed.length > 0 && (
             <section>
@@ -371,31 +432,29 @@ export function StatusAutomationCard({
                               ))}
                             </div>
                           </div>
-                          <div>
-                            <FieldLabel>
-                              {fu.messageSource === "ai" ? "AI prompt (optional)" : "Template"}
-                            </FieldLabel>
-                            <NativeSelect
-                              size="sm"
-                              value={fu.templateId ?? ""}
-                              onChange={(e) =>
-                                patchFollowUp(fu.key, {
-                                  templateId: e.target.value ? Number(e.target.value) : null,
-                                })
-                              }
-                            >
-                              <option value="">
-                                {fu.messageSource === "ai"
-                                  ? "No prompt — let the AI write freely"
-                                  : "Select template…"}
-                              </option>
-                              {options.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.name}
-                                </option>
-                              ))}
-                            </NativeSelect>
-                          </div>
+                          {/* AI-generated follow-ups take no prompt — only a
+                                fixed template needs picking. */}
+                          {fu.messageSource === "template" && (
+                            <div>
+                              <FieldLabel>Template</FieldLabel>
+                              <NativeSelect
+                                size="sm"
+                                value={fu.templateId ?? ""}
+                                onChange={(e) =>
+                                  patchFollowUp(fu.key, {
+                                    templateId: e.target.value ? Number(e.target.value) : null,
+                                  })
+                                }
+                              >
+                                <option value="">Select template…</option>
+                                {options.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name}
+                                  </option>
+                                ))}
+                              </NativeSelect>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -518,77 +577,6 @@ export function StatusAutomationCard({
 }
 
 /* ------------------------------- fragments -------------------------------- */
-
-/** Number + unit pair. Stored as minutes on the wire, edited in whatever unit
- *  suits — the backend takes 4320 where the user means "3 days". */
-function DurationField({
-  label,
-  value,
-  onChange,
-  ariaPrefix,
-  className = "",
-}: {
-  label: string;
-  value: Duration;
-  onChange: (d: Duration) => void;
-  ariaPrefix: string;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <FieldLabel>{label}</FieldLabel>
-      <div className="flex gap-2">
-        <input
-          type="number"
-          min={0}
-          value={value.value}
-          onChange={(e) => onChange({ ...value, value: Math.max(0, Number(e.target.value) || 0) })}
-          className="flex-1 min-w-16 h-9 px-2 text-sm rounded-lg border border-border bg-background"
-          aria-label={`${ariaPrefix} amount`}
-        />
-        <NativeSelect
-          size="sm"
-          // The wrapper is a flex item: without a width its w-full select would
-          // have nothing to measure against.
-          className="w-28 shrink-0"
-          value={value.unit}
-          onChange={(e) => onChange({ ...value, unit: e.target.value as DurationUnit })}
-          aria-label={`${ariaPrefix} unit`}
-        >
-          {(Object.keys(DURATION_UNIT_LABEL) as DurationUnit[]).map((u) => (
-            <option key={u} value={u}>
-              {DURATION_UNIT_LABEL[u]}
-            </option>
-          ))}
-        </NativeSelect>
-      </div>
-    </div>
-  );
-}
-
-function SectionLabel({
-  children,
-  className = "mb-3",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`text-[11px] uppercase tracking-wider text-muted-foreground font-semibold ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
-      {children}
-    </label>
-  );
-}
 
 /** One switchable behaviour, revealing its settings only when switched on. */
 function BehaviorRow({

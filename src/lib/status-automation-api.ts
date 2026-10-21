@@ -36,6 +36,27 @@
 // Removed from Status Automation (2026-10-07): the AI voice call channel
 // (initialCall* fields, "call" follow-ups) and auto-assign to a team member
 // (assignUserId). Neither is read nor sent any more.
+//
+// Outbound calls (added 2026-10-22) replace that channel: outboundCallEnabled +
+// callFollowupList, one row per call step, on both updateAutomation and
+// getStatusAutomationDetails. Probed against devapi on 2026-10-22:
+//   • answeringDevice is REQUIRED although the Postman body omits it — leaving
+//     it out fails with "Server Error". Only "phone" and "browser" are kept;
+//     anything else is stored as "".
+//   • callMode, placeCallAfterMins and both *HrFlag fields must be non-null.
+//   • assignedRoundRobinUserId / unAssignedRoundRobinUserId (also missing from
+//     Postman) are the round-robin ring order: arrays of userIds.
+//   • Ring durations are seconds; placeCallAfterMins and retryWholeSetupAfter
+//     are minutes. There is no retry count — a retryMax key is ignored.
+//   • Steps come back in the order they were sent.
+//   • outboundCallEnabled 0 keeps the steps; omitting callFollowupList deletes
+//     them, so every save must send the full list.
+//   • Not transactional: a step that fails leaves the earlier ones saved, so
+//     the payload must never carry the null values above.
+// Supporting lookups: AI voice agents are the client's "call" templates
+// (getClientTemplate), ring lists come from the team's members
+// (getTeamDeckAssignUserList) and caller ids from the team's numbers
+// (getTeamPhoneNumber).
 import { apiFetch, apiPost } from "./api-client";
 
 /* ------------------------------- lookups -------------------------------- */
@@ -172,6 +193,74 @@ export type AutomationFollowup = {
   followupTemplateId: number | null;
 };
 
+/** "ai": an AI voice agent places the call and can hand it to a person.
+ *  "directPatch": the call goes straight to a person — no agent, no greeting. */
+export type CallMode = "ai" | "directPatch";
+/** Who is rung when the customer's file already sits with a team member. */
+export type AssignedPatchMethod = "exactMatch" | "roundRobin" | "ringAll";
+/** Who is rung when the file is with the team but not with a member yet. */
+export type UnassignedPatchMethod = "roundRobin" | "ringAll" | "manual";
+/** Where the member who is patched in picks up. */
+export type AnsweringDevice = "phone" | "browser";
+
+/** Customer phone fields a step can dial, by data-field name. */
+export const CUSTOMER_NUMBER_FIELDS = ["Mobile number 1", "Mobile number 2", "Home Number"];
+
+/** Call outcomes that move a step on to the customer's next number. */
+export const TRY_NEXT_REASONS = [
+  "No answer",
+  "Busy",
+  "Failed / unreachable",
+  "Disconnected / invalid",
+  "Voicemail detected",
+];
+
+/** One outbound call step as stored. Ring durations are seconds. */
+export type AutomationCallStep = {
+  callFollowupId?: number;
+  automationId?: number;
+  callStepName: string | null;
+  callStepDescription: string | null;
+  callMode: CallMode;
+  /** A `call` library entry (AI voice agent); null in directPatch mode. */
+  callTemplateId: number | null;
+  assignedFileCallPatchMethod: AssignedPatchMethod | null;
+  assignedExactMatchRingDuration: number | null;
+  assignedExactMatchRingTimes: number | null;
+  assignedRoundRobinRingDuration: number | null;
+  assignedRoundRobinRingCycleTimes: number | null;
+  /** Ring order, first to last. */
+  assignedRoundRobinUserId: number[] | null;
+  assignedRingAllDuration: number | null;
+  assignedRingAllTimes: number | null;
+  unAssignedFileCallPatchMethod: UnassignedPatchMethod | null;
+  unAssignedRoundRobinRingDuration: number | null;
+  unAssignedRoundRobinRingCycleTimes: number | null;
+  unAssignedRoundRobinUserId: number[] | null;
+  unAssignedRingAllDuration: number | null;
+  unAssignedRingAllTimes: number | null;
+  /** Ring order, first to last, each member with their own timing. */
+  unAssignedManualConfiguration:
+    | { userId: number; dialDuration: number; dialTimes: number }[]
+    | null;
+  /** Said to the customer when nobody picks up. */
+  noAnswerMessage: string | null;
+  placeCallAfterMins: number;
+  /** 1 = only inside the tenant's business hours (General Settings → Hours). */
+  callDuringTenantHrFlag: number;
+  /** 1 = read those hours in the customer's time zone. */
+  callDuringLeadHrFlag: number;
+  /** Caller ids (phoneNoId); calls are spread across them. */
+  phoneIdList: number[] | null;
+  /** CUSTOMER_NUMBER_FIELDS, in dialling order. */
+  customerCallNumbers: string[] | null;
+  /** TRY_NEXT_REASONS. */
+  tryNextWhen: string[] | null;
+  /** Minutes before the whole step runs again; null = no retry. */
+  retryWholeSetupAfter: number | null;
+  answeringDevice: string;
+};
+
 /** getStatusAutomationDetails response — the saved row, flat. */
 export type AutomationDetails = {
   automationId: number;
@@ -207,6 +296,9 @@ export type AutomationDetails = {
   inactiveStatusDestinationStatusId: number | null;
 
   followupList: AutomationFollowup[];
+
+  outboundCallEnabled: number;
+  callFollowupList: AutomationCallStep[];
 };
 
 /** updateAutomation request body. Identical to the stored row minus its ids. */
@@ -236,6 +328,8 @@ export type AutomationPayload = {
     followupMsgSource: MessageSource;
     followupTemplateId: number | null;
   }[];
+  outboundCallEnabled: number;
+  callFollowupList: Omit<AutomationCallStep, "callFollowupId" | "automationId">[];
 };
 
 /** Loads one status' saved configuration. Only call this when the list row's
@@ -317,6 +411,47 @@ export type FollowUp = {
   templateId: number | null;
 };
 
+/** Ring for `seconds`, `times` over. In a round robin `times` is how often the
+ *  whole list is cycled. */
+export type Ring = { seconds: number; times: number };
+export type RingOrder = Ring & { userIds: number[] };
+export type ManualDial = { userId: number; seconds: number; times: number };
+
+/** One outbound call step. Every setting is kept per patch method so switching
+ *  methods back and forth doesn't lose input; only the chosen one is sent. */
+export type CallStep = {
+  /** Client-side key only — the backend re-creates rows on every save. */
+  key: string;
+  name: string;
+  description: string;
+  mode: CallMode;
+  /** The AI voice agent (`call` library). Only sent in "ai" mode. */
+  agentId: number | null;
+  answeringDevice: AnsweringDevice;
+  assigned: {
+    method: AssignedPatchMethod;
+    exactMatch: Ring;
+    roundRobin: RingOrder;
+    ringAll: Ring;
+  };
+  unassigned: {
+    method: UnassignedPatchMethod;
+    roundRobin: RingOrder;
+    ringAll: Ring;
+    manual: ManualDial[];
+  };
+  noAnswerMessage: string;
+  /** Measured from entering the status, like every other timing. */
+  placeAfter: Duration;
+  businessHoursOnly: boolean;
+  /** Only applies with businessHoursOnly. */
+  customerTimeZone: boolean;
+  callerIds: number[];
+  customerNumbers: string[];
+  tryNextWhen: string[];
+  retry: { enabled: boolean; after: Duration };
+};
+
 export type StatusAutomationConfig = {
   statusId: number;
   /** Non-null once saved; carried so the caller knows whether details exist. */
@@ -326,6 +461,7 @@ export type StatusAutomationConfig = {
   /** UI-only: the wire simply has an empty followupList. */
   followUpsEnabled: boolean;
   followUps: FollowUp[];
+  outboundCall: { enabled: boolean; steps: CallStep[] };
   /** Generate a document on entering this status, from documentTemplateId. */
   generateDocuments: boolean;
   documentTemplateId: number | null;
@@ -386,6 +522,7 @@ export function emptyAutomationConfig(statusId: number): StatusAutomationConfig 
     },
     followUpsEnabled: false,
     followUps: [],
+    outboundCall: { enabled: false, steps: [] },
     generateDocuments: false,
     documentTemplateId: null,
     autoArchive: { enabled: false, after: { ...DEFAULT_ARCHIVE } },
@@ -406,6 +543,51 @@ export function newFollowUp(channel: ChannelKey): FollowUp {
   };
 }
 
+const DEFAULT_RING: Ring = { seconds: 20, times: 1 };
+const DEFAULT_PLACE_CALL: Duration = { value: 1, unit: "days" };
+const DEFAULT_RETRY: Duration = { value: 1, unit: "hours" };
+
+let callStepSeq = 0;
+const nextCallStepKey = () => `cs-${++callStepSeq}`;
+
+/** A fresh call step. `memberIds` (the team, in list order) seed every ring
+ *  list, so a member is taken out of the rotation rather than added to it. */
+export function newCallStep(memberIds: number[]): CallStep {
+  return {
+    key: nextCallStepKey(),
+    name: "",
+    description: "",
+    mode: "ai",
+    agentId: null,
+    answeringDevice: "phone",
+    assigned: {
+      method: "exactMatch",
+      exactMatch: { ...DEFAULT_RING },
+      roundRobin: { ...DEFAULT_RING, userIds: [...memberIds] },
+      ringAll: { ...DEFAULT_RING },
+    },
+    unassigned: {
+      method: "roundRobin",
+      roundRobin: { ...DEFAULT_RING, userIds: [...memberIds] },
+      ringAll: { ...DEFAULT_RING },
+      manual: memberIds.map((userId) => ({ userId, ...DEFAULT_RING })),
+    },
+    noAnswerMessage: "",
+    placeAfter: { ...DEFAULT_PLACE_CALL },
+    businessHoursOnly: true,
+    customerTimeZone: false,
+    callerIds: [],
+    customerNumbers: [],
+    tryNextWhen: TRY_NEXT_REASONS.filter((r) => r !== "Voicemail detected"),
+    retry: { enabled: false, after: { ...DEFAULT_RETRY } },
+  };
+}
+
+/** A copy of a step with its own key, for "duplicate". */
+export function copyCallStep(step: CallStep): CallStep {
+  return { ...structuredClone(step), key: nextCallStepKey() };
+}
+
 /* -------------------------------- mapping -------------------------------- */
 
 /**
@@ -423,6 +605,58 @@ function textChannelSource(
   return { messageSource: saved ?? "template", templateId };
 }
 
+/** A stored ring setting, with defaults for whatever is null (an unused method). */
+const ringFrom = (seconds: number | null, times: number | null): Ring => ({
+  seconds: seconds ?? DEFAULT_RING.seconds,
+  times: times ?? DEFAULT_RING.times,
+});
+
+function callStepFromWire(s: AutomationCallStep): CallStep {
+  const retryMinutes = s.retryWholeSetupAfter ?? 0;
+  return {
+    key: nextCallStepKey(),
+    name: s.callStepName ?? "",
+    description: s.callStepDescription ?? "",
+    mode: s.callMode === "directPatch" ? "directPatch" : "ai",
+    agentId: s.callTemplateId ?? null,
+    // An unrecognised device was stored as "" — treat it as the default.
+    answeringDevice: s.answeringDevice?.toLowerCase() === "browser" ? "browser" : "phone",
+    assigned: {
+      method: s.assignedFileCallPatchMethod ?? "exactMatch",
+      exactMatch: ringFrom(s.assignedExactMatchRingDuration, s.assignedExactMatchRingTimes),
+      roundRobin: {
+        ...ringFrom(s.assignedRoundRobinRingDuration, s.assignedRoundRobinRingCycleTimes),
+        userIds: s.assignedRoundRobinUserId ?? [],
+      },
+      ringAll: ringFrom(s.assignedRingAllDuration, s.assignedRingAllTimes),
+    },
+    unassigned: {
+      method: s.unAssignedFileCallPatchMethod ?? "roundRobin",
+      roundRobin: {
+        ...ringFrom(s.unAssignedRoundRobinRingDuration, s.unAssignedRoundRobinRingCycleTimes),
+        userIds: s.unAssignedRoundRobinUserId ?? [],
+      },
+      ringAll: ringFrom(s.unAssignedRingAllDuration, s.unAssignedRingAllTimes),
+      manual: (s.unAssignedManualConfiguration ?? []).map((m) => ({
+        userId: m.userId,
+        ...ringFrom(m.dialDuration, m.dialTimes),
+      })),
+    },
+    noAnswerMessage: s.noAnswerMessage ?? "",
+    placeAfter: fromMinutes(s.placeCallAfterMins, { ...DEFAULT_PLACE_CALL }),
+    businessHoursOnly: s.callDuringTenantHrFlag === 1,
+    customerTimeZone: s.callDuringLeadHrFlag === 1,
+    callerIds: s.phoneIdList ?? [],
+    customerNumbers: s.customerCallNumbers ?? [],
+    tryNextWhen: s.tryNextWhen ?? [],
+    retry: {
+      enabled: retryMinutes > 0,
+      after:
+        retryMinutes > 0 ? fromMinutes(retryMinutes, { ...DEFAULT_RETRY }) : { ...DEFAULT_RETRY },
+    },
+  };
+}
+
 /** Saved row → editor model. */
 export function configFromDetails(d: AutomationDetails): StatusAutomationConfig {
   const base = emptyAutomationConfig(d.statusId);
@@ -437,9 +671,9 @@ export function configFromDetails(d: AutomationDetails): StatusAutomationConfig 
         channel: f.followupChannel,
         after: fromMinutes(f.followupTime, { ...DEFAULT_FOLLOWUP }),
         messageSource: f.followupMsgSource ?? "template",
-        // Same field regardless of source: an aiPrompt id when AI-generated, a
-        // template id otherwise.
-        templateId: f.followupTemplateId ?? null,
+        // AI-generated follow-ups no longer pick an aiPrompt (the field is
+        // hidden), so one saved before that is dropped on the next save.
+        templateId: f.followupMsgSource === "ai" ? null : (f.followupTemplateId ?? null),
       };
     });
 
@@ -461,6 +695,10 @@ export function configFromDetails(d: AutomationDetails): StatusAutomationConfig 
     },
     followUpsEnabled: followUps.length > 0,
     followUps,
+    outboundCall: {
+      enabled: d.outboundCallEnabled === 1,
+      steps: (d.callFollowupList ?? []).map(callStepFromWire),
+    },
     generateDocuments: d.generateDocumentEnabled === 1,
     documentTemplateId: d.documentTemplateId ?? null,
     autoArchive: {
@@ -477,17 +715,68 @@ export function configFromDetails(d: AutomationDetails): StatusAutomationConfig 
 
 const flag = (b: boolean) => (b ? 1 : 0);
 
+/** Only the chosen patch method's settings are sent; the rest go as null. */
+function callStepToWire(s: CallStep): AutomationPayload["callFollowupList"][number] {
+  const a = s.assigned;
+  const u = s.unassigned;
+  const aExact = a.method === "exactMatch";
+  const aRobin = a.method === "roundRobin";
+  const aAll = a.method === "ringAll";
+  const uRobin = u.method === "roundRobin";
+  const uAll = u.method === "ringAll";
+  return {
+    callStepName: s.name.trim(),
+    callStepDescription: s.description.trim() || null,
+    callMode: s.mode,
+    callTemplateId: s.mode === "ai" ? s.agentId : null,
+    assignedFileCallPatchMethod: a.method,
+    assignedExactMatchRingDuration: aExact ? a.exactMatch.seconds : null,
+    assignedExactMatchRingTimes: aExact ? a.exactMatch.times : null,
+    assignedRoundRobinRingDuration: aRobin ? a.roundRobin.seconds : null,
+    assignedRoundRobinRingCycleTimes: aRobin ? a.roundRobin.times : null,
+    assignedRoundRobinUserId: aRobin ? a.roundRobin.userIds : null,
+    assignedRingAllDuration: aAll ? a.ringAll.seconds : null,
+    assignedRingAllTimes: aAll ? a.ringAll.times : null,
+    unAssignedFileCallPatchMethod: u.method,
+    unAssignedRoundRobinRingDuration: uRobin ? u.roundRobin.seconds : null,
+    unAssignedRoundRobinRingCycleTimes: uRobin ? u.roundRobin.times : null,
+    unAssignedRoundRobinUserId: uRobin ? u.roundRobin.userIds : null,
+    unAssignedRingAllDuration: uAll ? u.ringAll.seconds : null,
+    unAssignedRingAllTimes: uAll ? u.ringAll.times : null,
+    unAssignedManualConfiguration:
+      u.method === "manual"
+        ? u.manual.map((m) => ({ userId: m.userId, dialDuration: m.seconds, dialTimes: m.times }))
+        : [],
+    noAnswerMessage: s.noAnswerMessage.trim() || null,
+    placeCallAfterMins: toMinutes(s.placeAfter),
+    callDuringTenantHrFlag: flag(s.businessHoursOnly),
+    callDuringLeadHrFlag: flag(s.businessHoursOnly && s.customerTimeZone),
+    phoneIdList: s.callerIds,
+    customerCallNumbers: s.customerNumbers,
+    tryNextWhen: s.tryNextWhen,
+    retryWholeSetupAfter: s.retry.enabled ? toMinutes(s.retry.after) : null,
+    answeringDevice: s.answeringDevice,
+  };
+}
+
 /**
  * Editor model → updateAutomation body.
  *
  * `allowed` is the client's permitted channel set. The backend accepts a
  * channel the client has switched off, so anything outside `allowed` is written
  * as disabled here and its follow-ups dropped — otherwise a client-level change
- * would leave invisible automation running.
+ * would leave invisible automation running. Calling works the same way through
+ * `callAllowed`, except the steps are kept: the backend holds them switched off.
  */
 export function payloadFromConfig(
   cfg: StatusAutomationConfig,
-  ctx: { clientId: number; teamId: number; allowed: ChannelKey[]; documentsAllowed: boolean },
+  ctx: {
+    clientId: number;
+    teamId: number;
+    allowed: ChannelKey[];
+    documentsAllowed: boolean;
+    callAllowed: boolean;
+  },
 ): AutomationPayload {
   const on = (c: ChannelKey) => ctx.allowed.includes(c) && cfg.channels[c].enabled;
   const minutes = (c: ChannelKey) => (on(c) ? toMinutes(cfg.channels[c].startAfter) : null);
@@ -531,6 +820,11 @@ export function payloadFromConfig(
             followupTemplateId: f.templateId,
           }))
       : [],
+
+    // Always the full list, even while calling is off — leaving it out deletes
+    // the saved steps.
+    outboundCallEnabled: flag(cfg.outboundCall.enabled && ctx.callAllowed),
+    callFollowupList: cfg.outboundCall.steps.map(callStepToWire),
   };
 }
 
@@ -548,6 +842,48 @@ export function templateRequired(source: MessageSource): boolean {
   return source === "template";
 }
 
+const ringValid = (r: Ring) => r.seconds > 0 && r.times > 0;
+
+/** What a call step is missing before it can run, or null. */
+export function validateCallStep(s: CallStep, index: number): string | null {
+  const name = s.name.trim();
+  if (!name) return `Name call step #${index + 1}.`;
+  const label = `Call step "${name}"`;
+  if (s.mode === "ai" && !s.agentId) {
+    return `${label}: choose the AI voice agent that places the call.`;
+  }
+
+  const a = s.assigned;
+  if (!ringValid(a[a.method])) {
+    return `${label}: set how long and how many times assigned files ring.`;
+  }
+  if (a.method === "roundRobin" && a.roundRobin.userIds.length === 0) {
+    return `${label}: put at least one member in the assigned-files round robin.`;
+  }
+
+  const u = s.unassigned;
+  if (u.method === "manual") {
+    if (u.manual.length === 0) return `${label}: pick who is rung for unassigned files.`;
+    if (u.manual.some((m) => !ringValid(m))) {
+      return `${label}: give every member rung for unassigned files a ring time and count.`;
+    }
+  } else {
+    if (!ringValid(u[u.method])) {
+      return `${label}: set how long and how many times unassigned files ring.`;
+    }
+    if (u.method === "roundRobin" && u.roundRobin.userIds.length === 0) {
+      return `${label}: put at least one member in the unassigned-files round robin.`;
+    }
+  }
+
+  if (s.callerIds.length === 0) return `${label}: pick at least one outbound caller ID.`;
+  if (s.customerNumbers.length === 0) return `${label}: pick at least one customer number to call.`;
+  if (s.retry.enabled && toMinutes(s.retry.after) <= 0) {
+    return `${label}: set when the step is retried.`;
+  }
+  return null;
+}
+
 /**
  * A status must do *something* to be worth enabling, and every switched-on
  * behaviour needs its settings filled in. Returns null when the config is
@@ -558,6 +894,7 @@ export function validateAutomation(
   cfg: StatusAutomationConfig,
   allowed: ChannelKey[],
   documentsAllowed = true,
+  callAllowed = true,
 ): string | null {
   if (!cfg.enabled) return null;
 
@@ -565,16 +902,30 @@ export function validateAutomation(
   // Switched off at client level, the flag is saved as off (payloadFromConfig),
   // so it neither counts as a behaviour nor needs a template.
   const documentsOn = cfg.generateDocuments && documentsAllowed;
+  const callsOn = cfg.outboundCall.enabled && callAllowed;
   const hasBehavior =
-    activeChannels.length > 0 || documentsOn || cfg.autoArchive.enabled || cfg.inactivity.enabled;
+    activeChannels.length > 0 ||
+    callsOn ||
+    documentsOn ||
+    cfg.autoArchive.enabled ||
+    cfg.inactivity.enabled;
   if (!hasBehavior) {
-    return "Turn on at least one behaviour (channel, document, archive, or inactivity).";
+    return "Turn on at least one behaviour (channel, outbound call, document, archive, or inactivity).";
   }
 
   for (const c of activeChannels) {
     const ch = cfg.channels[c];
     if (templateRequired(ch.messageSource) && !ch.templateId) {
       return `Select a template for ${CHANNEL_LABEL[c]}.`;
+    }
+  }
+
+  if (callsOn) {
+    if (cfg.outboundCall.steps.length === 0)
+      return "Add a call step, or switch outbound calls off.";
+    for (const [i, step] of cfg.outboundCall.steps.entries()) {
+      const err = validateCallStep(step, i);
+      if (err) return err;
     }
   }
 
@@ -624,6 +975,7 @@ export function summarizeAutomation(
   cfg: StatusAutomationConfig,
   allowed: ChannelKey[],
   templateName: (id: number | null) => string,
+  callAllowed = true,
 ): string {
   if (!cfg.enabled) return cfg.automationId == null ? "Not configured" : "Off";
   const parts: string[] = [];
@@ -635,6 +987,8 @@ export function summarizeAutomation(
     const named = ch.templateId != null ? ` · ${templateName(ch.templateId)}` : "";
     parts.push(`${CHANNEL_LABEL[c]} (${src}${named} · after ${formatDuration(ch.startAfter)})`);
   }
+  const calls = cfg.outboundCall.enabled && callAllowed ? cfg.outboundCall.steps.length : 0;
+  if (calls) parts.push(`${calls} call step${calls === 1 ? "" : "s"}`);
   const followUps = cfg.followUpsEnabled ? cfg.followUps.length : 0;
   if (followUps) parts.push(`${followUps} follow-up${followUps === 1 ? "" : "s"}`);
   if (cfg.generateDocuments) parts.push("Documents");
