@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { z } from "zod";
 import {
   Building2,
   Save,
@@ -9,10 +10,11 @@ import {
   Calendar,
   ChevronDown,
   Mail,
-  Eye,
-  EyeOff,
   CheckCircle2,
+  AlertTriangle,
   Plug,
+  Link2,
+  RefreshCw,
   Loader2,
   Table2,
 } from "lucide-react";
@@ -21,12 +23,22 @@ import { DAY_KEYS, DAY_LABELS, type WeeklyHours } from "@/lib/agent-availability
 import {
   getTenantDetails,
   updateTenantDetails,
+  getGmailAuthUrl,
   type TenantDetails,
   type UpdateTenantDetailsInput,
   type DayFlag,
 } from "@/lib/tenant-settings-api";
 import { getTimezoneList, type TimezoneItem } from "@/lib/profile-api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SettingsSkeleton } from "@/components/admin/Skeletons";
 import { DataFieldsSection } from "@/components/tenant/data-fields/DataFieldsSection";
 import { usePermissions } from "@/lib/permissions/store";
@@ -34,7 +46,18 @@ import { usePermissions } from "@/lib/permissions/store";
 // Tailwind needs whole class names, so the tab strip picks one per tab count.
 const TAB_COLS = ["grid-cols-1", "grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"];
 
+// Gmail OAuth runs in a pop-up. When Google is done, the backend redirects that
+// pop-up back to this page with ?google=<message> (e.g. "Connected"); the
+// landing page relays the message to the opening tab over this channel.
+const GMAIL_CHANNEL = "collectrix.gmail-connect";
+
+const searchSchema = z.object({
+  // The router JSON-decodes search values, so coerce e.g. `true` back to text.
+  google: z.coerce.string().optional(),
+});
+
 export const Route = createFileRoute("/tenant/settings/")({
+  validateSearch: (s) => searchSchema.parse(s),
   head: () => ({ meta: [{ title: "Tenant Settings · Tenant Admin" }] }),
   component: SettingsPage,
 });
@@ -114,8 +137,19 @@ function SettingsPage() {
   // Email configuration (senderEmail* on the tenant record)
   const [emailProvider, setEmailProvider] = useState("gmail");
   const [senderEmail, setSenderEmail] = useState("");
-  const [senderPassword, setSenderPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
+  // The sender password field was removed (Gmail connects via OAuth); the stored
+  // value is round-tripped untouched like the sender-phone values below.
+  const [senderPassword, setSenderPassword] = useState<string | null>(null);
+
+  // Gmail OAuth connection
+  const { google } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [fetchingAuthUrl, setFetchingAuthUrl] = useState(false);
+  const [googleResult, setGoogleResult] = useState<string | null>(null);
+  const gmailChannel = useRef<BroadcastChannel | null>(null);
+  const gmailPopup = useRef<Window | null>(null);
+  const gmailPopupPoll = useRef<number | undefined>(undefined);
 
   // Legacy sender-phone values on the tenant record. The Twilio settings UI was
   // removed (numbers are managed in the Phone Numbers module), but since
@@ -127,7 +161,21 @@ function SettingsPage() {
 
   const [emailExpanded, setEmailExpanded] = useState(true);
 
-  const emailConnected = Boolean(senderEmail);
+  // Gmail can only send once the OAuth grant exists; Outlook keeps the old check.
+  const emailConnected = emailProvider === "gmail" ? gmailConnected : Boolean(senderEmail);
+
+  const hydrate = useCallback((d: TenantDetails) => {
+    setName(d.companyName ?? "");
+    setTz(d.timezone ?? "");
+    setWeekly(detailsToWeekly(d));
+    setEmailProvider(normalizeProvider(d.senderEmailType));
+    setSenderEmail(d.senderEmailId ?? "");
+    setSenderPassword(d.senderEmailPassword ?? null);
+    setGmailConnected(Boolean(d.gmailConnected));
+    setSenderPhoneCountry(d.senderPhoneCountry ?? null);
+    setSenderPhoneAreaCode(d.senderPhoneAreaCode ?? null);
+    setSenderPhoneNo(d.senderPhoneNo ?? null);
+  }, []);
 
   // Hydrate the form from the tenant record (and load timezone options).
   useEffect(() => {
@@ -137,15 +185,7 @@ function SettingsPage() {
       .then(([d, { timezoneList }]) => {
         if (!active) return;
         setTimezones(timezoneList);
-        setName(d.companyName ?? "");
-        setTz(d.timezone ?? "");
-        setWeekly(detailsToWeekly(d));
-        setEmailProvider(normalizeProvider(d.senderEmailType));
-        setSenderEmail(d.senderEmailId ?? "");
-        setSenderPassword(d.senderEmailPassword ?? "");
-        setSenderPhoneCountry(d.senderPhoneCountry ?? null);
-        setSenderPhoneAreaCode(d.senderPhoneAreaCode ?? null);
-        setSenderPhoneNo(d.senderPhoneNo ?? null);
+        hydrate(d);
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load settings"))
       .finally(() => {
@@ -154,7 +194,86 @@ function SettingsPage() {
     return () => {
       active = false;
     };
-  }, [canViewSettings]);
+  }, [canViewSettings, hydrate]);
+
+  // Re-read the record after a Gmail connect attempt so the button, badge and
+  // any sender fields the backend updated are current.
+  const refreshDetails = useCallback(() => {
+    getTenantDetails()
+      .then(hydrate)
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load settings"));
+  }, [hydrate]);
+
+  // Result relayed by the OAuth landing page (see the effect below). The tab
+  // that opened the pop-up closes it; every settings tab shows the message and
+  // refreshes.
+  useEffect(() => {
+    const channel = new BroadcastChannel(GMAIL_CHANNEL);
+    channel.onmessage = (e: MessageEvent<string>) => {
+      window.clearInterval(gmailPopupPoll.current);
+      gmailPopup.current?.close();
+      gmailPopup.current = null;
+      setTab("integrations");
+      setGoogleResult(e.data);
+      refreshDetails();
+    };
+    gmailChannel.current = channel;
+    return () => {
+      channel.close();
+      gmailChannel.current = null;
+      window.clearInterval(gmailPopupPoll.current);
+    };
+  }, [refreshDetails]);
+
+  // Landing here from Google (?google=<message>): relay the message to the tab
+  // that opened the pop-up, and also show it here, which covers the same-tab
+  // fallback when pop-ups are blocked (this page load already has fresh data).
+  useEffect(() => {
+    if (!google) return;
+    navigate({ search: {}, replace: true });
+    gmailChannel.current?.postMessage(google);
+    setTab("integrations");
+    setGoogleResult(google);
+  }, [google, navigate]);
+
+  const connectGmail = async () => {
+    // Open the pop-up synchronously in the click so it isn't blocked, then
+    // point it at Google once the backend returns the consent URL.
+    const w = 520;
+    const h = 640;
+    const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
+    const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
+    const popup = window.open(
+      "",
+      "collectrix-gmail-connect",
+      `popup,width=${w},height=${h},left=${left},top=${top}`,
+    );
+    setFetchingAuthUrl(true);
+    try {
+      const { url } = await getGmailAuthUrl();
+      if (!popup) {
+        // Pop-ups blocked: run the consent flow in this tab instead.
+        window.location.assign(url);
+        return;
+      }
+      popup.location.href = url;
+      gmailPopup.current = popup;
+      // Closed without a relayed result (cancelled, or the redirect landed on
+      // another origin, e.g. when running locally): just re-read the record.
+      window.clearInterval(gmailPopupPoll.current);
+      gmailPopupPoll.current = window.setInterval(() => {
+        if (!popup.closed) return;
+        window.clearInterval(gmailPopupPoll.current);
+        gmailPopup.current = null;
+        refreshDetails();
+      }, 500);
+    } catch (e) {
+      popup?.close();
+      toast.error(e instanceof Error ? e.message : "Failed to start Gmail connection");
+    } finally {
+      setFetchingAuthUrl(false);
+    }
+  };
 
   // updateTenantDetails replaces the whole record, so every save sends the full
   // payload assembled from current state — partial saves stay non-destructive.
@@ -171,7 +290,7 @@ function SettingsPage() {
       timezone: tz,
       senderEmailType: emailProvider || null,
       senderEmailId: senderEmail || null,
-      senderEmailPassword: senderPassword || null,
+      senderEmailPassword: senderPassword,
       senderPhoneAreaCode: senderPhoneAreaCode,
       senderPhoneCountry: senderPhoneCountry,
       senderPhoneNo: senderPhoneNo,
@@ -475,30 +594,32 @@ function SettingsPage() {
                                   className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
                                 />
                               </Field>
-                              <Field
-                                label="Sender Password"
-                                hint="Authentication credential for the email account"
-                              >
-                                <div className="relative">
-                                  <input
-                                    type={showPwd ? "text" : "password"}
-                                    value={senderPassword}
-                                    onChange={(e) => setSenderPassword(e.target.value)}
-                                    className="w-full h-10 px-3 pr-10 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
-                                  />
+                              {emailProvider === "gmail" && (
+                                <Field
+                                  label="Google Account"
+                                  hint={
+                                    gmailConnected
+                                      ? "Gmail access is authorized. Re-connect to switch accounts or renew access"
+                                      : "Sign in with Google to allow sending through Gmail"
+                                  }
+                                >
                                   <button
                                     type="button"
-                                    onClick={() => setShowPwd((s) => !s)}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                                    onClick={connectGmail}
+                                    disabled={fetchingAuthUrl}
+                                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-semibold disabled:opacity-60 ${gmailConnected ? "border border-border bg-card hover:bg-muted" : "bg-gradient-tenant text-white shadow-tenant"}`}
                                   >
-                                    {showPwd ? (
-                                      <EyeOff className="h-4 w-4" />
+                                    {fetchingAuthUrl ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : gmailConnected ? (
+                                      <RefreshCw className="h-4 w-4" />
                                     ) : (
-                                      <Eye className="h-4 w-4" />
+                                      <Link2 className="h-4 w-4" />
                                     )}
+                                    {gmailConnected ? "Re-Connect" : "Connect"}
                                   </button>
-                                </div>
-                              </Field>
+                                </Field>
+                              )}
                             </div>
                             {canEditSettings && (
                               <SectionFooter
@@ -525,6 +646,27 @@ function SettingsPage() {
           </section>
         </>
       )}
+
+      <AlertDialog open={googleResult !== null} onOpenChange={(o) => !o && setGoogleResult(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {googleResult?.toLowerCase() === "connected" ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              )}
+              Gmail connection
+            </AlertDialogTitle>
+            <AlertDialogDescription>{googleResult}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="bg-gradient-tenant text-white shadow-tenant hover:opacity-90">
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Shell>
   );
 }
