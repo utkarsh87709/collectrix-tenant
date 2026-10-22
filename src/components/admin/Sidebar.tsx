@@ -46,15 +46,6 @@ const SECTION_OPEN_CLS =
 // Idle nav rows: a touch muted so the active pill clearly wins the eye.
 const IDLE_CLS = "text-sidebar-foreground/80 hover:text-sidebar-foreground";
 
-// Icon "chip" behind each nav icon — the signature of the bolder look. It
-// collapses back to a bare icon when the sidebar is in icon-only mode.
-const CHIP_BASE =
-  "flex h-7 w-7 items-center justify-center rounded-lg shrink-0 transition-colors group-data-[collapsible=icon]:!h-5 group-data-[collapsible=icon]:!w-5 group-data-[collapsible=icon]:!bg-transparent";
-const CHIP_IDLE =
-  "bg-sidebar-accent/50 text-sidebar-foreground/70 group-hover/menu-item:text-[color:var(--tenant)] group-hover/menu-item:bg-sidebar-accent";
-const CHIP_ACTIVE = "bg-white/20 text-white";
-const CHIP_SECTION = "bg-[color:var(--tenant)]/20 text-tenant";
-
 function isActivePath(pathname: string, to: string): boolean {
   // Exact match for short roots; prefix match otherwise
   if (to === "/" || to === "/tenant") return pathname === to;
@@ -78,7 +69,7 @@ function bestMatch(pathname: string): string | null {
   return best;
 }
 
-function isActiveFor(pathname: string, item: NavItem): boolean {
+function isActiveFor(pathname: string, item: { to: string }): boolean {
   // Active only when this item is the closest matching destination — prevents a
   // parent prefix from staying highlighted alongside a more specific child.
   return isActivePath(pathname, item.to) && bestMatch(pathname) === item.to;
@@ -101,9 +92,7 @@ function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
           className={cn("h-9", active ? ACTIVE_CLS : IDLE_CLS)}
         >
           <Link to={item.to as never}>
-            <span className={cn(CHIP_BASE, active ? CHIP_ACTIVE : CHIP_IDLE)}>
-              <Icon className="h-4 w-4" />
-            </span>
+            <Icon className="h-4 w-4" />
             <span>{item.label}</span>
           </Link>
         </SidebarMenuButton>
@@ -120,9 +109,7 @@ function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
             tooltip={item.label}
             className={cn("h-9", subActive ? SECTION_OPEN_CLS : IDLE_CLS)}
           >
-            <span className={cn(CHIP_BASE, subActive ? CHIP_SECTION : CHIP_IDLE)}>
-              <Icon className="h-4 w-4" />
-            </span>
+            <Icon className="h-4 w-4" />
             <span>{item.label}</span>
             <ChevronRight
               className={cn("ml-auto h-4 w-4 transition-transform opacity-60", open && "rotate-90")}
@@ -132,36 +119,32 @@ function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
         <CollapsibleContent>
           <SidebarMenuSub>
             {item.submodules!.map((sub) => {
+              const SubIcon = sub.icon;
               if (sub.disabled) {
                 return (
                   <SidebarMenuSubItem key={sub.to}>
                     <SidebarMenuSubButton
                       aria-disabled
-                      className="pointer-events-none cursor-not-allowed opacity-50"
+                      className="pointer-events-none cursor-not-allowed opacity-50 [&>svg]:text-current"
                     >
-                      <span className="h-1.5 w-1.5 rounded-full bg-sidebar-foreground/30 shrink-0" />
+                      <SubIcon />
                       <span>{sub.label}</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 );
               }
-              const sActive = isActivePath(pathname, sub.to);
+              // Most-specific match, so General (/tenant/settings) isn't lit
+              // alongside Statuses (/tenant/settings/statuses).
+              const sActive = isActiveFor(pathname, sub);
               return (
                 <SidebarMenuSubItem key={sub.to}>
                   <SidebarMenuSubButton
                     asChild
                     isActive={sActive}
-                    className={cn("group/sub", sActive ? ACTIVE_CLS : IDLE_CLS)}
+                    className={cn("[&>svg]:text-current", sActive ? ACTIVE_CLS : IDLE_CLS)}
                   >
                     <Link to={sub.to as never}>
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 rounded-full shrink-0 transition-colors",
-                          sActive
-                            ? "bg-white"
-                            : "bg-sidebar-foreground/30 group-hover/sub:bg-[color:var(--tenant)]",
-                        )}
-                      />
+                      <SubIcon />
                       <span>{sub.label}</span>
                     </Link>
                   </SidebarMenuSubButton>
@@ -242,7 +225,7 @@ export function Sidebar() {
         {groups.map((group) => (
           <SidebarGroup key={group.label}>
             {!collapsed && (
-              <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">
+              <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/50">
                 {group.label}
               </SidebarGroupLabel>
             )}

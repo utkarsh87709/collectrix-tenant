@@ -308,7 +308,10 @@ export function RoleEditor({
                 </nav>
               </aside>
 
-              <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
+              {/* `relative` keeps the matrix's absolutely-positioned sr-only labels
+                  inside this scroller; otherwise they overflow the dialog itself
+                  and scrollIntoView scrolls the whole dialog out of place. */}
+              <div ref={scrollRef} className="relative min-w-0 flex-1 overflow-y-auto">
                 {/* Role details */}
                 <div className="grid gap-4 px-5 pt-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] sm:px-6">
                   <label className="block">

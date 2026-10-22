@@ -6,14 +6,21 @@ import {
   ScrollText,
   UsersRound,
   Wallet,
-  Settings,
   Database,
   Phone,
-  LibraryBig,
   Inbox,
-  Tag,
   Zap,
-  FolderOpen,
+  FolderTree,
+  Mail,
+  FileText,
+  SlidersHorizontal,
+  ArrowRightLeft,
+  Archive,
+  Building2,
+  Upload,
+  FilePen,
+  Cog,
+  Workflow,
 } from "lucide-react";
 import { useMemo } from "react";
 import { canOpen } from "@/lib/permissions/routes";
@@ -22,6 +29,9 @@ import { usePermissions } from "@/lib/permissions/store";
 export type NavSubItem = {
   to: string;
   label: string;
+  icon: typeof LayoutDashboard;
+  description?: string;
+  keywords?: string;
   /** Disabled submodules render greyed-out and are not routable. */
   disabled?: boolean;
 };
@@ -58,21 +68,21 @@ export const tenantGroups: NavGroup[] = [
       {
         to: "/tenant/case-files",
         label: "Case Files",
-        icon: FolderOpen,
+        icon: FolderTree,
         description: "Customer accounts and team file queues",
         keywords:
           "case files debtors customers accounts collections balances team deck queue archive archived parked restore",
         submodules: [
-          { to: "/tenant/debtors", label: "Customers" },
-          { to: "/tenant/team-deck", label: "Team Deck" },
-          { to: "/tenant/moved-files", label: "Moved Files" },
-          { to: "/tenant/archive", label: "Archive" },
+          { to: "/tenant/debtors", label: "Customers", icon: Users },
+          { to: "/tenant/team-deck", label: "Team Deck", icon: Inbox },
+          { to: "/tenant/moved-files", label: "Moved Files", icon: ArrowRightLeft },
+          { to: "/tenant/archive", label: "Archive", icon: Archive },
         ],
       },
       {
         to: "/tenant/inbox",
         label: "Inbound Inbox",
-        icon: Inbox,
+        icon: Mail,
         description: "Customer replies by SMS and email, in one place",
         keywords: "inbox inbound conversations replies sms email messages unread chat",
       },
@@ -91,7 +101,7 @@ export const tenantGroups: NavGroup[] = [
       {
         to: "/tenant/engagement/template-library",
         label: "Template Library",
-        icon: LibraryBig,
+        icon: FileText,
         description: "Reusable email and SMS templates, organised by client",
         keywords: "template library email sms message reusable variables client engagement",
       },
@@ -107,9 +117,9 @@ export const tenantGroups: NavGroup[] = [
         description: "Client list, customer uploads and CRM sync",
         keywords: "data intake import upload debtor crm integration clients",
         submodules: [
-          { to: "/tenant/intake/clients", label: "Client List" },
-          { to: "/tenant/intake/upload", label: "Upload Customer Data" },
-          { to: "/tenant/intake/mass-update", label: "Mass Update" },
+          { to: "/tenant/intake/clients", label: "Client List", icon: Building2 },
+          { to: "/tenant/intake/upload", label: "Upload Customer Data", icon: Upload },
+          { to: "/tenant/intake/mass-update", label: "Mass Update", icon: FilePen },
         ],
       },
     ],
@@ -158,29 +168,31 @@ export const tenantGroups: NavGroup[] = [
       {
         to: "/tenant/settings",
         label: "Tenant Settings",
-        icon: Settings,
-        description: "Workspace, operating hours and connectors",
-        keywords: "settings workspace organization hours timezone email twilio sms connectors",
-      },
-    ],
-  },
-  {
-    label: "System Configuration",
-    items: [
-      {
-        to: "/tenant/settings/statuses",
-        label: "Statuses",
-        icon: Tag,
-        description: "Define the account lifecycle for your firm",
-        keywords: "statuses status lifecycle account codes pills workflow configuration",
-      },
-      {
-        to: "/tenant/settings/status-automation",
-        label: "Status Automation",
-        icon: Zap,
-        description: "Automated behaviour per status, for each team and client",
-        keywords:
-          "status automation outreach follow-up initial status team client archive inactivity documents",
+        icon: SlidersHorizontal,
+        submodules: [
+          {
+            to: "/tenant/settings",
+            label: "General",
+            icon: Cog,
+            description: "Workspace, operating hours and connectors",
+            keywords: "settings workspace organization hours timezone email twilio sms connectors",
+          },
+          {
+            to: "/tenant/settings/statuses",
+            label: "Statuses",
+            icon: Workflow,
+            description: "Define the account lifecycle for your firm",
+            keywords: "statuses status lifecycle account codes pills workflow configuration",
+          },
+          {
+            to: "/tenant/settings/status-automation",
+            label: "Status Automation",
+            icon: Zap,
+            description: "Automated behaviour per status, for each team and client",
+            keywords:
+              "status automation outreach follow-up initial status team client archive inactivity documents",
+          },
+        ],
       },
     ],
   },
@@ -219,7 +231,7 @@ export function useVisibleNav(): NavGroup[] {
 /** Every enabled destination in `groups`, flattened — used by the ⌘K palette. */
 export function flattenNav(groups: NavGroup[]): NavItem[] {
   return groups.flatMap((g) =>
-    g.items.flatMap((i) => {
+    g.items.flatMap((i): NavItem[] => {
       // Expandable modules contribute their enabled submodules as destinations.
       if (i.submodules?.length) {
         return i.submodules
@@ -227,8 +239,9 @@ export function flattenNav(groups: NavGroup[]): NavItem[] {
           .map((s) => ({
             to: s.to,
             label: s.label,
-            icon: i.icon,
-            keywords: `tenant ${g.label} ${i.label} ${s.label}`,
+            icon: s.icon,
+            description: s.description,
+            keywords: `tenant ${g.label} ${i.label} ${s.label} ${s.keywords ?? ""}`,
           }));
       }
       return [{ ...i, keywords: `tenant ${g.label} ${i.keywords ?? ""}` }];
