@@ -12,6 +12,7 @@ import {
   PauseCircle,
   PhoneCall,
   PlayCircle,
+  Reply,
   Send,
   Trash2,
 } from "lucide-react";
@@ -169,9 +170,13 @@ function ThreadBody({
   // into the SMS box or plain text into the editor.
   const [emailHtml, setEmailHtml] = useState("");
   const [attachIds, setAttachIds] = useState<number[]>([]);
+  // Email starts as a one-line "Reply" bar; the subject + editor open on demand.
+  const [emailOpen, setEmailOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const emailEditorRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(
     async (silent = false) => {
@@ -232,6 +237,13 @@ function ThreadBody({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages?.length, channel]);
 
+  // On Reply, put the caret in the subject if it's empty, otherwise the body.
+  useEffect(() => {
+    if (!emailOpen) return;
+    if (!subjectRef.current?.value.trim()) subjectRef.current?.focus();
+    else emailEditorRef.current?.querySelector<HTMLElement>("[contenteditable=true]")?.focus();
+  }, [emailOpen]);
+
   const ordered = useMemo(() => (messages ? oldestFirst(messages) : []), [messages]);
 
   const canSend = perms.can(
@@ -259,6 +271,7 @@ function ThreadBody({
         });
         setEmailHtml("");
         setAttachIds([]);
+        setEmailOpen(false);
       }
       toast.success(channel === "sms" ? "SMS sent." : "Email sent.");
       await load(true);
@@ -490,29 +503,48 @@ function ThreadBody({
                 still send.
               </div>
             )}
-            {channel === "email" ? (
-              <div className="space-y-2">
+            {channel === "email" && !emailOpen ? (
+              <div className="flex items-center justify-between gap-4 px-1 py-1">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-muted-foreground">
+                    Replying by email to{" "}
+                    <span className="font-semibold text-foreground">{name}</span>
+                    {details.email ? ` · ${details.email}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Replies are saved to this customer's file
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEmailOpen(true)}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-full bg-gradient-tenant px-5 py-2.5 text-sm font-semibold text-white shadow-tenant transition hover:opacity-90"
+                >
+                  <Reply className="h-4 w-4" /> Reply
+                </button>
+              </div>
+            ) : channel === "email" ? (
+              <div ref={emailEditorRef} className="space-y-2">
                 <div className="flex items-center justify-between gap-3 text-xs">
                   <span className="min-w-0 truncate text-muted-foreground">
                     <Mail className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />
                     To <span className="font-semibold text-foreground">{name}</span>
                     {details.email ? ` · ${details.email}` : ""}
                   </span>
-                  {(!isEmptyEmailHtml(emailHtml) || attachIds.length > 0) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmailHtml("");
-                        setAttachIds([]);
-                      }}
-                      disabled={sending}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 font-medium hover:bg-muted disabled:opacity-50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" /> Discard
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailHtml("");
+                      setAttachIds([]);
+                      setEmailOpen(false);
+                    }}
+                    disabled={sending}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 font-medium hover:bg-muted disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Discard
+                  </button>
                 </div>
                 <input
+                  ref={subjectRef}
                   value={subject}
                   onChange={(e) => {
                     setSubject(e.target.value);

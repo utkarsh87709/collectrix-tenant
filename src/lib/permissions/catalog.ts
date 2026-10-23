@@ -829,6 +829,27 @@ export const PERMISSION_CATALOG = [
           },
         ],
       },
+      {
+        id: "callConfiguration",
+        label: "Call configuration",
+        description: "How inbound calls to each team's numbers are answered.",
+        actions: [
+          {
+            key: "callConfiguration.view",
+            kind: "view",
+            label: "View",
+            description: "See how each team's inbound calls are answered and routed.",
+            endpoints: ["/tenant/getIncomingCallSetting"],
+          },
+          {
+            key: "callConfiguration.edit",
+            kind: "edit",
+            label: "Edit",
+            description: "Change who answers each team's inbound calls and who they ring.",
+            endpoints: ["/tenant/updateIncomingCallSetting"],
+          },
+        ],
+      },
     ],
   },
 ] as const satisfies readonly PermissionModuleDef[];

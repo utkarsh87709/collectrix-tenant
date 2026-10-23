@@ -181,7 +181,8 @@ function TemplateLibraryPage() {
     { id: "sms", label: "SMS", icon: MessageSquare },
     { id: "documents", label: "Documents", icon: FileText },
     { id: "call", label: "AI Voice Call Agent", icon: PhoneCall },
-    { id: "aiPrompt", label: "AI Messaging Prompt Setting", icon: Bot },
+    // Hidden for now; restore this entry to bring the tab (AiPromptsPanel) back.
+    // { id: "aiPrompt", label: "AI Messaging Prompt Setting", icon: Bot },
   ];
 
   /* -------------------------------- render -------------------------------- */

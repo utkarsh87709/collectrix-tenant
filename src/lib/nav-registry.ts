@@ -21,6 +21,7 @@ import {
   FilePen,
   Cog,
   Workflow,
+  PhoneCall,
 } from "lucide-react";
 import { useMemo } from "react";
 import { canOpen } from "@/lib/permissions/routes";
@@ -191,6 +192,14 @@ export const tenantGroups: NavGroup[] = [
             description: "Automated behaviour per status, for each team and client",
             keywords:
               "status automation outreach follow-up initial status team client archive inactivity documents",
+          },
+          {
+            to: "/tenant/settings/call-configuration",
+            label: "Call Configuration",
+            icon: PhoneCall,
+            description: "How inbound calls to each team's numbers are answered",
+            keywords:
+              "call configuration inbound calls incoming phone numbers routing patching round robin ring answering device business hours ai agent transfer",
           },
         ],
       },

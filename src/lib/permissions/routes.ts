@@ -37,6 +37,7 @@ const ROUTE_RULES: readonly RouteRule[] = [
   { pattern: under("/tenant/roles"), anyOf: ["roles.view"] },
   { pattern: under("/tenant/settings/statuses"), anyOf: ["statuses.view"] },
   { pattern: under("/tenant/settings/status-automation"), anyOf: ["statusAutomation.view"] },
+  { pattern: under("/tenant/settings/call-configuration"), anyOf: ["callConfiguration.view"] },
   // Tenant Settings hosts Data Fields as a tab, so either grant opens the page.
   { pattern: under("/tenant/settings"), anyOf: ["settings.view", "dataFields.view"] },
 ];

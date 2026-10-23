@@ -47,7 +47,8 @@
 //   • assignedRoundRobinUserId / unAssignedRoundRobinUserId (also missing from
 //     Postman) are the round-robin ring order: arrays of userIds.
 //   • Ring durations are seconds; placeCallAfterMins and retryWholeSetupAfter
-//     are minutes. There is no retry count — a retryMax key is ignored.
+//     are minutes. retryWholeSetupMaxTry (added 2026-10-23) caps how many
+//     times the step is retried; both are null when retry is off.
 //   • Steps come back in the order they were sent.
 //   • outboundCallEnabled 0 keeps the steps; omitting callFollowupList deletes
 //     them, so every save must send the full list.
@@ -258,6 +259,8 @@ export type AutomationCallStep = {
   tryNextWhen: string[] | null;
   /** Minutes before the whole step runs again; null = no retry. */
   retryWholeSetupAfter: number | null;
+  /** How many times the step is retried at most; null = no retry. */
+  retryWholeSetupMaxTry: number | null;
   answeringDevice: string;
 };
 
@@ -417,17 +420,11 @@ export type Ring = { seconds: number; times: number };
 export type RingOrder = Ring & { userIds: number[] };
 export type ManualDial = { userId: number; seconds: number; times: number };
 
-/** One outbound call step. Every setting is kept per patch method so switching
- *  methods back and forth doesn't lose input; only the chosen one is sent. */
-export type CallStep = {
-  /** Client-side key only — the backend re-creates rows on every save. */
-  key: string;
-  name: string;
-  description: string;
-  mode: CallMode;
-  /** The AI voice agent (`call` library). Only sent in "ai" mode. */
-  agentId: number | null;
-  answeringDevice: AnsweringDevice;
+/** Who is rung once a call reaches a person — the same fields on an outbound
+ *  call step and on a team's incoming call setting (call-configuration-api).
+ *  Every setting is kept per patch method so switching methods back and forth
+ *  doesn't lose input; only the chosen one is sent. */
+export type CallPatching = {
   assigned: {
     method: AssignedPatchMethod;
     exactMatch: Ring;
@@ -440,6 +437,18 @@ export type CallStep = {
     ringAll: Ring;
     manual: ManualDial[];
   };
+};
+
+/** One outbound call step. */
+export type CallStep = CallPatching & {
+  /** Client-side key only — the backend re-creates rows on every save. */
+  key: string;
+  name: string;
+  description: string;
+  mode: CallMode;
+  /** The AI voice agent (`call` library). Only sent in "ai" mode. */
+  agentId: number | null;
+  answeringDevice: AnsweringDevice;
   noAnswerMessage: string;
   /** Measured from entering the status, like every other timing. */
   placeAfter: Duration;
@@ -449,7 +458,7 @@ export type CallStep = {
   callerIds: number[];
   customerNumbers: string[];
   tryNextWhen: string[];
-  retry: { enabled: boolean; after: Duration };
+  retry: { enabled: boolean; after: Duration; maxTries: number };
 };
 
 export type StatusAutomationConfig = {
@@ -546,20 +555,15 @@ export function newFollowUp(channel: ChannelKey): FollowUp {
 const DEFAULT_RING: Ring = { seconds: 20, times: 1 };
 const DEFAULT_PLACE_CALL: Duration = { value: 1, unit: "days" };
 const DEFAULT_RETRY: Duration = { value: 1, unit: "hours" };
+const DEFAULT_RETRY_TRIES = 1;
 
 let callStepSeq = 0;
 const nextCallStepKey = () => `cs-${++callStepSeq}`;
 
-/** A fresh call step. `memberIds` (the team, in list order) seed every ring
- *  list, so a member is taken out of the rotation rather than added to it. */
-export function newCallStep(memberIds: number[]): CallStep {
+/** Fresh patching. `memberIds` (the team, in list order) seed every ring list,
+ *  so a member is taken out of the rotation rather than added to it. */
+export function newCallPatching(memberIds: number[]): CallPatching {
   return {
-    key: nextCallStepKey(),
-    name: "",
-    description: "",
-    mode: "ai",
-    agentId: null,
-    answeringDevice: "phone",
     assigned: {
       method: "exactMatch",
       exactMatch: { ...DEFAULT_RING },
@@ -572,6 +576,19 @@ export function newCallStep(memberIds: number[]): CallStep {
       ringAll: { ...DEFAULT_RING },
       manual: memberIds.map((userId) => ({ userId, ...DEFAULT_RING })),
     },
+  };
+}
+
+/** A fresh call step, its ring lists seeded from `memberIds`. */
+export function newCallStep(memberIds: number[]): CallStep {
+  return {
+    key: nextCallStepKey(),
+    name: "",
+    description: "",
+    mode: "ai",
+    agentId: null,
+    answeringDevice: "phone",
+    ...newCallPatching(memberIds),
     noAnswerMessage: "",
     placeAfter: { ...DEFAULT_PLACE_CALL },
     businessHoursOnly: true,
@@ -579,7 +596,7 @@ export function newCallStep(memberIds: number[]): CallStep {
     callerIds: [],
     customerNumbers: [],
     tryNextWhen: TRY_NEXT_REASONS.filter((r) => r !== "Voicemail detected"),
-    retry: { enabled: false, after: { ...DEFAULT_RETRY } },
+    retry: { enabled: false, after: { ...DEFAULT_RETRY }, maxTries: DEFAULT_RETRY_TRIES },
   };
 }
 
@@ -611,16 +628,33 @@ const ringFrom = (seconds: number | null, times: number | null): Ring => ({
   times: times ?? DEFAULT_RING.times,
 });
 
-function callStepFromWire(s: AutomationCallStep): CallStep {
-  const retryMinutes = s.retryWholeSetupAfter ?? 0;
+/** The patching fields as they travel, on a call step or an incoming setting. */
+export type CallPatchingWire = Pick<
+  AutomationCallStep,
+  | "assignedFileCallPatchMethod"
+  | "assignedExactMatchRingDuration"
+  | "assignedExactMatchRingTimes"
+  | "assignedRoundRobinRingDuration"
+  | "assignedRoundRobinRingCycleTimes"
+  | "assignedRoundRobinUserId"
+  | "assignedRingAllDuration"
+  | "assignedRingAllTimes"
+  | "unAssignedFileCallPatchMethod"
+  | "unAssignedRoundRobinRingDuration"
+  | "unAssignedRoundRobinRingCycleTimes"
+  | "unAssignedRoundRobinUserId"
+  | "unAssignedRingAllDuration"
+  | "unAssignedRingAllTimes"
+  | "unAssignedManualConfiguration"
+>;
+
+/** An unrecognised device was stored as "" — treat it as the default. */
+export function answeringDeviceFromWire(device: string | null | undefined): AnsweringDevice {
+  return device?.toLowerCase() === "browser" ? "browser" : "phone";
+}
+
+export function callPatchingFromWire(s: CallPatchingWire): CallPatching {
   return {
-    key: nextCallStepKey(),
-    name: s.callStepName ?? "",
-    description: s.callStepDescription ?? "",
-    mode: s.callMode === "directPatch" ? "directPatch" : "ai",
-    agentId: s.callTemplateId ?? null,
-    // An unrecognised device was stored as "" — treat it as the default.
-    answeringDevice: s.answeringDevice?.toLowerCase() === "browser" ? "browser" : "phone",
     assigned: {
       method: s.assignedFileCallPatchMethod ?? "exactMatch",
       exactMatch: ringFrom(s.assignedExactMatchRingDuration, s.assignedExactMatchRingTimes),
@@ -642,6 +676,19 @@ function callStepFromWire(s: AutomationCallStep): CallStep {
         ...ringFrom(m.dialDuration, m.dialTimes),
       })),
     },
+  };
+}
+
+function callStepFromWire(s: AutomationCallStep): CallStep {
+  const retryMinutes = s.retryWholeSetupAfter ?? 0;
+  return {
+    key: nextCallStepKey(),
+    name: s.callStepName ?? "",
+    description: s.callStepDescription ?? "",
+    mode: s.callMode === "directPatch" ? "directPatch" : "ai",
+    agentId: s.callTemplateId ?? null,
+    answeringDevice: answeringDeviceFromWire(s.answeringDevice),
+    ...callPatchingFromWire(s),
     noAnswerMessage: s.noAnswerMessage ?? "",
     placeAfter: fromMinutes(s.placeCallAfterMins, { ...DEFAULT_PLACE_CALL }),
     businessHoursOnly: s.callDuringTenantHrFlag === 1,
@@ -653,6 +700,8 @@ function callStepFromWire(s: AutomationCallStep): CallStep {
       enabled: retryMinutes > 0,
       after:
         retryMinutes > 0 ? fromMinutes(retryMinutes, { ...DEFAULT_RETRY }) : { ...DEFAULT_RETRY },
+      // Steps saved before the key existed come back null.
+      maxTries: s.retryWholeSetupMaxTry ?? DEFAULT_RETRY_TRIES,
     },
   };
 }
@@ -716,19 +765,15 @@ export function configFromDetails(d: AutomationDetails): StatusAutomationConfig 
 const flag = (b: boolean) => (b ? 1 : 0);
 
 /** Only the chosen patch method's settings are sent; the rest go as null. */
-function callStepToWire(s: CallStep): AutomationPayload["callFollowupList"][number] {
-  const a = s.assigned;
-  const u = s.unassigned;
+export function callPatchingToWire(p: CallPatching): CallPatchingWire {
+  const a = p.assigned;
+  const u = p.unassigned;
   const aExact = a.method === "exactMatch";
   const aRobin = a.method === "roundRobin";
   const aAll = a.method === "ringAll";
   const uRobin = u.method === "roundRobin";
   const uAll = u.method === "ringAll";
   return {
-    callStepName: s.name.trim(),
-    callStepDescription: s.description.trim() || null,
-    callMode: s.mode,
-    callTemplateId: s.mode === "ai" ? s.agentId : null,
     assignedFileCallPatchMethod: a.method,
     assignedExactMatchRingDuration: aExact ? a.exactMatch.seconds : null,
     assignedExactMatchRingTimes: aExact ? a.exactMatch.times : null,
@@ -747,6 +792,16 @@ function callStepToWire(s: CallStep): AutomationPayload["callFollowupList"][numb
       u.method === "manual"
         ? u.manual.map((m) => ({ userId: m.userId, dialDuration: m.seconds, dialTimes: m.times }))
         : [],
+  };
+}
+
+function callStepToWire(s: CallStep): AutomationPayload["callFollowupList"][number] {
+  return {
+    callStepName: s.name.trim(),
+    callStepDescription: s.description.trim() || null,
+    callMode: s.mode,
+    callTemplateId: s.mode === "ai" ? s.agentId : null,
+    ...callPatchingToWire(s),
     noAnswerMessage: s.noAnswerMessage.trim() || null,
     placeCallAfterMins: toMinutes(s.placeAfter),
     callDuringTenantHrFlag: flag(s.businessHoursOnly),
@@ -755,6 +810,7 @@ function callStepToWire(s: CallStep): AutomationPayload["callFollowupList"][numb
     customerCallNumbers: s.customerNumbers,
     tryNextWhen: s.tryNextWhen,
     retryWholeSetupAfter: s.retry.enabled ? toMinutes(s.retry.after) : null,
+    retryWholeSetupMaxTry: s.retry.enabled ? s.retry.maxTries : null,
     answeringDevice: s.answeringDevice,
   };
 }
@@ -844,6 +900,33 @@ export function templateRequired(source: MessageSource): boolean {
 
 const ringValid = (r: Ring) => r.seconds > 0 && r.times > 0;
 
+/** What the patching is missing, or null. Phrased to follow "<label>: ". */
+export function validateCallPatching(p: CallPatching): string | null {
+  const a = p.assigned;
+  if (!ringValid(a[a.method])) {
+    return "set how long and how many times assigned files ring.";
+  }
+  if (a.method === "roundRobin" && a.roundRobin.userIds.length === 0) {
+    return "put at least one member in the assigned-files round robin.";
+  }
+
+  const u = p.unassigned;
+  if (u.method === "manual") {
+    if (u.manual.length === 0) return "pick who is rung for unassigned files.";
+    if (u.manual.some((m) => !ringValid(m))) {
+      return "give every member rung for unassigned files a ring time and count.";
+    }
+  } else {
+    if (!ringValid(u[u.method])) {
+      return "set how long and how many times unassigned files ring.";
+    }
+    if (u.method === "roundRobin" && u.roundRobin.userIds.length === 0) {
+      return "put at least one member in the unassigned-files round robin.";
+    }
+  }
+  return null;
+}
+
 /** What a call step is missing before it can run, or null. */
 export function validateCallStep(s: CallStep, index: number): string | null {
   const name = s.name.trim();
@@ -853,33 +936,16 @@ export function validateCallStep(s: CallStep, index: number): string | null {
     return `${label}: choose the AI voice agent that places the call.`;
   }
 
-  const a = s.assigned;
-  if (!ringValid(a[a.method])) {
-    return `${label}: set how long and how many times assigned files ring.`;
-  }
-  if (a.method === "roundRobin" && a.roundRobin.userIds.length === 0) {
-    return `${label}: put at least one member in the assigned-files round robin.`;
-  }
-
-  const u = s.unassigned;
-  if (u.method === "manual") {
-    if (u.manual.length === 0) return `${label}: pick who is rung for unassigned files.`;
-    if (u.manual.some((m) => !ringValid(m))) {
-      return `${label}: give every member rung for unassigned files a ring time and count.`;
-    }
-  } else {
-    if (!ringValid(u[u.method])) {
-      return `${label}: set how long and how many times unassigned files ring.`;
-    }
-    if (u.method === "roundRobin" && u.roundRobin.userIds.length === 0) {
-      return `${label}: put at least one member in the unassigned-files round robin.`;
-    }
-  }
+  const patchError = validateCallPatching(s);
+  if (patchError) return `${label}: ${patchError}`;
 
   if (s.callerIds.length === 0) return `${label}: pick at least one outbound caller ID.`;
   if (s.customerNumbers.length === 0) return `${label}: pick at least one customer number to call.`;
   if (s.retry.enabled && toMinutes(s.retry.after) <= 0) {
     return `${label}: set when the step is retried.`;
+  }
+  if (s.retry.enabled && s.retry.maxTries < 1) {
+    return `${label}: set how many times the step is retried.`;
   }
   return null;
 }
