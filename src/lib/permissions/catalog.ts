@@ -353,7 +353,8 @@ export const PERMISSION_CATALOG = [
   {
     id: "engagement",
     label: "Engagement",
-    description: "The phone numbers and templates outreach is sent with.",
+    description:
+      "The phone numbers and templates outreach is sent with, and the log of bulk sends.",
     resources: [
       {
         id: "phoneNumbers",
@@ -405,7 +406,11 @@ export const PERMISSION_CATALOG = [
             kind: "view",
             label: "View",
             description: "Browse every template, voice agent and prompt.",
-            endpoints: ["/tenant/getTemplateClients", "/tenant/getClientTemplate"],
+            endpoints: [
+              "/tenant/getTemplateClients",
+              "/tenant/getClientTemplate",
+              "/tenant/getTenantPlaceholders",
+            ],
           },
           {
             key: "templates.create",
@@ -427,6 +432,27 @@ export const PERMISSION_CATALOG = [
             label: "Delete",
             description: "Delete templates, voice agents and prompts.",
             endpoints: ["/tenant/deleteTemplate"],
+          },
+        ],
+      },
+      {
+        id: "bulkOperations",
+        label: "Bulk operations",
+        description: "The log of bulk emails and document runs, and every file each one affected.",
+        actions: [
+          {
+            key: "bulkOperations.view",
+            kind: "view",
+            label: "View",
+            description: "See every bulk operation and open a completed one's details.",
+            endpoints: ["/tenant/getBulkOperation", "/tenant/bulkOperationDetails"],
+          },
+          {
+            key: "bulkOperations.export",
+            kind: "other",
+            label: "Download",
+            description: "Download an operation's generated documents and its file list as CSV.",
+            endpoints: [],
           },
         ],
       },
@@ -719,7 +745,7 @@ export const PERMISSION_CATALOG = [
             kind: "edit",
             label: "Edit",
             description: "Change the organization profile, operating hours and connectors.",
-            endpoints: ["/tenant/updateTenantDetails"],
+            endpoints: ["/tenant/updateTenantDetails", "/tenant/gmailAuthUrl"],
           },
         ],
       },
@@ -763,7 +789,8 @@ export const PERMISSION_CATALOG = [
   {
     id: "systemConfiguration",
     label: "System Configuration",
-    description: "The account lifecycle and what happens automatically at each step.",
+    description:
+      "The account lifecycle, what happens automatically at each step, and how inbound calls are answered.",
     resources: [
       {
         id: "statuses",

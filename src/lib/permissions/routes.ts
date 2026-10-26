@@ -28,6 +28,7 @@ const ROUTE_RULES: readonly RouteRule[] = [
   { pattern: under("/tenant/inbox"), anyOf: ["inbox.view"] },
   { pattern: under("/tenant/engagement/phone-numbers"), anyOf: ["phoneNumbers.view"] },
   { pattern: under("/tenant/engagement/template-library"), anyOf: ["templates.view"] },
+  { pattern: under("/tenant/engagement/bulk-operations"), anyOf: ["bulkOperations.view"] },
   { pattern: under("/tenant/intake/clients"), anyOf: ["clients.view"] },
   { pattern: under("/tenant/intake/upload"), anyOf: ["imports.view"] },
   { pattern: under("/tenant/intake/mass-update"), anyOf: ["massUpdate.view"] },

@@ -18,6 +18,7 @@ The source of truth is [`src/lib/permissions/catalog.ts`](../src/lib/permissions
 | `deleteRole` refuses a role users are on | Not verified (not tested on a live role); unknown `roleId` returns success |
 | `myProfile` returns `permissions` | **Open** — frontend falls back to `getAllRole` |
 | Endpoints check the caller's permission key (section 3) | **Open** — e.g. `deleteClient` succeeds without `clients.delete` |
+| Keys added since: `callConfiguration.view`, `callConfiguration.edit` (2026-10-23), `bulkOperations.view`, `bulkOperations.export` (2026-10-26) | **Open** — add them to the backend's list of valid keys |
 
 ## 1. The model
 
@@ -27,7 +28,7 @@ Permissions follow the sidebar: **module → page → action**.
 - A **page** is a screen, or a tab of the customer profile that has its own endpoints (Notes, SMS & email, Calls, Documents).
 - An **action** is one thing a user can do on that page. Most pages have View / Create / Edit / Delete. Some add domain actions like Send SMS, Take on or Release.
 
-Each action is a stable string key, `<page>.<action>`, for example `customers.notes.delete`. A role stores a list of these keys. That gives 76 keys across 22 pages in 8 modules.
+Each action is a stable string key, `<page>.<action>`, for example `customers.notes.delete`. A role stores a list of these keys. That gives 80 keys across 24 pages in 8 modules.
 
 Keys are permanent identifiers. Never rename or reuse one: add a new key and migrate instead.
 
@@ -140,14 +141,16 @@ Some endpoints serve several pages and follow different rules:
 | `getclientList`, `getStatusList`, `getAllStatus`, `getTeamList`, `getMovedTeamList`, `assignTeamList`                         | Any signed-in user. These are lightweight pickers used across pages.                       |
 | `myProfile`, `updateProfile`, `uploadProfilePic`, `sendResetMyPasswordLink`, `getTimezoneList`, `/user/logout`                | Any signed-in user, acting on themselves.                                                  |
 | `getAllClients`                                                                                                               | `clients.view` **or** `imports.view`. The upload page reads clients for its client picker. |
-| `getClientTemplate`                                                                                                           | `templates.view` **or** `statusAutomation.view`. Status automation picks templates.        |
-| `getTeamDeckAssignUserList`                                                                                                   | `teamDeck.assign`, `movedFiles.takeOn`, `inbox.assign` **or** `statusAutomation.view`.     |
+| `getTemplateClients`                                                                                                          | `templates.view` **or** `callConfiguration.view`. Call configuration lists each client's AI agents. |
+| `getClientTemplate`                                                                                                           | `templates.view`, `statusAutomation.view` **or** `callConfiguration.view`. Both pick templates or AI agents. |
+| `getTeamDeckAssignUserList`                                                                                                   | `teamDeck.assign`, `movedFiles.takeOn`, `inbox.assign`, `statusAutomation.view` **or** `callConfiguration.view`. |
 | `getRoleList`                                                                                                                 | `users.view`. Used for the role picker on the user form.                                   |
-| `getTeamPhoneNumber`                                                                                                          | `users.create` **or** `users.edit`.                                                        |
+| `getUsers`                                                                                                                    | `users.view` **or** `callConfiguration.view`. Call configuration lists who can be rung.    |
+| `getTeamPhoneNumber`                                                                                                          | `users.create`, `users.edit` **or** `callConfiguration.view`.                              |
 | `getAllLeaderList`, `getUnassignedTeamMemember`, `getTeamNumbers`                                                             | `teams.create` **or** `teams.edit`.                                                        |
 | `/user/login`, `validateResetPassword`, `resetPassword`, `getInviteCodeDetails`, `makePayment`, `completeTenantInviteOnboard` | Public, unchanged.                                                                         |
 
-Four permissions have no endpoint of their own and are enforced only in the frontend: `customers.export`, `archive.export` and `audit.export` build CSVs from data the user can already see, and `statuses.view` opens a page whose data comes from the `getAllStatus` picker.
+Five permissions have no endpoint of their own and are enforced only in the frontend: `customers.export`, `archive.export` and `audit.export` build CSVs from data the user can already see, `statuses.view` opens a page whose data comes from the `getAllStatus` picker, and `bulkOperations.export` shows the ZIP link and CSV on a bulk operation. The ZIP at `bulkOperationDetails.archiveLink` is served without any auth check, so anyone holding the URL can download it.
 
 One related backend issue: `getTenantDetails` returns `senderEmailPassword` in plain text to anyone who can open Settings. It should be masked or omitted, and only accepted on `updateTenantDetails` from callers with `settings.edit`.
 
@@ -236,7 +239,7 @@ Customer replies by SMS and email, in one place.
 
 ### Engagement
 
-The phone numbers and templates outreach is sent with.
+The phone numbers and templates outreach is sent with, and the log of bulk sends.
 
 | Page                 | Key                    | Allows                                                                   | Endpoints                                             |
 | -------------------- | ---------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
@@ -244,10 +247,12 @@ The phone numbers and templates outreach is sent with.
 |                      | `phoneNumbers.buy`     | Search for and buy new numbers.                                          | `getTwilioCountries`, `getNumbers`, `buyNumber`       |
 |                      | `phoneNumbers.edit`    | Turn numbers on or off and choose whether each one calls, texts or both. | `enableNumber`, `disableNumber`, `updateNumberConfig` |
 |                      | `phoneNumbers.release` | Release a number permanently. It can't be recovered.                     | `releaseNumber`                                       |
-| **Template library** | `templates.view`       | Browse every template, voice agent and prompt.                           | `getTemplateClients`, `getClientTemplate`             |
+| **Template library** | `templates.view`       | Browse every template, voice agent and prompt.                           | `getTemplateClients`, `getClientTemplate`, `getTenantPlaceholders` |
 |                      | `templates.create`     | Add templates, voice agents and prompts.                                 | `createTemplate`, `createDocumentTemplate`            |
 |                      | `templates.edit`       | Change existing templates, voice agents and prompts.                     | `updateTemplate`, `updateDocumentTemplate`            |
 |                      | `templates.delete`     | Delete templates, voice agents and prompts.                              | `deleteTemplate`                                      |
+| **Bulk operations**  | `bulkOperations.view`  | See every bulk operation and open a completed one's details.             | `getBulkOperation`, `bulkOperationDetails`            |
+|                      | `bulkOperations.export`| Download an operation's generated documents and its file list as CSV.   | _frontend only_                                       |
 
 ### Data Intake
 
@@ -303,7 +308,7 @@ Workspace-wide settings.
 | Page                | Key                 | Allows                                                           | Endpoints                             |
 | ------------------- | ------------------- | ---------------------------------------------------------------- | ------------------------------------- |
 | **Tenant settings** | `settings.view`     | See the organization, hours and connector settings.              | `getTenantDetails`                    |
-|                     | `settings.edit`     | Change the organization profile, operating hours and connectors. | `updateTenantDetails`                 |
+|                     | `settings.edit`     | Change the organization profile, operating hours and connectors. | `updateTenantDetails`, `gmailAuthUrl` |
 | **Data fields**     | `dataFields.view`   | See the default and custom data fields.                          | `getDefaultFields`, `getCustomFields` |
 |                     | `dataFields.create` | Add custom fields.                                               | `createCustomFields`                  |
 |                     | `dataFields.edit`   | Rename custom fields or change their type.                       | `updateCustomFields`                  |
@@ -311,7 +316,7 @@ Workspace-wide settings.
 
 ### System Configuration
 
-The account lifecycle and what happens automatically at each step.
+The account lifecycle, what happens automatically at each step, and how inbound calls are answered.
 
 | Page                  | Key                     | Allows                                                             | Endpoints                                                                          |
 | --------------------- | ----------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
@@ -321,6 +326,8 @@ The account lifecycle and what happens automatically at each step.
 |                       | `statuses.delete`       | Delete statuses no file is on.                                     | `deleteStatus`                                                                     |
 | **Status automation** | `statusAutomation.view` | See the automation configured for each team and client.            | `getClientTeamStatusList`, `getStatusAutomationList`, `getStatusAutomationDetails` |
 |                       | `statusAutomation.edit` | Change initial statuses and the automation on each status.         | `checkInitialStatusUsed`, `changeInitialStatus`, `updateAutomation`                |
+| **Call configuration** | `callConfiguration.view` | See how each team's inbound calls are answered and routed.      | `getIncomingCallSetting`                                                           |
+|                       | `callConfiguration.edit` | Change who answers each team's inbound calls and who they ring. | `updateIncomingCallSetting`                                                        |
 
 ## 6. Frontend notes
 

@@ -36,6 +36,7 @@ const ENABLED_TENANT_PREFIXES = [
   "/tenant/intake/mass-update",
   "/tenant/engagement/phone-numbers",
   "/tenant/engagement/template-library",
+  "/tenant/engagement/bulk-operations",
 ];
 function isEnabledTenantPath(pathname: string): boolean {
   if (pathname === "/tenant" || pathname === "/tenant/") return true; // Overview

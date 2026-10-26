@@ -73,10 +73,12 @@ import { Route as TenantCommsCampaignsRouteImport } from './routes/tenant.comms.
 import { Route as TenantCommsBulkRouteImport } from './routes/tenant.comms.bulk'
 import { Route as TenantCommsAnalyticsRouteImport } from './routes/tenant.comms.analytics'
 import { Route as TenantIntakeCrmIndexRouteImport } from './routes/tenant.intake.crm.index'
+import { Route as TenantEngagementBulkOperationsIndexRouteImport } from './routes/tenant.engagement.bulk-operations.index'
 import { Route as TenantCommsLettersIndexRouteImport } from './routes/tenant.comms.letters.index'
 import { Route as TenantIntakeCrmMappingsRouteImport } from './routes/tenant.intake.crm.mappings'
 import { Route as TenantIntakeCrmConnectRouteImport } from './routes/tenant.intake.crm.connect'
 import { Route as TenantIntakeCrmActivityRouteImport } from './routes/tenant.intake.crm.activity'
+import { Route as TenantEngagementBulkOperationsOperationKeyRouteImport } from './routes/tenant.engagement.bulk-operations.$operationKey'
 import { Route as TenantCommsLettersBulkRouteImport } from './routes/tenant.comms.letters.bulk'
 import { Route as TenantCommsLettersBuilderRouteImport } from './routes/tenant.comms.letters.builder'
 import { Route as TenantCommsLettersApprovalRouteImport } from './routes/tenant.comms.letters.approval'
@@ -413,6 +415,12 @@ const TenantIntakeCrmIndexRoute = TenantIntakeCrmIndexRouteImport.update({
   path: '/tenant/intake/crm/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TenantEngagementBulkOperationsIndexRoute =
+  TenantEngagementBulkOperationsIndexRouteImport.update({
+    id: '/tenant/engagement/bulk-operations/',
+    path: '/tenant/engagement/bulk-operations/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const TenantCommsLettersIndexRoute = TenantCommsLettersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -433,6 +441,12 @@ const TenantIntakeCrmActivityRoute = TenantIntakeCrmActivityRouteImport.update({
   path: '/tenant/intake/crm/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TenantEngagementBulkOperationsOperationKeyRoute =
+  TenantEngagementBulkOperationsOperationKeyRouteImport.update({
+    id: '/tenant/engagement/bulk-operations/$operationKey',
+    path: '/tenant/engagement/bulk-operations/$operationKey',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const TenantCommsLettersBulkRoute = TenantCommsLettersBulkRouteImport.update({
   id: '/bulk',
   path: '/bulk',
@@ -530,10 +544,12 @@ export interface FileRoutesByFullPath {
   '/tenant/comms/letters/approval': typeof TenantCommsLettersApprovalRoute
   '/tenant/comms/letters/builder': typeof TenantCommsLettersBuilderRoute
   '/tenant/comms/letters/bulk': typeof TenantCommsLettersBulkRoute
+  '/tenant/engagement/bulk-operations/$operationKey': typeof TenantEngagementBulkOperationsOperationKeyRoute
   '/tenant/intake/crm/activity': typeof TenantIntakeCrmActivityRoute
   '/tenant/intake/crm/connect': typeof TenantIntakeCrmConnectRoute
   '/tenant/intake/crm/mappings': typeof TenantIntakeCrmMappingsRoute
   '/tenant/comms/letters/': typeof TenantCommsLettersIndexRoute
+  '/tenant/engagement/bulk-operations/': typeof TenantEngagementBulkOperationsIndexRoute
   '/tenant/intake/crm/': typeof TenantIntakeCrmIndexRoute
   '/tenant/debtors/$debtorId/calls/$callId': typeof TenantDebtorsDebtorIdCallsCallIdRoute
   '/tenant/debtors/$debtorId/notes/$noteId': typeof TenantDebtorsDebtorIdNotesNoteIdRoute
@@ -601,10 +617,12 @@ export interface FileRoutesByTo {
   '/tenant/comms/letters/approval': typeof TenantCommsLettersApprovalRoute
   '/tenant/comms/letters/builder': typeof TenantCommsLettersBuilderRoute
   '/tenant/comms/letters/bulk': typeof TenantCommsLettersBulkRoute
+  '/tenant/engagement/bulk-operations/$operationKey': typeof TenantEngagementBulkOperationsOperationKeyRoute
   '/tenant/intake/crm/activity': typeof TenantIntakeCrmActivityRoute
   '/tenant/intake/crm/connect': typeof TenantIntakeCrmConnectRoute
   '/tenant/intake/crm/mappings': typeof TenantIntakeCrmMappingsRoute
   '/tenant/comms/letters': typeof TenantCommsLettersIndexRoute
+  '/tenant/engagement/bulk-operations': typeof TenantEngagementBulkOperationsIndexRoute
   '/tenant/intake/crm': typeof TenantIntakeCrmIndexRoute
   '/tenant/debtors/$debtorId/calls/$callId': typeof TenantDebtorsDebtorIdCallsCallIdRoute
   '/tenant/debtors/$debtorId/notes/$noteId': typeof TenantDebtorsDebtorIdNotesNoteIdRoute
@@ -677,10 +695,12 @@ export interface FileRoutesById {
   '/tenant/comms/letters/approval': typeof TenantCommsLettersApprovalRoute
   '/tenant/comms/letters/builder': typeof TenantCommsLettersBuilderRoute
   '/tenant/comms/letters/bulk': typeof TenantCommsLettersBulkRoute
+  '/tenant/engagement/bulk-operations/$operationKey': typeof TenantEngagementBulkOperationsOperationKeyRoute
   '/tenant/intake/crm/activity': typeof TenantIntakeCrmActivityRoute
   '/tenant/intake/crm/connect': typeof TenantIntakeCrmConnectRoute
   '/tenant/intake/crm/mappings': typeof TenantIntakeCrmMappingsRoute
   '/tenant/comms/letters/': typeof TenantCommsLettersIndexRoute
+  '/tenant/engagement/bulk-operations/': typeof TenantEngagementBulkOperationsIndexRoute
   '/tenant/intake/crm/': typeof TenantIntakeCrmIndexRoute
   '/tenant/debtors/$debtorId/calls/$callId': typeof TenantDebtorsDebtorIdCallsCallIdRoute
   '/tenant/debtors/$debtorId/notes/$noteId': typeof TenantDebtorsDebtorIdNotesNoteIdRoute
@@ -754,10 +774,12 @@ export interface FileRouteTypes {
     | '/tenant/comms/letters/approval'
     | '/tenant/comms/letters/builder'
     | '/tenant/comms/letters/bulk'
+    | '/tenant/engagement/bulk-operations/$operationKey'
     | '/tenant/intake/crm/activity'
     | '/tenant/intake/crm/connect'
     | '/tenant/intake/crm/mappings'
     | '/tenant/comms/letters/'
+    | '/tenant/engagement/bulk-operations/'
     | '/tenant/intake/crm/'
     | '/tenant/debtors/$debtorId/calls/$callId'
     | '/tenant/debtors/$debtorId/notes/$noteId'
@@ -825,10 +847,12 @@ export interface FileRouteTypes {
     | '/tenant/comms/letters/approval'
     | '/tenant/comms/letters/builder'
     | '/tenant/comms/letters/bulk'
+    | '/tenant/engagement/bulk-operations/$operationKey'
     | '/tenant/intake/crm/activity'
     | '/tenant/intake/crm/connect'
     | '/tenant/intake/crm/mappings'
     | '/tenant/comms/letters'
+    | '/tenant/engagement/bulk-operations'
     | '/tenant/intake/crm'
     | '/tenant/debtors/$debtorId/calls/$callId'
     | '/tenant/debtors/$debtorId/notes/$noteId'
@@ -900,10 +924,12 @@ export interface FileRouteTypes {
     | '/tenant/comms/letters/approval'
     | '/tenant/comms/letters/builder'
     | '/tenant/comms/letters/bulk'
+    | '/tenant/engagement/bulk-operations/$operationKey'
     | '/tenant/intake/crm/activity'
     | '/tenant/intake/crm/connect'
     | '/tenant/intake/crm/mappings'
     | '/tenant/comms/letters/'
+    | '/tenant/engagement/bulk-operations/'
     | '/tenant/intake/crm/'
     | '/tenant/debtors/$debtorId/calls/$callId'
     | '/tenant/debtors/$debtorId/notes/$noteId'
@@ -955,9 +981,11 @@ export interface RootRouteChildren {
   TenantCommsIndexRoute: typeof TenantCommsIndexRoute
   TenantDebtorsIndexRoute: typeof TenantDebtorsIndexRoute
   TenantIntakeIndexRoute: typeof TenantIntakeIndexRoute
+  TenantEngagementBulkOperationsOperationKeyRoute: typeof TenantEngagementBulkOperationsOperationKeyRoute
   TenantIntakeCrmActivityRoute: typeof TenantIntakeCrmActivityRoute
   TenantIntakeCrmConnectRoute: typeof TenantIntakeCrmConnectRoute
   TenantIntakeCrmMappingsRoute: typeof TenantIntakeCrmMappingsRoute
+  TenantEngagementBulkOperationsIndexRoute: typeof TenantEngagementBulkOperationsIndexRoute
   TenantIntakeCrmIndexRoute: typeof TenantIntakeCrmIndexRoute
 }
 
@@ -1411,6 +1439,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantIntakeCrmIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tenant/engagement/bulk-operations/': {
+      id: '/tenant/engagement/bulk-operations/'
+      path: '/tenant/engagement/bulk-operations'
+      fullPath: '/tenant/engagement/bulk-operations/'
+      preLoaderRoute: typeof TenantEngagementBulkOperationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tenant/comms/letters/': {
       id: '/tenant/comms/letters/'
       path: '/'
@@ -1437,6 +1472,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant/intake/crm/activity'
       fullPath: '/tenant/intake/crm/activity'
       preLoaderRoute: typeof TenantIntakeCrmActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tenant/engagement/bulk-operations/$operationKey': {
+      id: '/tenant/engagement/bulk-operations/$operationKey'
+      path: '/tenant/engagement/bulk-operations/$operationKey'
+      fullPath: '/tenant/engagement/bulk-operations/$operationKey'
+      preLoaderRoute: typeof TenantEngagementBulkOperationsOperationKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tenant/comms/letters/bulk': {
@@ -1620,9 +1662,13 @@ const rootRouteChildren: RootRouteChildren = {
   TenantCommsIndexRoute: TenantCommsIndexRoute,
   TenantDebtorsIndexRoute: TenantDebtorsIndexRoute,
   TenantIntakeIndexRoute: TenantIntakeIndexRoute,
+  TenantEngagementBulkOperationsOperationKeyRoute:
+    TenantEngagementBulkOperationsOperationKeyRoute,
   TenantIntakeCrmActivityRoute: TenantIntakeCrmActivityRoute,
   TenantIntakeCrmConnectRoute: TenantIntakeCrmConnectRoute,
   TenantIntakeCrmMappingsRoute: TenantIntakeCrmMappingsRoute,
+  TenantEngagementBulkOperationsIndexRoute:
+    TenantEngagementBulkOperationsIndexRoute,
   TenantIntakeCrmIndexRoute: TenantIntakeCrmIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -22,6 +22,7 @@ import {
   Cog,
   Workflow,
   PhoneCall,
+  Send,
 } from "lucide-react";
 import { useMemo } from "react";
 import { canOpen } from "@/lib/permissions/routes";
@@ -105,6 +106,14 @@ export const tenantGroups: NavGroup[] = [
         icon: FileText,
         description: "Reusable email and SMS templates, organised by client",
         keywords: "template library email sms message reusable variables client engagement",
+      },
+      {
+        to: "/tenant/engagement/bulk-operations",
+        label: "Bulk Operations",
+        icon: Send,
+        description: "Bulk emails and document runs, and the files each one affected",
+        keywords:
+          "bulk operations email documents generate download zip batch log sent skipped failed",
       },
     ],
   },
