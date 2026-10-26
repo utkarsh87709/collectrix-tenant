@@ -372,49 +372,56 @@ function CustomFieldsTable({
   );
 }
 
+// Two separate numbered lists side by side (1–12, then 13–24) rather than one
+// four-column table: a single table reads row by row, so users counted 12
+// fields instead of 24. Stacks into one list on narrow screens.
 function DefaultFieldsTable({ fields }: { fields: DataField[] }) {
   const mid = Math.ceil(fields.length / 2);
-  const left = fields.slice(0, mid);
-  const right = fields.slice(mid);
+  const halves = [fields.slice(0, mid), fields.slice(mid)].filter((h) => h.length > 0);
 
   return (
     <div>
       <p className="text-xs text-muted-foreground mb-3 flex items-start gap-1.5">
         <span aria-hidden>🔒</span>
-        Every import template starts with these columns. They're provided by Collectrix and reserved
-        — they can't be renamed, removed, reordered or retyped, and a custom field can't reuse one
-        of their names.
+        Every import template starts with these {fields.length} columns. They're provided by
+        Collectrix and reserved — they can't be renamed, removed, reordered or retyped, and a custom
+        field can't reuse one of their names.
       </p>
-      <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/40 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-              <th className="px-4 py-2.5 font-semibold">Field name</th>
-              <th className="px-4 py-2.5 font-semibold">Data type</th>
-              <th className="px-4 py-2.5 font-semibold">Field name</th>
-              <th className="px-4 py-2.5 font-semibold">Data type</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {left.map((f, i) => {
-              const pair = right[i];
-              return (
-                <tr key={f.fieldId}>
-                  <td className="px-4 py-3 font-medium whitespace-nowrap">{f.fieldName}</td>
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    {dataTypeLabel(f.dataType)}
-                  </td>
-                  <td className="px-4 py-3 font-medium whitespace-nowrap">
-                    {pair?.fieldName ?? ""}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    {pair ? dataTypeLabel(pair.dataType) : ""}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {halves.map((half, h) => {
+          const start = h === 0 ? 1 : mid + 1;
+          return (
+            <div key={start} className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="pl-4 pr-2 py-2.5 font-semibold w-10">#</th>
+                    <th className="px-4 py-2.5 font-semibold">
+                      Field name{" "}
+                      <span className="normal-case tracking-normal font-normal whitespace-nowrap">
+                        ({start}–{start + half.length - 1})
+                      </span>
+                    </th>
+                    <th className="px-4 py-2.5 font-semibold">Data type</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {half.map((f, i) => (
+                    <tr key={f.fieldId}>
+                      <td className="pl-4 pr-2 py-3 text-xs text-muted-foreground tabular-nums">
+                        {start + i}
+                      </td>
+                      <td className="px-4 py-3 font-medium">{f.fieldName}</td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {dataTypeLabel(f.dataType)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

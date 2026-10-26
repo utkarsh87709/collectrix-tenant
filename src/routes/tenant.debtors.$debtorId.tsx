@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/admin/Shell";
 import { Topbar } from "@/components/admin/Topbar";
-import { PageCard, CardHead } from "@/components/tenant/ui";
+import { PageCard, CardHead, Pill } from "@/components/tenant/ui";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   DropdownMenu,
@@ -74,6 +74,7 @@ import {
   sendCustomerSms,
   getCustomerCalls,
   getCustomerCallDetails,
+  callStatusDisplay,
   archiveCustomer,
   stopEngagement,
   startEngagement,
@@ -1016,25 +1017,31 @@ function CallsTab({ details, canPlaceCall }: { details: CustomerDetails; canPlac
         {calls?.length === 0 && (
           <div className="px-6 py-10 text-center text-sm text-muted-foreground">No calls yet.</div>
         )}
-        {calls?.map((c) => (
-          <div key={c.id} className="flex items-center gap-4 px-6 py-4">
-            <button className="h-9 w-9 rounded-full bg-tenant text-white flex items-center justify-center shrink-0">
-              <Play className="h-4 w-4" />
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="font-semibold text-sm truncate">{c.callType}</div>
-              <div className="text-xs text-muted-foreground">
-                {new Date(c.createdAt).toLocaleString()} · {formatDuration(c.recordingDuration)}
+        {calls?.map((c) => {
+          const status = callStatusDisplay(c.callStatus);
+          return (
+            <div key={c.id} className="flex items-center gap-4 px-6 py-4">
+              <button className="h-9 w-9 rounded-full bg-tenant text-white flex items-center justify-center shrink-0">
+                <Play className="h-4 w-4" />
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-sm truncate">{c.callType}</span>
+                  <Pill tone={status.tone}>{status.label}</Pill>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {new Date(c.createdAt).toLocaleString()} · {formatDuration(c.recordingDuration)}
+                </div>
               </div>
+              <button
+                onClick={() => setOpenCall(c)}
+                className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold hover:bg-muted shrink-0"
+              >
+                Open
+              </button>
             </div>
-            <button
-              onClick={() => setOpenCall(c)}
-              className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold hover:bg-muted shrink-0"
-            >
-              Open
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {openCall && (

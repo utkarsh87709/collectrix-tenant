@@ -458,6 +458,34 @@ export function getCustomerCalls(uploadedDebtorId: number): Promise<{ callList: 
   return apiPost("/tenant/getCustomerCalls", { uploadedDebtorId });
 }
 
+// callStatus values seen live on 2026-10-26 (35 calls on uploadedDebtorId 167).
+// "user" is the tenant member the call was patched to.
+const CALL_STATUS: Record<
+  string,
+  { label: string; tone: "success" | "info" | "warning" | "danger" }
+> = {
+  completed: { label: "Completed", tone: "success" },
+  customerAnswered: { label: "Customer answered", tone: "info" },
+  userPicked: { label: "Agent picked up", tone: "info" },
+  customerMissed: { label: "Customer missed", tone: "warning" },
+  userMissed: { label: "Agent missed", tone: "danger" },
+};
+
+/** Label + pill tone for a call's status; unknown values are humanised ("noAnswer" → "No answer"). */
+export function callStatusDisplay(status: string | null | undefined): {
+  label: string;
+  tone: "success" | "info" | "warning" | "danger" | "muted";
+} {
+  if (!status) return { label: "Unknown", tone: "muted" };
+  const known = CALL_STATUS[status];
+  if (known) return known;
+  const words = status
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .toLowerCase();
+  return { label: words.charAt(0).toUpperCase() + words.slice(1), tone: "muted" };
+}
+
 export type CustomerCallTranscriptLine = { text: string; speaker: string };
 
 /** Summary, transcript and recording id are null when the call never connected (e.g. missed). */
