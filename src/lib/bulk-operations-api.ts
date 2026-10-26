@@ -11,9 +11,9 @@
 //        creator's firstName, no user id.
 //        `id` is unique per type only: an email op and a document op can both
 //        be id 1, so a row is keyed by type + id (see operationKey).
-//        Status values: "completed" verified; the Postman collection documents
-//        "scheduled or completed". Nothing else could be observed without
-//        starting a real bulk run, so unknown values render humanised.
+//        Status values: "scheduled" while the background job hasn't run yet,
+//        then "completed" (both seen on real runs, 2026-10-26). Anything else
+//        renders humanised.
 //   POST /tenant/bulkOperationDetails { id, bulkOperationType } -> BulkOperationDetails
 //        Verified live 2026-10-26 for both types. An unknown id returns
 //        meta.status:false "Server Error". `debtorList[].outcome` was only ever
@@ -21,6 +21,19 @@
 //        outcomeBucket). Document runs carry `archiveLink`, a public zip with
 //        one generated document per file (CORS *); email runs carry the
 //        attachment names in `documentNameList` (names only, no URLs).
+//
+// Starting a run (Case Files → Customers, files from ONE client selected):
+//   POST /tenant/debtorValidEmailList   { uploadedDebtorIdList } -> { totalSelected, totalValid, totalInvalid }
+//        Counts only — no per-file list. Verified live 2026-10-26. An empty
+//        list returns "Server Error".
+//   POST /tenant/sendDebtorBulkEmail    { uploadedDebtorIdList, templateId } -> {}  "Bulk email is scheduled to be sent."
+//   POST /tenant/sendDebtorBulkDocument { uploadedDebtorIdList, templateId } -> {}  "Bulk document is scheduled to be sent."
+//        Both verified live 2026-10-26: they return in ~1s and the run shows
+//        on getBulkOperation as "scheduled", then "completed" ~1 min later.
+//        The backend does NOT check that the template belongs to the files'
+//        client, and accepts an EMPTY list (creating an empty operation whose
+//        details then fail with "Server Error") — the screen must enforce both.
+//        No operation-name field; the run is named after the template.
 // All authenticated with the raw token (attached automatically by apiPost).
 import { format } from "date-fns";
 import { apiPost } from "./api-client";
@@ -124,10 +137,42 @@ export async function getBulkOperationDetails(
   return { ...data, debtorList: data?.debtorList ?? [] };
 }
 
+export type ValidEmailCounts = {
+  totalSelected: number;
+  totalValid: number;
+  totalInvalid: number;
+};
+
+export async function getValidEmailCounts(
+  uploadedDebtorIdList: number[],
+): Promise<ValidEmailCounts> {
+  const data = await apiPost<Partial<ValidEmailCounts> | null>("/tenant/debtorValidEmailList", {
+    uploadedDebtorIdList,
+  });
+  return {
+    totalSelected: data?.totalSelected ?? uploadedDebtorIdList.length,
+    totalValid: data?.totalValid ?? 0,
+    totalInvalid: data?.totalInvalid ?? 0,
+  };
+}
+
+/** Starts a bulk run in the background; it appears on getBulkOperation as "scheduled". */
+export function startBulkOperation(
+  type: "email" | "document",
+  uploadedDebtorIdList: number[],
+  templateId: number,
+): Promise<unknown> {
+  if (uploadedDebtorIdList.length === 0) {
+    return Promise.reject(new Error("Select at least one customer file."));
+  }
+  const path = type === "email" ? "/tenant/sendDebtorBulkEmail" : "/tenant/sendDebtorBulkDocument";
+  return apiPost(path, { uploadedDebtorIdList, templateId });
+}
+
 /* ------------------------------- Helpers -------------------------------- */
 
-/** Status filter options. Only the values the backend documents — add more
- *  here once the backend confirms them. */
+/** Status filter options: a run is "scheduled" until the background job
+ *  finishes it (seen live 2026-10-26). Add more once the backend confirms them. */
 export const BULK_OPERATION_STATUSES = [
   { value: "scheduled", label: "Scheduled" },
   { value: "completed", label: "Completed" },

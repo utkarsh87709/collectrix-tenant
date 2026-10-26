@@ -18,7 +18,7 @@ The source of truth is [`src/lib/permissions/catalog.ts`](../src/lib/permissions
 | `deleteRole` refuses a role users are on | Not verified (not tested on a live role); unknown `roleId` returns success |
 | `myProfile` returns `permissions` | **Open** — frontend falls back to `getAllRole` |
 | Endpoints check the caller's permission key (section 3) | **Open** — e.g. `deleteClient` succeeds without `clients.delete` |
-| Keys added since: `callConfiguration.view`, `callConfiguration.edit` (2026-10-23), `bulkOperations.view`, `bulkOperations.export` (2026-10-26) | **Open** — add them to the backend's list of valid keys |
+| Keys added since: `callConfiguration.view`, `callConfiguration.edit` (2026-10-23), `bulkOperations.view`, `bulkOperations.export`, `customers.bulkEmail`, `customers.bulkDocuments` (2026-10-26) | **Open** — add them to the backend's list of valid keys |
 
 ## 1. The model
 
@@ -28,7 +28,7 @@ Permissions follow the sidebar: **module → page → action**.
 - A **page** is a screen, or a tab of the customer profile that has its own endpoints (Notes, SMS & email, Calls, Documents).
 - An **action** is one thing a user can do on that page. Most pages have View / Create / Edit / Delete. Some add domain actions like Send SMS, Take on or Release.
 
-Each action is a stable string key, `<page>.<action>`, for example `customers.notes.delete`. A role stores a list of these keys. That gives 80 keys across 24 pages in 8 modules.
+Each action is a stable string key, `<page>.<action>`, for example `customers.notes.delete`. A role stores a list of these keys. That gives 82 keys across 24 pages in 8 modules.
 
 Keys are permanent identifiers. Never rename or reuse one: add a new key and migrate instead.
 
@@ -142,7 +142,7 @@ Some endpoints serve several pages and follow different rules:
 | `myProfile`, `updateProfile`, `uploadProfilePic`, `sendResetMyPasswordLink`, `getTimezoneList`, `/user/logout`                | Any signed-in user, acting on themselves.                                                  |
 | `getAllClients`                                                                                                               | `clients.view` **or** `imports.view`. The upload page reads clients for its client picker. |
 | `getTemplateClients`                                                                                                          | `templates.view` **or** `callConfiguration.view`. Call configuration lists each client's AI agents. |
-| `getClientTemplate`                                                                                                           | `templates.view`, `statusAutomation.view` **or** `callConfiguration.view`. Both pick templates or AI agents. |
+| `getClientTemplate`                                                                                                           | `templates.view`, `statusAutomation.view`, `callConfiguration.view`, `customers.bulkEmail` **or** `customers.bulkDocuments`. These pick templates or AI agents. |
 | `getTeamDeckAssignUserList`                                                                                                   | `teamDeck.assign`, `movedFiles.takeOn`, `inbox.assign`, `statusAutomation.view` **or** `callConfiguration.view`. |
 | `getRoleList`                                                                                                                 | `users.view`. Used for the role picker on the user form.                                   |
 | `getUsers`                                                                                                                    | `users.view` **or** `callConfiguration.view`. Call configuration lists who can be rung.    |
@@ -208,6 +208,8 @@ Customer files and the team queues they move through.
 |                 | `customers.stopEngagement`     | Pause all outreach on a file.                                                             | `stopEngagement`                                                             |
 |                 | `customers.resumeEngagement`   | Restart outreach on a file where it was stopped.                                          | `startEngagement`                                                            |
 |                 | `customers.export`             | Download customer files as CSV.                                                           | _frontend only_                                                              |
+|                 | `customers.bulkEmail`          | Email a template to many selected files from one client at once.                          | `debtorValidEmailList`, `sendDebtorBulkEmail`                                |
+|                 | `customers.bulkDocuments`      | Generate a document for many selected files from one client at once.                      | `sendDebtorBulkDocument`                                                     |
 | **Notes**       | `customers.notes.view`         | Read a file's notes and open their attachments.                                           | `getCustomerNotes`                                                           |
 |                 | `customers.notes.create`       | Add notes, with attachments, to a file.                                                   | `createCustomerNotes`                                                        |
 |                 | `customers.notes.edit`         | Change any note on a file.                                                                | `updateCustomerNotes`                                                        |

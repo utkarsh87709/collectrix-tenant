@@ -147,6 +147,9 @@ export type CustomerListItem = {
   debtorMiddleName: string | null;
   debtorLastName: string | null;
   creditorName: string;
+  /** On the row since 2026-10 (verified live 2026-10-26). Bulk email/documents
+   *  need every selected file to share one. */
+  clientId: number | null;
   clientName: string;
   clientNumber: string;
   teamName: string | null;

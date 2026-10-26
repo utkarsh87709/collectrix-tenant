@@ -128,6 +128,20 @@ export const PERMISSION_CATALOG = [
             description: "Download customer files as CSV.",
             endpoints: [],
           },
+          {
+            key: "customers.bulkEmail",
+            kind: "other",
+            label: "Bulk email",
+            description: "Email a template to many selected files from one client at once.",
+            endpoints: ["/tenant/debtorValidEmailList", "/tenant/sendDebtorBulkEmail"],
+          },
+          {
+            key: "customers.bulkDocuments",
+            kind: "other",
+            label: "Bulk documents",
+            description: "Generate a document for many selected files from one client at once.",
+            endpoints: ["/tenant/sendDebtorBulkDocument"],
+          },
         ],
       },
       {

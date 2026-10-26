@@ -60,6 +60,8 @@ export type Template = {
   greetingMsg?: string | null;
   /** Email templates only — document templates attached when it's sent. */
   documentTemplateIdList?: number[] | null;
+  /** Email templates only — the attached documents' file names, same order as the ids. */
+  documentTemplateNameList?: string[] | null;
 };
 
 export function getTemplateClients(): Promise<{

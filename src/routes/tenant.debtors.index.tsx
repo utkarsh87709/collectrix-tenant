@@ -15,6 +15,8 @@ import {
   Wallet,
   ArrowLeftRight,
   Loader2,
+  FileText,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Shell } from "@/components/admin/Shell";
@@ -22,6 +24,7 @@ import { Topbar } from "@/components/admin/Topbar";
 import { PageCard, NativeSelect, Pill } from "@/components/tenant/ui";
 import { StatusPill } from "@/components/tenant/statuses/StatusPill";
 import { MoveToTeamDialog } from "@/components/tenant/customers/MoveToTeamDialog";
+import { BulkSendDrawer, type BulkSendKind } from "@/components/tenant/customers/BulkSendDrawer";
 import { usePermissions } from "@/lib/permissions/store";
 import {
   getCustomerList,
@@ -45,8 +48,9 @@ export const Route = createFileRoute("/tenant/debtors/")({
 const PAGE_SIZE = 20;
 
 /* -------------------------------- Row shape --------------------------------- */
-// getCustomerList's row has no clientId/teamId/statusId of its own (name strings
-// only), but that's no longer a filtering problem: the filter rail's option lists
+// getCustomerList's row has no teamId/statusId of its own (name strings only;
+// clientId arrived in 2026-10 and drives the bulk email/documents rule), but
+// that's no longer a filtering problem: the filter rail's option lists
 // come from the real master-data endpoints (getTeamList, getClientList,
 // getAllStatus), and the chosen id is passed straight through to getCustomerList's
 // own clientId/teamId/statusId params — verified live to do real server-side
@@ -230,6 +234,30 @@ function DebtorsPage() {
       return next;
     });
 
+  // Bulk email / documents use one client's templates and the backend doesn't
+  // check the match, so they're only offered when every selected file shares a
+  // clientId. The drawer keeps its own copy of the files, so clearing the
+  // selection once the run starts doesn't close it.
+  const bulkClient = useMemo(() => {
+    const first = effectiveSelected[0];
+    if (!first || first.clientId == null) return null;
+    return effectiveSelected.every((r) => r.clientId === first.clientId)
+      ? { clientId: first.clientId, clientName: first.clientName }
+      : null;
+  }, [effectiveSelected]);
+  const canBulkEmail = can("customers.bulkEmail");
+  const canBulkDocuments = can("customers.bulkDocuments");
+  const [bulkSend, setBulkSend] = useState<{
+    kind: BulkSendKind;
+    clientId: number;
+    clientName: string;
+    ids: number[];
+  } | null>(null);
+  const openBulkSend = (kind: BulkSendKind) => {
+    if (!bulkClient) return;
+    setBulkSend({ kind, ...bulkClient, ids: effectiveSelected.map((r) => r.uploadedDebtorId) });
+  };
+
   const [assignStatusId, setAssignStatusId] = useState<number | "">("");
   const [assigning, setAssigning] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
@@ -261,7 +289,8 @@ function DebtorsPage() {
   };
 
   // Row checkboxes only matter when there's a bulk action to apply.
-  const showCheckboxes = can("customers.changeStatus") || can("customers.moveTeam");
+  const showCheckboxes =
+    can("customers.changeStatus") || can("customers.moveTeam") || canBulkEmail || canBulkDocuments;
 
   return (
     <Shell>
@@ -359,6 +388,27 @@ function DebtorsPage() {
                         >
                           <ArrowLeftRight className="h-4 w-4" /> Move to team
                         </button>
+                      )}
+                      {bulkClient && canBulkDocuments && (
+                        <button
+                          onClick={() => openBulkSend("document")}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
+                        >
+                          <FileText className="h-4 w-4" /> Create documents
+                        </button>
+                      )}
+                      {bulkClient && canBulkEmail && (
+                        <button
+                          onClick={() => openBulkSend("email")}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted"
+                        >
+                          <Mail className="h-4 w-4" /> Send email
+                        </button>
+                      )}
+                      {!bulkClient && (canBulkEmail || canBulkDocuments) && (
+                        <span className="text-xs text-muted-foreground">
+                          Select files from one client to create documents or send email.
+                        </span>
                       )}
                       <button
                         onClick={() => setSelected(new Set())}
@@ -536,7 +586,7 @@ function DebtorsPage() {
                 <div className="px-6 py-3 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
                   {loading && <Loader2 className="h-3 w-3 animate-spin" />}
                   {showCheckboxes
-                    ? "Select customers to bulk-assign a status or move them to another team. Open a customer to reassign agent, manager, team, creditor or AI agent. This is your own book — only the files assigned to you. Parked files, files moved to another team and imported files still waiting for a team are listed on their own screens."
+                    ? "Select customers to bulk-assign a status, move them to another team, or — for files from one client — create documents or send an email. Open a customer to reassign agent, manager, team, creditor or AI agent. This is your own book — only the files assigned to you. Parked files, files moved to another team and imported files still waiting for a team are listed on their own screens."
                     : "Assignment is read-only here."}
                 </div>
               </PageCard>
@@ -544,6 +594,17 @@ function DebtorsPage() {
           </div>
         )}
       </section>
+
+      {bulkSend && (
+        <BulkSendDrawer
+          kind={bulkSend.kind}
+          clientId={bulkSend.clientId}
+          clientName={bulkSend.clientName}
+          uploadedDebtorIdList={bulkSend.ids}
+          onClose={() => setBulkSend(null)}
+          onStarted={() => setSelected(new Set())}
+        />
+      )}
 
       {moveDialogOpen && (
         <MoveToTeamDialog
