@@ -125,17 +125,6 @@ export function plainText(input: string | null | undefined): string {
     .trim();
 }
 
-/** SMS length budget: GSM-7 gives 160 chars per single segment (153 each when
- *  concatenated); anything outside GSM-7 forces UCS-2 at 70 / 67. */
-export function smsSegments(text: string): { chars: number; segments: number; perSegment: number } {
-  const chars = text.length;
-  const unicode = Array.from(text).some((ch) => ch.charCodeAt(0) > 127);
-  const single = unicode ? 70 : 160;
-  const multi = unicode ? 67 : 153;
-  const segments = chars === 0 ? 0 : chars <= single ? 1 : Math.ceil(chars / multi);
-  return { chars, segments, perSegment: segments <= 1 ? single : multi };
-}
-
 /* -------------------------------- Filters -------------------------------- */
 
 export type InboxFilters = {

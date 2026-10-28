@@ -126,7 +126,7 @@ export function BulkSendDrawer({
   };
 
   const willRun = isEmail ? (emailCounts?.totalValid ?? 0) : count;
-  const skipped = isEmail ? (emailCounts?.totalInvalid ?? 0) : 0;
+  const noEmail = isEmail ? (emailCounts?.totalInvalid ?? 0) : 0;
   const checking = isEmail && !emailCounts && !checkError;
 
   const [starting, setStarting] = useState(false);
@@ -267,14 +267,13 @@ export function BulkSendDrawer({
 
           {step === "check" && picked && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <CountTile label="Selected" value={count} />
                 <CountTile
                   label={isEmail ? "Will be sent" : "Will be created"}
                   value={checking ? null : willRun}
                   tone="text-tenant"
                 />
-                <CountTile label="Skipped" value={checking ? null : skipped} tone="text-warning" />
               </div>
               {checkError && (
                 <div className="text-sm text-destructive">
@@ -284,10 +283,10 @@ export function BulkSendDrawer({
                   </button>
                 </div>
               )}
-              {isEmail && emailCounts && skipped > 0 && (
+              {isEmail && emailCounts && noEmail > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {skipped} {skipped === 1 ? "file has" : "files have"} no valid email address and
-                  will be skipped.
+                  {noEmail} {noEmail === 1 ? "file has" : "files have"} no valid email address, so
+                  no email will go to {noEmail === 1 ? "it" : "them"}.
                 </p>
               )}
               {isEmail && emailCounts && willRun === 0 && (

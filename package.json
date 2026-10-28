@@ -9,6 +9,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "deploy": "bash scripts/deploy.sh",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

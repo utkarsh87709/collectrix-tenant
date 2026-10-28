@@ -28,6 +28,8 @@ import { usePermissions } from "@/lib/permissions/store";
 import { cn } from "@/lib/utils";
 import { RichTextToolbar } from "@/components/tenant/RichTextToolbar";
 import { InsertVariableMenu } from "@/components/tenant/InsertVariableMenu";
+import { SmsCount, SmsOverLimitWarning } from "@/components/tenant/SmsLength";
+import { SMS_SINGLE_LIMIT, hasSmsVariables } from "@/lib/sms-length";
 import { insertIntoField } from "@/lib/placeholders-api";
 import { plainText } from "@/components/tenant/inbox/inbox-utils";
 import {
@@ -767,8 +769,6 @@ function TemplateEditor({
     }
   };
 
-  const smsLen = message.length;
-
   return (
     <>
       {/* Header */}
@@ -895,13 +895,17 @@ function TemplateEditor({
             )}
           </div>
           {!isEmail && (
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1.5">
-              <span>SMS messages are limited to 160 characters per segment.</span>
-              <span className="tabular-nums">
-                {smsLen} chars · {Math.max(1, Math.ceil(smsLen / 160))} segment
-                {smsLen > 160 ? "s" : ""}
-              </span>
-            </div>
+            <>
+              <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground mt-1.5">
+                <span>
+                  {hasSmsVariables(message)
+                    ? "Variables are counted at a typical length for each field."
+                    : `Keep it within ${SMS_SINGLE_LIMIT} characters to send as one SMS.`}
+                </span>
+                <SmsCount text={message} />
+              </div>
+              <SmsOverLimitWarning text={message} className="mt-2" />
+            </>
           )}
         </div>
 

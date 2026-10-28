@@ -280,10 +280,6 @@ function BulkOperationsPage() {
                                 {op.result.totalCreated}
                               </span>{" "}
                               {createdLabel(op.bulkOperationType).toLowerCase()} ·{" "}
-                              <span className="font-semibold text-warning">
-                                {op.result.totalSkipped}
-                              </span>{" "}
-                              skipped ·{" "}
                               <span className="font-semibold text-destructive">
                                 {op.result.totalFailed}
                               </span>{" "}

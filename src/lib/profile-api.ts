@@ -4,6 +4,7 @@
 //   POST /tenant/updateProfile           { firstName, lastName, phoneNo, timezone }
 //   POST /tenant/uploadProfilePic        (multipart: file)
 //   POST /tenant/sendResetMyPasswordLink {}  -> emails the signed-in user a reset link
+//   POST /tenant/forgotPassword          { emailId }                      (public, no auth)
 //   POST /tenant/validateResetPassword   { resetPasswordCode }            (public, no auth)
 //   POST /tenant/resetPassword           { resetPasswordCode, newPassword } (public, no auth)
 import { apiPost, apiUrl } from "./api-client";
@@ -68,9 +69,10 @@ export async function uploadProfilePic(file: File): Promise<Partial<MyProfile>> 
 }
 
 // Public reset-password flow (no auth token required). A reset link can be
-// issued either from the signed-in user's own account (sendResetMyPasswordLink)
-// or for another user from the Users screen (resetUserPassword) — both land the
-// recipient on /resetpassword?resetPasswordCode=…, and the handling is identical.
+// issued from the signed-in user's own account (sendResetMyPasswordLink), for
+// another user from the Users screen (resetUserPassword), or from the login
+// page's "Forgot password?" (forgotPassword) — all land the recipient on
+// /resetpassword?resetPasswordCode=…, and the handling is identical.
 //
 // These use a bare fetch (not apiFetch/apiPost) on purpose: the visitor is
 // logged out, so a 401/expired-code response must surface as an inline error
@@ -90,6 +92,12 @@ async function publicPost(
     throw new Error(json?.meta?.message || `${failMsg} (status ${res.status}).`);
   }
   return json.data;
+}
+
+// Unknown or inactive emails fail with meta.status false ("The email address
+// you entered does not exist or is inactive.").
+export function forgotPassword(emailId: string): Promise<unknown> {
+  return publicPost("/tenant/forgotPassword", { emailId }, "Failed to send reset link");
 }
 
 export function validateResetPassword(resetPasswordCode: string): Promise<unknown> {

@@ -244,6 +244,8 @@ function PanelInner({ onClose }: { onClose: () => void }) {
                         <Clock className="h-3.5 w-3.5" /> Timezone
                       </div>
                       <select value={profile.timezone} onChange={(e) => save({ timezone: e.target.value })} className="mt-1 w-full bg-transparent text-sm font-medium outline-none cursor-pointer">
+                        {/* No timezone saved yet — without this the browser shows the list's first entry (Alaska) as if it were chosen. */}
+                        {!profile.timezone && <option value="" disabled>Select timezone</option>}
                         {profile.timezone && !timezones.some((t) => t.timezone === profile.timezone) && (
                           <option value={profile.timezone}>{profile.timezone}</option>
                         )}

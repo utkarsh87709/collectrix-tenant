@@ -4,6 +4,7 @@ import { Lock, Mail, Loader2, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
+import { forgotPassword } from "@/lib/profile-api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -51,11 +52,16 @@ function LoginPage() {
       return;
     }
     setForgotLoading(true);
-    await new Promise((r) => setTimeout(r, 700));
-    setForgotLoading(false);
-    setForgotOpen(false);
-    toast.success(`If an account exists for ${forgotEmail}, a reset link has been sent.`);
-    setForgotEmail("");
+    try {
+      await forgotPassword(forgotEmail.trim());
+      setForgotOpen(false);
+      toast.success(`A password reset link has been sent to ${forgotEmail.trim()}.`);
+      setForgotEmail("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send reset link.");
+    } finally {
+      setForgotLoading(false);
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {

@@ -34,15 +34,9 @@ import { Avatar, TagChip } from "./InboxBits";
 import { EmailBody } from "@/components/tenant/EmailBody";
 import { AttachmentList } from "@/components/tenant/customers/EmailAttachments";
 import { EmailComposer } from "@/components/tenant/EmailComposer";
+import { SmsCount, SmsOverLimitWarning } from "@/components/tenant/SmsLength";
 import { isEmptyEmailHtml } from "@/lib/email-html";
-import {
-  dayLabel,
-  formatClock,
-  isSameDay,
-  oldestFirst,
-  plainText,
-  smsSegments,
-} from "./inbox-utils";
+import { dayLabel, formatClock, isSameDay, oldestFirst, plainText } from "./inbox-utils";
 
 /** One rendered message, whichever channel it came from. */
 type ThreadMessage = {
@@ -252,7 +246,6 @@ function ThreadBody({
   const trimmed = body.trim();
   const needsSubject = channel === "email" && !subject.trim();
   const hasContent = channel === "sms" ? !!trimmed : !isEmptyEmailHtml(emailHtml);
-  const sms = smsSegments(body);
 
   const send = async () => {
     if (!hasContent || sending || needsSubject) return;
@@ -587,39 +580,46 @@ function ThreadBody({
                 </div>
               </div>
             ) : (
-              <div className="relative rounded-2xl border border-border bg-muted/30 transition-colors focus-within:border-tenant focus-within:bg-background">
-                <textarea
-                  ref={textareaRef}
-                  value={body}
-                  rows={1}
-                  onChange={(e) => {
-                    setBody(e.target.value);
-                    autoGrow(e.currentTarget);
-                  }}
-                  onKeyDown={onKeyDown}
-                  placeholder={`Text ${name.split(" ")[0]}…`}
-                  className="block max-h-[168px] w-full resize-none bg-transparent px-4 pb-11 pt-3 text-sm leading-relaxed outline-none"
-                />
-                <div className="absolute inset-x-3 bottom-2 flex items-center justify-between gap-3">
-                  <span className="truncate text-[10px] text-muted-foreground">
-                    {sms.chars > 0
-                      ? `${sms.chars} chars · ${sms.segments} segment${sms.segments === 1 ? "" : "s"} · Enter to send`
-                      : "Enter to send · Shift+Enter for a new line"}
-                  </span>
-                  <button
-                    onClick={send}
-                    disabled={!hasContent || sending}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-tenant text-white shadow-tenant transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                    aria-label="Send SMS"
-                  >
-                    {sending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </button>
+              <>
+                <SmsOverLimitWarning text={body} className="mb-2" />
+                <div className="relative rounded-2xl border border-border bg-muted/30 transition-colors focus-within:border-tenant focus-within:bg-background">
+                  <textarea
+                    ref={textareaRef}
+                    value={body}
+                    rows={1}
+                    onChange={(e) => {
+                      setBody(e.target.value);
+                      autoGrow(e.currentTarget);
+                    }}
+                    onKeyDown={onKeyDown}
+                    placeholder={`Text ${name.split(" ")[0]}…`}
+                    className="block max-h-[168px] w-full resize-none bg-transparent px-4 pb-11 pt-3 text-sm leading-relaxed outline-none"
+                  />
+                  <div className="absolute inset-x-3 bottom-2 flex items-center justify-between gap-3">
+                    <span className="truncate text-[10px] text-muted-foreground">
+                      {body ? (
+                        <>
+                          <SmsCount text={body} /> · Enter to send
+                        </>
+                      ) : (
+                        "Enter to send · Shift+Enter for a new line"
+                      )}
+                    </span>
+                    <button
+                      onClick={send}
+                      disabled={!hasContent || sending}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-tenant text-white shadow-tenant transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                      aria-label="Send SMS"
+                    >
+                      {sending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </>
         )}

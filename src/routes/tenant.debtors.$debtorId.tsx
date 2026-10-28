@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { usePermissions, type Permissions } from "@/lib/permissions/store";
 import { DeleteNoteDialog } from "@/components/tenant/DeleteNoteDialog";
+import { SmsCount, SmsOverLimitWarning } from "@/components/tenant/SmsLength";
 import { EmailBody } from "@/components/tenant/EmailBody";
 import { TimelineTab } from "@/components/tenant/customers/TimelineTab";
 import { AttachmentList } from "@/components/tenant/customers/EmailAttachments";
@@ -798,7 +799,9 @@ function SmsPanel({ details, canSend }: { details: CustomerDetails; canSend: boo
             placeholder={`Type your SMS to ${customerDisplayName(details)}…`}
             className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
           />
-          <div className="mt-2 flex justify-end">
+          <SmsOverLimitWarning text={body} className="mt-2" />
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <SmsCount text={body} className="text-xs" />
             <button
               onClick={send}
               disabled={!body.trim() || sending}
