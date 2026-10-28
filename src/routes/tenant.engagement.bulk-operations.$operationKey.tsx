@@ -6,11 +6,9 @@ import {
   Clock,
   Download,
   FileArchive,
-  MinusCircle,
   Paperclip,
   RefreshCw,
   Users,
-  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Shell } from "@/components/admin/Shell";
@@ -30,7 +28,6 @@ import {
   typeLabel,
   type BulkOperationDebtor,
   type BulkOperationDetails,
-  type OutcomeBucket,
 } from "@/lib/bulk-operations-api";
 import { downloadCsv, toCsv } from "@/lib/csv";
 
@@ -49,8 +46,6 @@ function BackLink() {
     </Link>
   );
 }
-
-type Tab = "all" | OutcomeBucket;
 
 function BulkOperationPage() {
   const { operationKey } = useParams({ from: "/tenant/engagement/bulk-operations/$operationKey" });
@@ -163,26 +158,10 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
 
   const doneLabel = createdLabel(type);
   const fileCount = details.debtorList.length;
-  const result = details.result ?? { totalCreated: 0, totalSkipped: 0, totalFailed: 0 };
-
-  const buckets = useMemo(() => {
-    const out: Record<OutcomeBucket, BulkOperationDebtor[]> = {
-      created: [],
-      skipped: [],
-      failed: [],
-    };
-    for (const d of details.debtorList) out[outcomeBucket(d.outcome)].push(d);
-    return out;
-  }, [details.debtorList]);
-
-  const [tab, setTab] = useState<Tab>("all");
-  const rows = tab === "all" ? details.debtorList : buckets[tab];
-  const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: "all", label: "All", count: fileCount },
-    { id: "created", label: doneLabel, count: buckets.created.length },
-    { id: "skipped", label: "Skipped", count: buckets.skipped.length },
-    { id: "failed", label: "Failed", count: buckets.failed.length },
-  ];
+  // Only the Created (documents) / Sent (email) count is shown: skipped and
+  // failed aren't tracked in the current flow (product, 2026-10-28).
+  const createdCount = details.result?.totalCreated ?? 0;
+  const rows = details.debtorList;
 
   const exportCsv = () => {
     if (rows.length === 0) return;
@@ -196,7 +175,7 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
         d.failureRemark ?? "",
       ]),
     );
-    downloadCsv(`bulk-${type}-${details.id}-${tab}.csv`, csv);
+    downloadCsv(`bulk-${type}-${details.id}.csv`, csv);
     toast.success(`Exported ${rows.length} ${rows.length === 1 ? "file" : "files"}.`);
   };
 
@@ -222,21 +201,9 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
         <div className="grid gap-4 sm:grid-cols-3">
           <StatTile
             label={doneLabel}
-            value={result.totalCreated}
+            value={createdCount}
             tone="success"
             icon={<CheckCircle2 className="h-4 w-4" />}
-          />
-          <StatTile
-            label="Skipped"
-            value={result.totalSkipped}
-            tone="warning"
-            icon={<MinusCircle className="h-4 w-4" />}
-          />
-          <StatTile
-            label="Failed"
-            value={result.totalFailed}
-            tone="danger"
-            icon={<XCircle className="h-4 w-4" />}
           />
         </div>
 
@@ -259,16 +226,21 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
                 {attachments.length === 0 ? (
                   <span className="text-muted-foreground">None</span>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {attachments.map((name, i) => (
-                      <span
-                        key={`${name}-${i}`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-xs"
-                      >
-                        <Paperclip className="h-3.5 w-3.5 text-muted-foreground" /> {name}
-                      </span>
-                    ))}
-                  </div>
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {attachments.map((name, i) => (
+                        <span
+                          key={`${name}-${i}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-xs"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 text-muted-foreground" /> {name}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Email only — the documents were sent as attachments, not as a download.
+                    </p>
+                  </>
                 )}
               </DetailRow>
             )}
@@ -300,7 +272,7 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
         <PageCard>
           <CardHead
             title="Affected files"
-            subtitle="Every customer file this operation touched."
+            subtitle={`${fileCount} ${fileCount === 1 ? "file" : "files"} · every customer file this operation touched.`}
             icon={<Users className="h-5 w-5" />}
             action={
               canExport ? (
@@ -315,30 +287,12 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
             }
           />
 
-          <div className="px-6 pt-4 flex flex-wrap gap-1" role="tablist">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                  tab === t.id
-                    ? "bg-[color:var(--tenant)]/10 text-tenant"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-              >
-                {t.label} <span className="ml-1 text-xs opacity-70">{t.count}</span>
-              </button>
-            ))}
-          </div>
-
           {rows.length === 0 ? (
             <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-              Nothing in this tab.
+              No files were affected.
             </div>
           ) : (
-            <div className="overflow-x-auto mt-3">
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <tr>

@@ -15,10 +15,12 @@ import {
   createdLabel,
   formatOperationTime,
   getBulkOperations,
+  getBulkOperationUsers,
   isCompleted,
   operationKey,
   typeLabel,
   type BulkOperation,
+  type BulkOperationUser,
 } from "@/lib/bulk-operations-api";
 import { getClientList, type MassUpdateClient } from "@/lib/mass-update-api";
 
@@ -30,27 +32,31 @@ export const Route = createFileRoute("/tenant/engagement/bulk-operations/")({
 const PAGE_SIZE = 10;
 
 /* -------------------------------- Filters ---------------------------------- */
-// Status and client are real server-side params on getBulkOperation. The
-// ticket's "performed by" filter has no backend param yet (and rows carry no
-// user id), so it isn't offered rather than faked against the current page.
+// Status, client and created-by are all real server-side params on
+// getBulkOperation, so they combine and page correctly.
 
 type Filters = {
   status: string | "all";
   client: number | "all";
+  user: number | "all";
 };
 
-const EMPTY_FILTERS: Filters = { status: "all", client: "all" };
+const EMPTY_FILTERS: Filters = { status: "all", client: "all", user: "all" };
 
 function activeFilterCount(f: Filters): number {
-  return (f.status !== "all" ? 1 : 0) + (f.client !== "all" ? 1 : 0);
+  return [f.status, f.client, f.user].filter((v) => v !== "all").length;
 }
 
 function BulkOperationsPage() {
   const [clients, setClients] = useState<MassUpdateClient[]>([]);
+  const [users, setUsers] = useState<BulkOperationUser[]>([]);
   useEffect(() => {
     getClientList()
       .then((res) => setClients(res.clientList ?? []))
       .catch(() => toast.error("Failed to load clients."));
+    getBulkOperationUsers()
+      .then(setUsers)
+      .catch(() => toast.error("Failed to load users."));
   }, []);
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -77,6 +83,7 @@ function BulkOperationsPage() {
         size: PAGE_SIZE,
         status: filters.status === "all" ? null : filters.status,
         clientId: filters.client === "all" ? null : filters.client,
+        userId: filters.user === "all" ? null : filters.user,
       });
       setOperations(res.bulkOperationsList);
       setTotalCount(res.totalCount);
@@ -132,6 +139,21 @@ function BulkOperationsPage() {
               {clients.map((c) => (
                 <option key={c.clientId} value={c.clientId}>
                   {c.clientName}
+                </option>
+              ))}
+            </NativeSelect>
+            <NativeSelect
+              className="w-full sm:w-48"
+              value={filters.user}
+              onChange={(e) =>
+                setFilter("user", e.target.value === "all" ? "all" : Number(e.target.value))
+              }
+              aria-label="Created by"
+            >
+              <option value="all">All users</option>
+              {users.map((u) => (
+                <option key={u.userId} value={u.userId}>
+                  {u.userName}
                 </option>
               ))}
             </NativeSelect>

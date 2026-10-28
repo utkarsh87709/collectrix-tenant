@@ -499,7 +499,11 @@ export const PERMISSION_CATALOG = [
             kind: "view",
             label: "View",
             description: "See every bulk operation and open a completed one's details.",
-            endpoints: ["/tenant/getBulkOperation", "/tenant/bulkOperationDetails"],
+            endpoints: [
+              "/tenant/getBulkOperation",
+              "/tenant/getBulkOperationUser",
+              "/tenant/bulkOperationDetails",
+            ],
           },
           {
             key: "bulkOperations.export",

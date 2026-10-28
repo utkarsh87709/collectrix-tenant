@@ -1,14 +1,15 @@
 // Bulk Operations calls to the separately-hosted backend — "Engagement → Bulk
 // Operations": the log of bulk emails and bulk document runs started from Case
 // Files → Customers, and every file each one touched.
-//   POST /tenant/getBulkOperation    { page, size, clientId, status } -> { totalCount, bulkOperationsList[] }
+//   POST /tenant/getBulkOperation    { page, size, clientId, status, userId } -> { totalCount, bulkOperationsList[] }
 //        Verified live 2026-10-26. `size` is mandatory ("Parameter size is
 //        mandatory" otherwise); pagination is server-side via totalCount.
-//        clientId and status are real filters (null = all). There is NO
-//        search, type or performed-by-user param — userId, createdBy,
-//        createdUserId, performedBy and searchText were all ignored — so the
-//        ticket's "filter by user" can't be offered yet. Rows carry only the
-//        creator's firstName, no user id.
+//        clientId, status and userId (who started the run, added 2026-10-28)
+//        are real filters and combine; null = all. No search or type param.
+//        Rows carry only the creator's firstName, no user id.
+//   POST /tenant/getBulkOperationUser {} -> { userList: [{ userId, userName }] }
+//        Everyone who has started a bulk operation so far — the options for
+//        the "Created by" filter (verified live 2026-10-28).
 //        `id` is unique per type only: an email op and a document op can both
 //        be id 1, so a row is keyed by type + id (see operationKey).
 //        Status values: "scheduled" while the background job hasn't run yet,
@@ -104,6 +105,8 @@ export type GetBulkOperationsParams = {
   size?: number;
   clientId?: number | null;
   status?: string | null;
+  /** Who started the run. */
+  userId?: number | null;
 };
 
 export type GetBulkOperationsResult = {
@@ -119,11 +122,22 @@ export async function getBulkOperations(
     size: params.size ?? 10,
     clientId: params.clientId ?? null,
     status: params.status ?? null,
+    userId: params.userId ?? null,
   });
   return {
     totalCount: data?.totalCount ?? 0,
     bulkOperationsList: data?.bulkOperationsList ?? [],
   };
+}
+
+/** Someone who has started at least one bulk operation. */
+export type BulkOperationUser = { userId: number; userName: string };
+
+export async function getBulkOperationUsers(): Promise<BulkOperationUser[]> {
+  const data = await apiPost<{ userList?: BulkOperationUser[] } | null>(
+    "/tenant/getBulkOperationUser",
+  );
+  return data?.userList ?? [];
 }
 
 export async function getBulkOperationDetails(

@@ -259,7 +259,7 @@ The phone numbers and templates outreach is sent with, and the log of bulk sends
 |                      | `templates.create`     | Add templates, voice agents and prompts.                                 | `createTemplate`, `createDocumentTemplate`            |
 |                      | `templates.edit`       | Change existing templates, voice agents and prompts.                     | `updateTemplate`, `updateDocumentTemplate`            |
 |                      | `templates.delete`     | Delete templates, voice agents and prompts.                              | `deleteTemplate`                                      |
-| **Bulk operations**  | `bulkOperations.view`  | See every bulk operation and open a completed one's details.             | `getBulkOperation`, `bulkOperationDetails`            |
+| **Bulk operations**  | `bulkOperations.view`  | See every bulk operation and open a completed one's details.             | `getBulkOperation`, `getBulkOperationUser`, `bulkOperationDetails` |
 |                      | `bulkOperations.export`| Download an operation's generated documents and its file list as CSV.   | _frontend only_                                       |
 
 ### Data Intake
