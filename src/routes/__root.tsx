@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { requiredPermissions } from "@/lib/permissions/routes";
 import { usePermissions } from "@/lib/permissions/store";
 import { NoAccess, PermissionsError, PermissionsLoading } from "@/components/admin/AccessStates";
+import { TimezonePrompt } from "@/components/admin/TimezonePrompt";
 
 // Only these tenant modules are enabled (have real API integration). Any other
 // /tenant/* path is blocked — even via direct URL entry — and bounced to Overview.
@@ -140,6 +141,7 @@ function RootComponent() {
           <PermissionGate>
             <Outlet />
           </PermissionGate>
+          <TimezonePrompt />
         </AuthGate>
         <Toaster position="top-right" richColors />
       </PortalProvider>
