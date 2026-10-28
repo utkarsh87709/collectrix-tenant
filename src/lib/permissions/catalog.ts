@@ -260,6 +260,46 @@ export const PERMISSION_CATALOG = [
         ],
       },
       {
+        id: "customers.payments",
+        label: "Payments",
+        description: "Payment agreements, payment claims and finance posting on a customer file.",
+        actions: [
+          {
+            key: "customers.payments.view",
+            kind: "view",
+            label: "View",
+            description: "See a file's payment agreement, agreement history and payments.",
+            endpoints: ["/tenant/paymentAgreementDetails"],
+          },
+          {
+            key: "customers.payments.manageAgreements",
+            kind: "other",
+            label: "Manage agreements",
+            description: "Record a payment agreement on a file, or cancel the active one.",
+            endpoints: ["/tenant/createPaymentAgreement", "/tenant/cancelPaymentAgreement"],
+          },
+          {
+            key: "customers.payments.submitClaim",
+            kind: "create",
+            label: "Submit claims",
+            description: "Send a payment the customer reports to finance for verification.",
+            endpoints: ["/tenant/submitForVerification"],
+          },
+          {
+            key: "customers.payments.verify",
+            kind: "other",
+            label: "Verify & post",
+            description:
+              "Approve or reject submitted claims, and post verified payments to the balance.",
+            endpoints: [
+              "/tenant/approvePayment",
+              "/tenant/rejectPayment",
+              "/tenant/postPaymentReceived",
+            ],
+          },
+        ],
+      },
+      {
         id: "teamDeck",
         label: "Team Deck",
         description: "Files handed to a team that are waiting for a member.",
@@ -926,6 +966,7 @@ export const REQUIRES: Partial<Record<PermissionKey, readonly PermissionKey[]>> 
   "customers.messages.view": ["customers.view"],
   "customers.calls.view": ["customers.view"],
   "customers.documents.view": ["customers.view"],
+  "customers.payments.view": ["customers.view"],
   // The inbox is a view onto customer files and their message threads.
   "inbox.view": ["customers.view", "customers.messages.view"],
 };

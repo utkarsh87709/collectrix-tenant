@@ -18,17 +18,17 @@ The source of truth is [`src/lib/permissions/catalog.ts`](../src/lib/permissions
 | `deleteRole` refuses a role users are on | Not verified (not tested on a live role); unknown `roleId` returns success |
 | `myProfile` returns `permissions` | **Open** — frontend falls back to `getAllRole` |
 | Endpoints check the caller's permission key (section 3) | **Open** — e.g. `deleteClient` succeeds without `clients.delete` |
-| Keys added since: `callConfiguration.view`, `callConfiguration.edit` (2026-10-23), `bulkOperations.view`, `bulkOperations.export`, `customers.bulkEmail`, `customers.bulkDocuments` (2026-10-26) | **Open** — add them to the backend's list of valid keys |
+| Keys added since: `callConfiguration.view`, `callConfiguration.edit` (2026-10-23), `bulkOperations.view`, `bulkOperations.export`, `customers.bulkEmail`, `customers.bulkDocuments` (2026-10-26), `customers.payments.view`, `customers.payments.manageAgreements`, `customers.payments.submitClaim`, `customers.payments.verify` (2026-10-27) | **Open** — add them to the backend's list of valid keys |
 
 ## 1. The model
 
 Permissions follow the sidebar: **module → page → action**.
 
 - A **module** is a sidebar group, such as Case Files or Access Control.
-- A **page** is a screen, or a tab of the customer profile that has its own endpoints (Notes, SMS & email, Calls, Documents).
+- A **page** is a screen, or a tab of the customer profile that has its own endpoints (Notes, SMS & email, Calls, Documents, Payments).
 - An **action** is one thing a user can do on that page. Most pages have View / Create / Edit / Delete. Some add domain actions like Send SMS, Take on or Release.
 
-Each action is a stable string key, `<page>.<action>`, for example `customers.notes.delete`. A role stores a list of these keys. That gives 82 keys across 24 pages in 8 modules.
+Each action is a stable string key, `<page>.<action>`, for example `customers.notes.delete`. A role stores a list of these keys. That gives 86 keys across 25 pages in 8 modules.
 
 Keys are permanent identifiers. Never rename or reuse one: add a new key and migrate instead.
 
@@ -43,6 +43,7 @@ Two rules hold for every role:
 | `customers.messages.view`  | `customers.view`                            |
 | `customers.calls.view`     | `customers.view`                            |
 | `customers.documents.view` | `customers.view`                            |
+| `customers.payments.view`  | `customers.view`                            |
 | `inbox.view`               | `customers.view`, `customers.messages.view` |
 
 The built-in **tenantAdmin** role is not a row in `getAllRole` and always has every permission. The frontend treats `role === "tenantAdmin"` as full access whatever list it receives.
@@ -143,6 +144,7 @@ Some endpoints serve several pages and follow different rules:
 | `getAllClients`                                                                                                               | `clients.view` **or** `imports.view`. The upload page reads clients for its client picker. |
 | `getTemplateClients`                                                                                                          | `templates.view` **or** `callConfiguration.view`. Call configuration lists each client's AI agents. |
 | `getClientTemplate`                                                                                                           | `templates.view`, `statusAutomation.view`, `callConfiguration.view`, `customers.bulkEmail` **or** `customers.bulkDocuments`. These pick templates or AI agents. |
+| `uploadPaymentFile`                                                                                                           | `customers.payments.manageAgreements`, `customers.payments.submitClaim` **or** `customers.payments.verify`. Uploads proof for an agreement or a payment. |
 | `getTeamDeckAssignUserList`                                                                                                   | `teamDeck.assign`, `movedFiles.takeOn`, `inbox.assign`, `statusAutomation.view` **or** `callConfiguration.view`. |
 | `getRoleList`                                                                                                                 | `users.view`. Used for the role picker on the user form.                                   |
 | `getUsers`                                                                                                                    | `users.view` **or** `callConfiguration.view`. Call configuration lists who can be rung.    |
@@ -222,6 +224,10 @@ Customer files and the team queues they move through.
 | **Documents**   | `customers.documents.view`     | See and download a file's generated documents.                                            | `getCustomerDocuments`                                                       |
 |                 | `customers.documents.generate` | Generate a document for a file from one of its client's templates.                        | `getCustomerDocumentTemplateList`, `generateCustomerDocuments`               |
 |                 | `customers.documents.delete`   | Delete a generated document.                                                              | `deleteCustomerDocument`                                                     |
+| **Payments**    | `customers.payments.view`      | See a file's payment agreement, agreement history and payments.                           | `paymentAgreementDetails`                                                    |
+|                 | `customers.payments.manageAgreements` | Record a payment agreement on a file, or cancel the active one.                    | `createPaymentAgreement`, `cancelPaymentAgreement`                           |
+|                 | `customers.payments.submitClaim` | Send a payment the customer reports to finance for verification.                        | `submitForVerification`                                                      |
+|                 | `customers.payments.verify`    | Approve or reject submitted claims, and post verified payments to the balance.            | `approvePayment`, `rejectPayment`, `postPaymentReceived`                     |
 | **Team Deck**   | `teamDeck.view`                | Browse each team's deck and the files its members are working.                            | `getTeamDeckTeamList`, `getTeamDeckDebtors`, `getCreditorList`               |
 |                 | `teamDeck.assign`              | Hand deck files to a team member, or reassign them.                                       | `teamDeckAssignUser`                                                         |
 | **Moved Files** | `movedFiles.view`              | See the files moved to each team.                                                         | `getMovedCustomers`                                                          |

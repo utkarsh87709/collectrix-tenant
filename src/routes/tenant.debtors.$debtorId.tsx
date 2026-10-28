@@ -20,6 +20,7 @@ import { FlagsPopover } from "@/components/tenant/customers/FlagsPopover";
 import { EditCustomerDialog } from "@/components/tenant/customers/EditCustomerDialog";
 import { InitiateCallDialog } from "@/components/tenant/customers/InitiateCallDialog";
 import { AssignmentTab } from "@/components/tenant/customers/AssignmentTab";
+import { PaymentsTab } from "@/components/tenant/customers/PaymentsTab";
 import { csvCell, downloadTextFile } from "@/lib/csv";
 import {
   ChevronLeft,
@@ -50,6 +51,7 @@ import {
   ExternalLink,
   Paperclip,
   UserRound,
+  CreditCard,
 } from "lucide-react";
 import { usePermissions, type Permissions } from "@/lib/permissions/store";
 import { DeleteNoteDialog } from "@/components/tenant/DeleteNoteDialog";
@@ -381,6 +383,12 @@ function DebtorProfile() {
                 Notes
               </TabsTrigger>
             )}
+            {perms.can("customers.payments.view") && (
+              <TabsTrigger value="payments">
+                <CreditCard className="h-3.5 w-3.5 mr-1.5" />
+                Payments
+              </TabsTrigger>
+            )}
             <TabsTrigger value="assignment">
               <UserRound className="h-3.5 w-3.5 mr-1.5" />
               Assignment
@@ -424,6 +432,17 @@ function DebtorProfile() {
           {perms.can("customers.notes.view") && (
             <TabsContent value="notes" className="mt-4">
               <NotesTab details={details} />
+            </TabsContent>
+          )}
+          {perms.can("customers.payments.view") && (
+            <TabsContent value="payments" className="mt-4">
+              <PaymentsTab
+                uploadedDebtorId={details.uploadedDebtorId}
+                canManageAgreements={perms.can("customers.payments.manageAgreements")}
+                canSubmitClaim={perms.can("customers.payments.submitClaim")}
+                canVerify={perms.can("customers.payments.verify")}
+                onBalanceChanged={refresh}
+              />
             </TabsContent>
           )}
           <TabsContent value="assignment" className="mt-4">
