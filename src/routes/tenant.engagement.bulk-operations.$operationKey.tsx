@@ -22,7 +22,6 @@ import {
   formatOperationTime,
   getBulkOperationDetails,
   isCompleted,
-  outcomeBucket,
   parseOperationKey,
   statusLabel,
   typeLabel,
@@ -159,20 +158,20 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
   const doneLabel = createdLabel(type);
   const fileCount = details.debtorList.length;
   // Only the Created (documents) / Sent (email) count is shown: skipped and
-  // failed aren't tracked in the current flow (product, 2026-10-28).
+  // failed aren't tracked in the current flow (product, 2026-10-28), so there
+  // are no skipped/failed counts, outcome tones or failure remarks anywhere.
   const createdCount = details.result?.totalCreated ?? 0;
   const rows = details.debtorList;
 
   const exportCsv = () => {
     if (rows.length === 0) return;
     const csv = toCsv(
-      ["File no.", "Customer", "Email", "Outcome", "Detail"],
+      ["File no.", "Customer", "Email", "Outcome"],
       rows.map((d) => [
         d.ourFileNo || `#${d.uploadedDebtorId}`,
         customerName(d),
         d.email ?? "",
         d.outcome ?? "",
-        d.failureRemark ?? "",
       ]),
     );
     downloadCsv(`bulk-${type}-${details.id}.csv`, csv);
@@ -299,14 +298,12 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
                     <th className="px-6 py-3 font-semibold">File no.</th>
                     <th className="px-4 py-3 font-semibold">Customer</th>
                     <th className="px-4 py-3 font-semibold">Email</th>
-                    <th className="px-4 py-3 font-semibold">Outcome</th>
-                    <th className="px-6 py-3 font-semibold">Detail</th>
+                    <th className="px-6 py-3 font-semibold">Outcome</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {rows.map((d) => {
                     const fileNo = d.ourFileNo || `#${d.uploadedDebtorId}`;
-                    const bucket = outcomeBucket(d.outcome);
                     return (
                       <tr key={d.uploadedDebtorId} className="hover:bg-muted/30">
                         <td className="px-6 py-3 font-mono text-xs whitespace-nowrap">
@@ -326,21 +323,8 @@ function OperationDetails({ details, type }: { details: BulkOperationDetails; ty
                           {customerName(d) || <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{d.email || "—"}</td>
-                        <td className="px-4 py-3">
-                          <Pill
-                            tone={
-                              bucket === "created"
-                                ? "success"
-                                : bucket === "skipped"
-                                  ? "warning"
-                                  : "danger"
-                            }
-                          >
-                            {d.outcome || doneLabel}
-                          </Pill>
-                        </td>
-                        <td className="px-6 py-3 text-muted-foreground">
-                          {d.failureRemark || "—"}
+                        <td className="px-6 py-3">
+                          <Pill tone="success">{d.outcome || doneLabel}</Pill>
                         </td>
                       </tr>
                     );

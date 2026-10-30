@@ -95,9 +95,16 @@ async function publicPost(
 }
 
 // Unknown or inactive emails fail with meta.status false ("The email address
-// you entered does not exist or is inactive.").
-export function forgotPassword(emailId: string): Promise<unknown> {
-  return publicPost("/tenant/forgotPassword", { emailId }, "Failed to send reset link");
+// you entered does not exist or is inactive."). The login page must not reveal
+// whether an account exists, so that case resolves like a sent link; any other
+// failure still throws.
+export async function forgotPassword(emailId: string): Promise<void> {
+  try {
+    await publicPost("/tenant/forgotPassword", { emailId }, "Failed to send reset link");
+  } catch (e) {
+    if (e instanceof Error && /does not exist|inactive/i.test(e.message)) return;
+    throw e;
+  }
 }
 
 export function validateResetPassword(resetPasswordCode: string): Promise<unknown> {

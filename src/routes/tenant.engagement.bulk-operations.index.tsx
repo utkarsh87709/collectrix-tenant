@@ -279,11 +279,7 @@ function BulkOperationsPage() {
                               <span className="font-semibold text-success">
                                 {op.result.totalCreated}
                               </span>{" "}
-                              {createdLabel(op.bulkOperationType).toLowerCase()} ·{" "}
-                              <span className="font-semibold text-destructive">
-                                {op.result.totalFailed}
-                              </span>{" "}
-                              failed
+                              {createdLabel(op.bulkOperationType).toLowerCase()}
                             </>
                           ) : (
                             "—"

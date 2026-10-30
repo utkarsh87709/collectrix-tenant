@@ -212,6 +212,8 @@ export type CustomFieldValue = {
   fieldName: string;
   dataType: string;
   fieldValue: string | null;
+  /** The tenant's configured options when dataType is "dropdown". */
+  dropdownValues?: string[] | null;
 };
 
 export type CustomerDetails = {

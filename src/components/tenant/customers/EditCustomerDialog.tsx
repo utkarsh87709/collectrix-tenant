@@ -9,7 +9,13 @@ import {
   type CustomerDetails,
 } from "@/lib/customers-api";
 
-type CustomFieldDraft = { fieldId: number; fieldName: string; dataType: string; value: string };
+type CustomFieldDraft = {
+  fieldId: number;
+  fieldName: string;
+  dataType: string;
+  dropdownValues: string[];
+  value: string;
+};
 
 type Draft = {
   debtorFirstName: string;
@@ -65,6 +71,9 @@ function fromDetails(d: CustomerDetails): Draft {
       fieldId: f.fieldId,
       fieldName: f.fieldName,
       dataType: f.dataType,
+      // The backend stores options unchecked (duplicates and numbers seen on
+      // devapi), so normalise them before they become <option> keys.
+      dropdownValues: [...new Set((f.dropdownValues ?? []).map(String))],
       value: f.fieldValue ?? "",
     })),
   };
@@ -469,6 +478,15 @@ function CustomField({
       return <Text label={field.fieldName} type="email" value={field.value} onChange={onChange} />;
     case "phoneNumber":
       return <Text label={field.fieldName} type="tel" value={field.value} onChange={onChange} />;
+    case "dropdown":
+      return (
+        <Choice
+          label={field.fieldName}
+          value={field.value}
+          options={field.dropdownValues}
+          onChange={onChange}
+        />
+      );
     default:
       return <Text label={field.fieldName} value={field.value} onChange={onChange} />;
   }

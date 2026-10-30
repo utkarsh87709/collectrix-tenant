@@ -55,7 +55,7 @@ function LoginPage() {
     try {
       await forgotPassword(forgotEmail.trim());
       setForgotOpen(false);
-      toast.success(`A password reset link has been sent to ${forgotEmail.trim()}.`);
+      toast.success(`If an account exists for ${forgotEmail.trim()}, a reset link has been sent.`);
       setForgotEmail("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send reset link.");

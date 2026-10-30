@@ -2,9 +2,13 @@
 // this tenant is validated and stored against.
 //   POST /tenant/getDefaultFields    {}                             -> { fieldsList: DataField[] }
 //   POST /tenant/getCustomFields     {}                             -> { fieldsList: DataField[] }
-//   POST /tenant/createCustomFields  { fieldName, dataType }        -> {}
-//   POST /tenant/updateCustomFields  { fieldId, fieldName, dataType } -> {}
+//   POST /tenant/createCustomFields  { fieldName, dataType[, dropdownValues] }          -> {}
+//   POST /tenant/updateCustomFields  { fieldId, fieldName, dataType[, dropdownValues] } -> {}
 //   POST /tenant/deleteCustomFields  { fieldId }                    -> {}
+// dataType "dropdown" + dropdownValues (string[], e.g. ["monthly","weekly"]) per
+// backend dev, 2026-10-30: the options are sent only for a dropdown field, and
+// getCustomFields / getCustomerDetails' customFields[] return them. Not yet
+// verified live.
 // Default fields are the fixed, tenant-wide reserved columns (Collectrix-owned,
 // read-only here). Custom fields are the tenant's own additions on top of them.
 // fieldName uniqueness is enforced server-side across BOTH lists — creating or
@@ -18,18 +22,29 @@
 import { apiPost } from "./api-client";
 import { invalidatePlaceholders } from "./placeholders-api";
 
-export type DataFieldType = "text" | "number" | "email" | "phoneNumber" | "date" | "boolean";
+export type DataFieldType =
+  | "text"
+  | "number"
+  | "email"
+  | "phoneNumber"
+  | "date"
+  | "boolean"
+  | "dropdown";
 
 export type DataField = {
   fieldId: number;
   fieldName: string;
   dataType: DataFieldType;
   createdAt: string;
+  /** The options a user picks from; only meaningful when dataType is "dropdown". */
+  dropdownValues?: string[] | null;
 };
 
 export type CustomFieldInput = {
   fieldName: string;
   dataType: DataFieldType;
+  /** Required for "dropdown", omitted otherwise. */
+  dropdownValues?: string[];
 };
 
 /** Dropdown options in the order shown in the "Add custom field" form. */
@@ -40,6 +55,7 @@ export const DATA_TYPE_OPTIONS: { value: DataFieldType; label: string }[] = [
   { value: "phoneNumber", label: "Phone number" },
   { value: "date", label: "Date" },
   { value: "boolean", label: "Boolean" },
+  { value: "dropdown", label: "Drop-down" },
 ];
 
 const DATA_TYPE_LABELS: Record<DataFieldType, string> = Object.fromEntries(

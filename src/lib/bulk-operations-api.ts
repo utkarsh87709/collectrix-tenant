@@ -18,8 +18,9 @@
 //   POST /tenant/bulkOperationDetails { id, bulkOperationType } -> BulkOperationDetails
 //        Verified live 2026-10-26 for both types. An unknown id returns
 //        meta.status:false "Server Error". `debtorList[].outcome` was only ever
-//        "Sent"; the skipped/failed spellings are guessed by keyword (see
-//        outcomeBucket). Document runs carry `archiveLink`, a public zip with
+//        "Sent"; skipped/failed aren't tracked in the current flow, so
+//        `result.totalSkipped/totalFailed` and `failureRemark` go unshown
+//        (product, 2026-10-28). Document runs carry `archiveLink`, a public zip with
 //        one generated document per file (CORS *); email runs carry the
 //        attachment names in `documentNameList` (names only, no URLs).
 //
@@ -70,7 +71,7 @@ export type BulkOperationDebtor = {
   debtorMiddleName: string | null;
   debtorLastName: string | null;
   email: string | null;
-  /** "Sent" seen live; see outcomeBucket for the rest. */
+  /** "Sent" seen live. */
   outcome: string | null;
   failureRemark: string | null;
 };
@@ -231,17 +232,6 @@ export function typeLabel(type: BulkOperationType): string {
 /** The verb for a successful file: an email is sent, a document is created. */
 export function createdLabel(type: BulkOperationType): string {
   return type === "email" ? "Sent" : "Created";
-}
-
-export type OutcomeBucket = "created" | "skipped" | "failed";
-
-/** Which tab a file's outcome belongs in. Only "Sent" has been seen live, so
- *  skipped/failed are matched by keyword and anything else counts as done. */
-export function outcomeBucket(outcome: string | null | undefined): OutcomeBucket {
-  const o = (outcome ?? "").toLowerCase();
-  if (o.includes("skip")) return "skipped";
-  if (o.includes("fail") || o.includes("error")) return "failed";
-  return "created";
 }
 
 /** "23 Oct 2026 · 07:18 PM", or "—" when missing/unparseable. */

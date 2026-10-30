@@ -334,6 +334,14 @@ function CustomFieldsTable({
                   <td className="px-4 py-3 font-medium">{f.fieldName}</td>
                   <td className="px-4 py-3">
                     <Pill tone="tenant">{dataTypeLabel(f.dataType)}</Pill>
+                    {f.dataType === "dropdown" && (
+                      <div
+                        className="mt-1 max-w-xs truncate text-xs text-muted-foreground"
+                        title={f.dropdownValues?.join(", ")}
+                      >
+                        {f.dropdownValues?.length ? f.dropdownValues.join(", ") : "No options"}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {f.createdAt ? dateFmt.format(new Date(f.createdAt)) : "—"}
