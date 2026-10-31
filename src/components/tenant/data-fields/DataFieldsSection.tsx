@@ -392,8 +392,8 @@ function DefaultFieldsTable({ fields }: { fields: DataField[] }) {
       <p className="text-xs text-muted-foreground mb-3 flex items-start gap-1.5">
         <span aria-hidden>🔒</span>
         Every import template starts with these {fields.length} columns. They're provided by
-        Collectrix and reserved — they can't be renamed, removed, reordered or retyped, and a custom
-        field can't reuse one of their names.
+        Collectrix Ai and reserved — they can't be renamed, removed, reordered or retyped, and a
+        custom field can't reuse one of their names.
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
         {halves.map((half, h) => {

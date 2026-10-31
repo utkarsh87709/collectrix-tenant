@@ -10,6 +10,7 @@ import {
   getMyProfile, getTimezoneList, updateProfile, uploadProfilePic, sendResetMyPasswordLink,
   type TimezoneItem,
 } from "@/lib/profile-api";
+import { setProfilePhoto } from "@/lib/profile-photo";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -72,6 +73,7 @@ function PanelInner({ onClose }: { onClose: () => void }) {
         profilePic: p.profilePic ?? null,
         lastPasswordChanged: p.lastPasswordChanged ?? null,
       });
+      setProfilePhoto(p.profilePic || null);
       setTimezones(tz.timezoneList ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load profile.");

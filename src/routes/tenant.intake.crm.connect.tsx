@@ -262,12 +262,12 @@ function ConnectCrmPage() {
               {step === 3 && (
                 <div className="space-y-3">
                   <div className="rounded-lg border border-tenant/30 bg-tenant-soft/40 p-3 text-xs">
-                    <div className="font-semibold text-tenant mb-0.5">Tenant maps CRM fields to Collectrix AI fields</div>
-                    <div className="text-muted-foreground">Please confirm how your CRM fields should connect with Collectrix AI fields. You can map customer, status, notes, creditor, account, payment, communication, call transcript & summary, assignment, and custom fields.</div>
+                    <div className="font-semibold text-tenant mb-0.5">Tenant maps CRM fields to Collectrix Ai fields</div>
+                    <div className="text-muted-foreground">Please confirm how your CRM fields should connect with Collectrix Ai fields. You can map customer, status, notes, creditor, account, payment, communication, call transcript & summary, assignment, and custom fields.</div>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm text-muted-foreground">
-                      CRM fields are fetched live from {picked.name}. Pick the Collectrix AI field each one maps to.
+                      CRM fields are fetched live from {picked.name}. Pick the Collectrix Ai field each one maps to.
                     </div>
                     <button
                       onClick={() => setFields((arr) => [...arr, { id: `fm_new_${Date.now()}`, crmField: "", crmType: "string", platformField: "", platformType: "text", direction: "bi", required: false, custom: true }])}
@@ -281,7 +281,7 @@ function ConnectCrmPage() {
                       <thead className="text-xs uppercase tracking-wider text-muted-foreground bg-muted/40">
                         <tr>
                           <th className="text-left px-4 py-2.5">CRM field</th>
-                          <th className="text-left px-3 py-2.5">Collectrix AI field</th>
+                          <th className="text-left px-3 py-2.5">Collectrix Ai field</th>
                           <th className="px-3 py-2.5 w-10"></th>
                         </tr>
                       </thead>
@@ -306,7 +306,7 @@ function ConnectCrmPage() {
                                 onChange={(e) => updateField(f.id, { platformField: e.target.value })}
                                 className="w-full px-2 py-1.5 rounded-md border border-input bg-background text-xs font-mono"
                               >
-                                <option value="">— select Collectrix AI field —</option>
+                                <option value="">— select Collectrix Ai field —</option>
                                 {PLATFORM_FIELD_OPTIONS.map((opt) => (
                                   <option key={opt} value={opt}>{opt}</option>
                                 ))}
@@ -333,12 +333,12 @@ function ConnectCrmPage() {
               {step === 4 && (
                 <div className="space-y-3">
                   <div className="rounded-lg border border-tenant/30 bg-tenant-soft/40 p-3 text-xs">
-                    <div className="font-semibold text-tenant mb-0.5">Map your CRM statuses to Collectrix AI statuses</div>
-                    <div className="text-muted-foreground">Multiple CRM codes can resolve to the same Collectrix AI status.</div>
+                    <div className="font-semibold text-tenant mb-0.5">Map your CRM statuses to Collectrix Ai statuses</div>
+                    <div className="text-muted-foreground">Multiple CRM codes can resolve to the same Collectrix Ai status.</div>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm text-muted-foreground">
-                      Map {picked.name} status codes to Collectrix AI statuses.
+                      Map {picked.name} status codes to Collectrix Ai statuses.
                     </div>
                     <button
                       onClick={() => setStatuses((arr) => [...arr, { id: `sm_new_${Date.now()}`, platform: "", crm: "", syncOut: true, syncIn: true, conflict: "last_write" }])}
@@ -352,7 +352,7 @@ function ConnectCrmPage() {
                       <thead className="text-xs uppercase tracking-wider text-muted-foreground bg-muted/40">
                         <tr>
                           <th className="text-left px-4 py-2.5">CRM code</th>
-                          <th className="text-left px-3 py-2.5">Collectrix AI status</th>
+                          <th className="text-left px-3 py-2.5">Collectrix Ai status</th>
                           <th className="px-3 py-2.5 w-10"></th>
                         </tr>
                       </thead>
@@ -373,7 +373,7 @@ function ConnectCrmPage() {
                                   onChange={(e) => updateStatus(s.id, { platform: e.target.value })}
                                   className="px-2 py-1.5 rounded-md border border-input bg-background text-xs font-mono font-semibold"
                                 >
-                                  <option value="">— select Collectrix AI status —</option>
+                                  <option value="">— select Collectrix Ai status —</option>
                                   {PLATFORM_STATUS_OPTIONS.map((opt) => (
                                     <option key={opt} value={opt}>{opt}</option>
                                   ))}

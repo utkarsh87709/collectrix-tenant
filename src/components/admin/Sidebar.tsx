@@ -7,6 +7,8 @@ import logo from "@/assets/collectrix-logo.png";
 import { useAuth } from "@/lib/auth-context";
 import { tenantGroups, useVisibleNav, type NavItem } from "@/lib/nav-registry";
 import { usePermissions } from "@/lib/permissions/store";
+import { useProfilePhoto } from "@/lib/profile-photo";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sidebar as UiSidebar,
   SidebarContent,
@@ -158,6 +160,26 @@ function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
   );
 }
 
+/** The user's photo, or their initials when there's none or it fails to load. */
+function UserAvatar({
+  photo,
+  initials,
+  className,
+}: {
+  photo: string | null;
+  initials: string;
+  className?: string;
+}) {
+  return (
+    <Avatar className={cn("h-8 w-8", className)}>
+      {photo && <AvatarImage src={photo} alt="" className="object-cover" />}
+      <AvatarFallback className="bg-gradient-tenant text-xs font-bold text-white">
+        {initials}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
 export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -176,6 +198,7 @@ export function Sidebar() {
       .join("")
       .toUpperCase() || "TA";
   const email = user?.emailId ?? "";
+  const photo = useProfilePhoto();
 
   // Only the destinations this user's role can open (see permissions/routes.ts).
   const groups = useVisibleNav();
@@ -255,9 +278,7 @@ export function Sidebar() {
                 onClick={() => setProfileOpen(true)}
                 className="flex items-center gap-3 flex-1 min-w-0 text-left"
               >
-                <div className="h-8 w-8 rounded-full bg-gradient-tenant flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-tenant">
-                  {initials}
-                </div>
+                <UserAvatar photo={photo} initials={initials} className="shadow-tenant" />
                 <div className="text-xs min-w-0 flex-1">
                   <div
                     className={cn(
@@ -306,9 +327,9 @@ export function Sidebar() {
             <button
               onClick={() => setProfileOpen(true)}
               aria-label="Open profile"
-              className="h-8 w-8 rounded-full bg-gradient-tenant flex items-center justify-center text-xs font-bold text-white shadow-tenant ring-1 ring-white/10 hover:ring-white/30 transition"
+              className="rounded-full shadow-tenant ring-1 ring-white/10 hover:ring-white/30 transition"
             >
-              {initials}
+              <UserAvatar photo={photo} initials={initials} />
             </button>
           </div>
         )}

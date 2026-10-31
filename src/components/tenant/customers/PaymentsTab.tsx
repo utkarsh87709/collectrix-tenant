@@ -1354,7 +1354,7 @@ function FinancePostedCard({
                       <button
                         onClick={() => act(p, "approve")}
                         disabled={actingId !== null}
-                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-success text-success-foreground text-xs font-semibold disabled:opacity-50"
+                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-success text-success-foreground dark:text-background text-xs font-semibold disabled:opacity-50"
                       >
                         {actingId === p.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />

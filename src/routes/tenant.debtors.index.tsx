@@ -35,6 +35,7 @@ import {
   normalizeTags,
   type CustomerListItem,
   type CustomerListFilters,
+  type EmailStatusFilter,
 } from "@/lib/customers-api";
 import { getAllStatus, type Status } from "@/lib/statuses-api";
 import { getTeamList, type TeamListItem } from "@/lib/teams-api";
@@ -80,6 +81,7 @@ type Filters = {
   client: number | "all";
   team: number | "all";
   status: number | "all";
+  email: EmailStatusFilter | "all";
   delinquencyFrom: string;
   delinquencyTo: string;
   lastPaymentFrom: string;
@@ -93,6 +95,7 @@ const EMPTY_FILTERS: Filters = {
   client: "all",
   team: "all",
   status: "all",
+  email: "all",
   delinquencyFrom: "",
   delinquencyTo: "",
   lastPaymentFrom: "",
@@ -101,12 +104,23 @@ const EMPTY_FILTERS: Filters = {
   balanceMax: "",
 };
 
+// getCustomerList's emailStatusFilter values. "Invalid email format" also
+// matches blank emails, so it alone lists every file without a usable address
+// (the ones that need a printed letter).
+const EMAIL_FILTER_OPTIONS: { value: EmailStatusFilter; label: string }[] = [
+  { value: "emailAvailable", label: "Email available" },
+  { value: "noEmail", label: "No email" },
+  { value: "validEmailFormat", label: "Valid email format" },
+  { value: "invalidEmailFormat", label: "Invalid email format" },
+];
+
 function activeFilterCount(f: Filters): number {
   let n = 0;
   if (f.search.trim()) n++;
   if (f.client !== "all") n++;
   if (f.team !== "all") n++;
   if (f.status !== "all") n++;
+  if (f.email !== "all") n++;
   if (f.delinquencyFrom || f.delinquencyTo) n++;
   if (f.lastPaymentFrom || f.lastPaymentTo) n++;
   if (f.balanceMin || f.balanceMax) n++;
@@ -161,6 +175,7 @@ function DebtorsPage() {
     filters.client,
     filters.team,
     filters.status,
+    filters.email,
     filters.delinquencyFrom,
     filters.delinquencyTo,
     filters.lastPaymentFrom,
@@ -189,6 +204,7 @@ function DebtorsPage() {
       delinquencyEndDate: filters.delinquencyTo || null,
       dateOfLastPaymentStart: filters.lastPaymentFrom || null,
       dateOfLastPaymentEnd: filters.lastPaymentTo || null,
+      emailStatusFilter: filters.email === "all" ? null : filters.email,
     };
     try {
       const res = await getCustomerList(params);
@@ -749,6 +765,21 @@ function FilterRail({
               {statuses.map((s) => (
                 <option key={s.statusId} value={s.statusId}>
                   {s.status}
+                </option>
+              ))}
+            </NativeSelect>
+          </FilterSection>
+
+          <FilterSection title="Email" icon={<Mail className="h-4 w-4" />} defaultOpen>
+            <NativeSelect
+              size="sm"
+              value={filters.email}
+              onChange={(e) => setFilter("email", e.target.value as Filters["email"])}
+            >
+              <option value="all">All files</option>
+              {EMAIL_FILTER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </NativeSelect>

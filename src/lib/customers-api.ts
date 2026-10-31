@@ -5,8 +5,13 @@
 //
 //   POST /tenant/getCustomerList { page, size, searchText, clientId, teamId, statusId,
 //                                  currentOutstandingBalanceMin/Max,
-//                                  delinquencyStartDate/EndDate, dateOfLastPaymentStart/End }
+//                                  delinquencyStartDate/EndDate, dateOfLastPaymentStart/End,
+//                                  emailStatusFilter }
 //                                -> { totalCount, debtorList[] }
+//     emailStatusFilter (added 2026-10-31, verified live by editing a file's
+//     email): "noEmail" = blank or only spaces; "emailAvailable" = anything
+//     else, malformed included; "validEmailFormat" / "invalidEmailFormat" split
+//     on format, and blank counts as invalid. Unknown values are ignored.
 //     Date filters are yyyy-mm-dd (verified against the identical param shape on
 //     getMassUpdateDebtorList — dd/mm/yyyy 500s with "Server Error"; ISO works).
 //     clientId/teamId/statusId are real server-side equality filters — verified
@@ -179,7 +184,14 @@ export type CustomerListFilters = {
   delinquencyEndDate?: string | null;
   dateOfLastPaymentStart?: string | null;
   dateOfLastPaymentEnd?: string | null;
+  emailStatusFilter?: EmailStatusFilter | null;
 };
+
+export type EmailStatusFilter =
+  | "emailAvailable"
+  | "noEmail"
+  | "validEmailFormat"
+  | "invalidEmailFormat";
 
 const LIST_FILTER_DEFAULTS: Required<Omit<CustomerListFilters, "page" | "size">> = {
   searchText: "",
@@ -192,6 +204,7 @@ const LIST_FILTER_DEFAULTS: Required<Omit<CustomerListFilters, "page" | "size">>
   delinquencyEndDate: null,
   dateOfLastPaymentStart: null,
   dateOfLastPaymentEnd: null,
+  emailStatusFilter: null,
 };
 
 export function getCustomerList(

@@ -311,7 +311,7 @@ function PendingClaimRow({
         className="w-full px-2 py-1.5 rounded-md bg-background border border-border text-xs outline-none" />
       <div className="flex items-center gap-2">
         <button onClick={() => onApprove(notes)}
-          className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-success text-success-foreground text-xs font-semibold">
+          className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-md bg-success text-success-foreground dark:text-background text-xs font-semibold">
           <CheckCircle2 className="h-3.5 w-3.5" /> Approve & post payment
         </button>
         <button onClick={() => onReject(notes)}

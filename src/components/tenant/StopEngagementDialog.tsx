@@ -87,7 +87,7 @@ export function StopEngagementDialog({
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
           <button onClick={onClose} className="px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted">Cancel</button>
           <button onClick={submit} disabled={!reason.trim() || channels.length === 0}
-            className="px-3 py-1.5 rounded-lg bg-warning text-warning-foreground text-sm font-semibold disabled:opacity-50">Stop engagement</button>
+            className="px-3 py-1.5 rounded-lg bg-warning text-warning-foreground dark:text-background text-sm font-semibold disabled:opacity-50">Stop engagement</button>
         </div>
       </div>
     </div>

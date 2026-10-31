@@ -31,7 +31,7 @@ export const packages: Package[] = [
   {
     id: "pkg_standard",
     name: "Standard",
-    description: "Default package — every Collectrix module, sized for most agencies.",
+    description: "Default package — every Collectrix Ai module, sized for most agencies.",
     monthlyPrice: 499,
     annualPrice: 4990,
     billingCycle: "monthly",

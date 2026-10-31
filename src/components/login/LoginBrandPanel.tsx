@@ -276,7 +276,7 @@ export function LoginBrandPanel() {
         transition={{ duration: 0.5, delay: 0.1 }}
       >
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-semibold tracking-wide text-cyan-100">
-          <Sparkles className="h-3 w-3" /> Tenant Admin Workspace
+          <Sparkles className="h-3 w-3" /> Workspace
         </span>
         <h2 className="mt-5 font-display text-4xl font-bold leading-[1.1] tracking-tight">
           <span

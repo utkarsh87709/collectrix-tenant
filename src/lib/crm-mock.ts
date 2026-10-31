@@ -78,7 +78,7 @@ export const connectors: Connector[] = [
     name: "Standalone",
     vendor: "No external CRM",
     status: "standalone",
-    description: "Use Collectrix as your primary CRM. No external sync.",
+    description: "Use Collectrix Ai as your primary CRM. No external sync.",
     docsUrl: "https://docs.example.com/standalone",
     supportEmail: "support@collectrix.ai",
     authMethods: [],

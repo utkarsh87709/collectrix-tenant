@@ -56,8 +56,8 @@ function MappingsPage() {
   return (
     <Shell>
       <Topbar
-        title="Tenant maps CRM fields to Collectrix AI fields"
-        subtitle="Please confirm how your CRM fields should connect with Collectrix AI fields."
+        title="Tenant maps CRM fields to Collectrix Ai fields"
+        subtitle="Please confirm how your CRM fields should connect with Collectrix Ai fields."
         action={
           <Link to="/tenant/intake/crm" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm font-semibold hover:bg-muted">
             <ArrowLeft className="h-4 w-4" /> Back
@@ -77,8 +77,8 @@ function MappingsPage() {
                 className="w-full px-2 py-1.5 rounded-md border border-input bg-background text-xs font-semibold"
               >
                 <option value="two-way">Two-way sync</option>
-                <option value="one-way-out">One-way · Collectrix → CRM</option>
-                <option value="one-way-in">One-way · CRM → Collectrix</option>
+                <option value="one-way-out">One-way · Collectrix Ai → CRM</option>
+                <option value="one-way-in">One-way · CRM → Collectrix Ai</option>
               </select>
               <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 {syncMode === "two-way" ? <ArrowLeftRight className="h-3 w-3" /> : <ArrowRight className="h-3 w-3" />}
@@ -93,7 +93,7 @@ function MappingsPage() {
                 className="w-full px-2 py-1.5 rounded-md border border-input bg-background text-xs font-semibold"
               >
                 <option value="last_write">Last write wins</option>
-                <option value="platform_wins">Collectrix AI wins</option>
+                <option value="platform_wins">Collectrix Ai wins</option>
                 <option value="crm_wins">CRM wins</option>
                 <option value="manual">Manual review</option>
               </select>
@@ -149,11 +149,11 @@ function MappingsPage() {
       <section className="px-6 lg:px-10 py-6">
         <PageCard>
           <CardHead
-            title={tab === "fields" ? "Map CRM fields to Collectrix AI fields" : "Map your CRM statuses to Collectrix AI statuses"}
+            title={tab === "fields" ? "Map CRM fields to Collectrix Ai fields" : "Map your CRM statuses to Collectrix Ai statuses"}
             subtitle={
               tab === "fields"
                 ? "Group your mappings by category — customer, payment, notes, call transcripts, custom, and more."
-                : "Pick the Collectrix AI status that each CRM status should resolve to."
+                : "Pick the Collectrix Ai status that each CRM status should resolve to."
             }
             action={
               <div className="flex items-center gap-1 text-xs">
@@ -189,7 +189,7 @@ function MappingsPage() {
                   <thead className="text-xs uppercase tracking-wider text-muted-foreground bg-muted/40">
                     <tr>
                       <th className="text-left px-6 py-3">CRM field</th>
-                      <th className="text-left px-3 py-3">Collectrix AI field</th>
+                      <th className="text-left px-3 py-3">Collectrix Ai field</th>
                       <th className="text-left px-3 py-3">Category</th>
                       <th className="text-left px-3 py-3">Direction</th>
                       <th className="text-left px-3 py-3">Sample</th>
@@ -235,7 +235,7 @@ function MappingsPage() {
               <table className="w-full text-sm">
                 <thead className="text-xs uppercase tracking-wider text-muted-foreground bg-muted/40">
                   <tr>
-                    <th className="text-left px-6 py-3">Collectrix AI status</th>
+                    <th className="text-left px-6 py-3">Collectrix Ai status</th>
                     <th className="text-left px-3 py-3">CRM code</th>
                     <th className="text-left px-3 py-3">Sync out</th>
                     <th className="text-left px-3 py-3">Sync in</th>

@@ -555,7 +555,7 @@ function SettingsPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${emailConnected ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-muted-foreground border border-border"}`}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${emailConnected ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30" : "bg-muted text-muted-foreground border border-border"}`}
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />{" "}
                               {emailConnected ? "Connected" : "Not connected"}

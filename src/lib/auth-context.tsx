@@ -2,10 +2,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { loginRequest, logoutRequest, type AuthUser } from "@/lib/auth-api";
 import { AUTH_USER_KEY, clearSession, getAuthToken, setAuthToken } from "@/lib/auth-token";
 import { refreshPermissions, resetPermissions } from "@/lib/permissions/store";
+import { resetProfilePhoto } from "@/lib/profile-photo";
 
 // Roles are dynamic — the backend can return many different role names, and any
 // of them may sign in here. The only exception is the platform super admin, who
-// belongs on the Collectrix super admin portal instead. What each role can see
+// belongs on the Collectrix Ai super admin portal instead. What each role can see
 // and do is handled separately, by permissions/store.ts.
 const SUPER_ADMIN_ROLE = "superAdmin";
 
@@ -38,7 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const { token, user: u } = await loginRequest(email, password);
     if (u.role === SUPER_ADMIN_ROLE) {
-      throw new Error("Super admins should sign in to the Collectrix super admin portal instead.");
+      throw new Error(
+        "Super admins should sign in to the Collectrix Ai super admin portal instead.",
+      );
     }
     setAuthToken(token);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
@@ -46,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // screen renders, so the sidebar doesn't show links that then disappear. A
     // failure here isn't fatal — the guard retries and shows its own error state.
     resetPermissions();
+    resetProfilePhoto();
     await refreshPermissions().catch(() => {});
     setUser(u);
   };
@@ -56,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     clearSession();
     resetPermissions();
+    resetProfilePhoto();
   };
 
   return (

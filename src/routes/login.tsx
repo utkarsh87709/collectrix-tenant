@@ -23,7 +23,7 @@ export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
       { title: "Sign in — Collectrix Ai" },
-      { name: "description", content: "Sign in to Collectrix Ai admin portal." },
+      { name: "description", content: "Sign into your Collectrix Ai workspace." },
     ],
   }),
   component: LoginPage,
@@ -107,7 +107,7 @@ function LoginPage() {
           </div>
 
           <h1 className="font-display text-2xl font-bold tracking-tight">Welcome back</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">Sign in to your tenant workspace.</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">Sign into your workspace.</p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <div className="space-y-2">

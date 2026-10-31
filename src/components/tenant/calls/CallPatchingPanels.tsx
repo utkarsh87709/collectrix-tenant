@@ -72,14 +72,14 @@ const ANSWERING_DEVICES: {
 }[] = [
   {
     id: "browser",
-    title: "Collectrix browser phone",
+    title: "Collectrix Ai browser phone",
     hint: "The call comes into the browser. The member sees an alert on screen, answers with one click, and the customer file opens with it.",
     traits: ["Customer file opens", "Recorded here", "Notes during the call"],
   },
   {
     id: "phone",
     title: "External phone number",
-    hint: "Collectrix rings the external number saved against that member. The call goes straight through and never reaches the browser.",
+    hint: "Collectrix Ai rings the external number saved against that member. The call goes straight through and never reaches the browser.",
     traits: ["No file on screen", "Notes added after", "Needs a saved number"],
   },
 ];

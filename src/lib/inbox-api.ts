@@ -75,7 +75,10 @@ export type InboxCustomer = {
 };
 
 // Mirrors the request body in the collection exactly (nulls, not omissions).
-const INBOX_FILTER_DEFAULTS: Required<Omit<CustomerListFilters, "page" | "size">> = {
+// emailStatusFilter is a getCustomerList-only param.
+const INBOX_FILTER_DEFAULTS: Required<
+  Omit<CustomerListFilters, "page" | "size" | "emailStatusFilter">
+> = {
   searchText: "",
   clientId: null,
   teamId: null,

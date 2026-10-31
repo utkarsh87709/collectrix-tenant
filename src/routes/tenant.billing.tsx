@@ -40,7 +40,7 @@ function TenantBillingPage() {
           <Card className="p-4 border-warning/40 bg-warning/5 flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-warning-foreground shrink-0" />
             <div className="flex-1 text-sm"><strong>Payment due.</strong> Your next invoice is due {billing.nextPaymentDate}.</div>
-            <button className="px-3 py-1.5 rounded-lg bg-warning text-warning-foreground text-xs font-semibold">Pay now</button>
+            <button className="px-3 py-1.5 rounded-lg bg-warning text-warning-foreground dark:text-background text-xs font-semibold">Pay now</button>
           </Card>
         )}
 

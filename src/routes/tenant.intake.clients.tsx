@@ -16,7 +16,9 @@ import {
   createClient,
   updateClient,
   deleteClient,
+  BANK_DETAIL_MAX_LENGTH,
   type Client,
+  type ClientBankDetails,
   type ClientChannels,
 } from "@/lib/clients-api";
 
@@ -31,6 +33,13 @@ const CHANNELS: { key: keyof ClientChannels; label: string; icon: LucideIcon }[]
   { key: "emailEnabled", label: "Email", icon: Mail },
   { key: "callEnabled", label: "Call", icon: Phone },
   { key: "documentEnabled", label: "Document", icon: FileText },
+];
+
+// Trust account fields, all optional free text. `key` matches the API field.
+const BANK_FIELDS: { key: keyof ClientBankDetails; label: string; placeholder: string }[] = [
+  { key: "bankName", label: "Bank name", placeholder: "e.g. Royal Bank of Canada" },
+  { key: "transitNumber", label: "Transit number", placeholder: "e.g. 00012" },
+  { key: "accountNumber", label: "Account number", placeholder: "e.g. 1234567" },
 ];
 
 function ClientListPage() {
@@ -254,28 +263,53 @@ function ClientFormModal({
     callEnabled: client?.callEnabled ?? true,
     documentEnabled: client?.documentEnabled ?? true,
   });
+  const [bank, setBank] = useState<ClientBankDetails>({
+    bankName: client?.bankName ?? "",
+    transitNumber: client?.transitNumber ?? "",
+    accountNumber: client?.accountNumber ?? "",
+  });
   const [saving, setSaving] = useState(false);
 
   const trimmedName = clientName.trim();
   const trimmedNumber = clientNumber.trim();
+  const trimmedBank: ClientBankDetails = {
+    bankName: bank.bankName.trim(),
+    transitNumber: bank.transitNumber.trim(),
+    accountNumber: bank.accountNumber.trim(),
+  };
   const channelsDirty =
     isEdit && CHANNELS.some(({ key }) => channels[key] !== client[key]);
+  const bankDirty =
+    isEdit && BANK_FIELDS.some(({ key }) => trimmedBank[key] !== (client[key] ?? ""));
   const dirty =
     !isEdit ||
     trimmedName !== client.clientName ||
     trimmedNumber !== client.clientNumber ||
-    channelsDirty;
+    channelsDirty ||
+    bankDirty;
   const canSubmit = trimmedName.length > 0 && trimmedNumber.length > 0 && dirty && !saving;
 
   const submit = async () => {
     if (!canSubmit) return;
     setSaving(true);
     try {
+      // updateClient replaces the bank details, so all three always go along.
       if (isEdit) {
-        await updateClient({ clientId: client.clientId, clientName: trimmedName, clientNumber: trimmedNumber, ...channels });
+        await updateClient({
+          clientId: client.clientId,
+          clientName: trimmedName,
+          clientNumber: trimmedNumber,
+          ...channels,
+          ...trimmedBank,
+        });
         toast.success("Client updated successfully.");
       } else {
-        await createClient({ clientName: trimmedName, clientNumber: trimmedNumber, ...channels });
+        await createClient({
+          clientName: trimmedName,
+          clientNumber: trimmedNumber,
+          ...channels,
+          ...trimmedBank,
+        });
         toast.success("Client created successfully.");
       }
       onSaved();
@@ -346,6 +380,28 @@ function ClientFormModal({
                   aria-label={`Toggle ${label}`}
                 />
               </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <span className="block text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+            Trust account
+          </span>
+          <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+            Optional — the account this client's debtors pay into.
+          </p>
+          <div className="space-y-3">
+            {BANK_FIELDS.map(({ key, label, placeholder }) => (
+              <Field key={key} label={label}>
+                <input
+                  value={bank[key]}
+                  onChange={(e) => setBank((b) => ({ ...b, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  maxLength={BANK_DETAIL_MAX_LENGTH[key]}
+                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40"
+                />
+              </Field>
             ))}
           </div>
         </div>
@@ -446,7 +502,7 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-elegant"
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-elegant"
         onClick={(e) => e.stopPropagation()}
       >
         {children}

@@ -28,8 +28,8 @@ import { usePermissions } from "@/lib/permissions/store";
 import { cn } from "@/lib/utils";
 import { RichTextToolbar } from "@/components/tenant/RichTextToolbar";
 import { InsertVariableMenu } from "@/components/tenant/InsertVariableMenu";
-import { SmsCount, SmsOverLimitWarning } from "@/components/tenant/SmsLength";
-import { SMS_SINGLE_LIMIT, hasSmsVariables } from "@/lib/sms-length";
+import { SmsCount, SmsOverLimitWarning, SmsSegmentNote } from "@/components/tenant/SmsLength";
+import { hasSmsVariables } from "@/lib/sms-length";
 import { insertIntoField } from "@/lib/placeholders-api";
 import { plainText } from "@/components/tenant/inbox/inbox-utils";
 import {
@@ -898,13 +898,13 @@ function TemplateEditor({
             <>
               <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground mt-1.5">
                 <span>
-                  {hasSmsVariables(message)
-                    ? "Variables are counted at a typical length for each field."
-                    : `Keep it within ${SMS_SINGLE_LIMIT} characters to send as one SMS.`}
+                  {hasSmsVariables(message) &&
+                    "Variables are counted at a typical length for each field."}
                 </span>
                 <SmsCount text={message} />
               </div>
               <SmsOverLimitWarning text={message} className="mt-2" />
+              <SmsSegmentNote className="mt-2" />
             </>
           )}
         </div>
