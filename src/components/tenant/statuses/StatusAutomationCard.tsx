@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { StatusPill } from "@/components/tenant/statuses/StatusPill";
-import { OutboundCallSteps } from "@/components/tenant/statuses/OutboundCallSteps";
+import { OutboundCallSetupEditor } from "@/components/tenant/statuses/OutboundCallSetup";
 import {
   DurationField,
   FieldLabel,
@@ -26,8 +26,8 @@ import type { TeamPhoneNumber } from "@/lib/teams-api";
 import {
   CHANNEL_LABEL,
   conflictingChannels,
-  newCallStep,
   newFollowUp,
+  newOutboundSetup,
   summarizeAutomation,
   validateAutomation,
   type ChannelConfig,
@@ -305,7 +305,7 @@ export function StatusAutomationCard({
             title="Outbound call"
             subtitle={
               callAllowed
-                ? "A step is one call: who places it, the number it comes from, when it goes out and who it reaches."
+                ? "One call setup for this status: who places the call, who it reaches, when it goes out and from which number."
                 : "This client has calling switched off."
             }
             enabled={config.outboundCall.enabled}
@@ -314,18 +314,20 @@ export function StatusAutomationCard({
               onChange({
                 outboundCall: {
                   enabled,
-                  // Switching on with nothing configured starts the first step.
-                  steps:
-                    enabled && config.outboundCall.steps.length === 0
-                      ? [newCallStep(teamMembers.map((m) => m.userId))]
-                      : config.outboundCall.steps,
+                  // Switching on with nothing saved starts a fresh setup.
+                  setup:
+                    config.outboundCall.setup ??
+                    (enabled ? newOutboundSetup(teamMembers.map((m) => m.userId)) : null),
                 },
               })
             }
           >
-            <OutboundCallSteps
-              steps={config.outboundCall.steps}
-              onChange={(steps) => onChange({ outboundCall: { ...config.outboundCall, steps } })}
+            <OutboundCallSetupEditor
+              name={`status-${config.statusId}`}
+              setup={
+                config.outboundCall.setup ?? newOutboundSetup(teamMembers.map((m) => m.userId))
+              }
+              onChange={(setup) => onChange({ outboundCall: { ...config.outboundCall, setup } })}
               agents={callAgents}
               members={teamMembers}
               phoneNumbers={teamPhoneNumbers}

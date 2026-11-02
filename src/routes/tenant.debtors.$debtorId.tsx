@@ -52,6 +52,7 @@ import {
   Paperclip,
   UserRound,
   CreditCard,
+  ShieldCheck,
 } from "lucide-react";
 import { usePermissions, type Permissions } from "@/lib/permissions/store";
 import { DeleteNoteDialog } from "@/components/tenant/DeleteNoteDialog";
@@ -231,6 +232,7 @@ function DebtorProfile() {
   const isArchived = details.archivedFlag === 1;
   const isEngaged = details.engagementStatus === 1;
   const tags = normalizeTags(details.customerTags);
+  const rpvVerified = details.rpvFlag === 1;
 
   const toggleEngagement = async () => {
     setEngagementBusy(true);
@@ -335,10 +337,23 @@ function DebtorProfile() {
             <AssignmentPill label={`${details.clientName} · ${details.creditorName}`} />
           </div>
 
-          {tags.length > 0 && (
+          {(tags.length > 0 || rpvVerified) && (
             <>
               <SectionLabel>Flags</SectionLabel>
               <div className="mt-2 flex flex-wrap gap-2">
+                {/* System flag, not a tag: set by the backend after an AI call,
+                    never edited or removed from here. */}
+                {rpvVerified && (
+                  <span
+                    title="Right Party Verification: an AI call confirmed this is the debtor. Set automatically after the call; it can't be edited or removed. The after-RPV weekly call limit now applies."
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border border-success/30 bg-success/15 text-success-foreground"
+                  >
+                    <ShieldCheck className="h-3 w-3" /> RPV verified
+                    <span className="ml-0.5 rounded bg-success/20 px-1 text-[9px] uppercase tracking-wider">
+                      System
+                    </span>
+                  </span>
+                )}
                 {tags.map((t) => (
                   <span
                     key={t}

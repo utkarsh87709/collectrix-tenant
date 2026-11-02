@@ -635,17 +635,18 @@ function PreviewModal({
       );
     }
 
-    if (config.outboundCall.enabled && callAllowed) {
-      config.outboundCall.steps.forEach((s, i) => {
-        push(
-          toMinutes(s.placeAfter),
-          formatDuration(s.placeAfter),
-          `Call step #${i + 1}`,
-          `${s.name.trim() || "Untitled call step"} · ${
-            s.mode === "ai" ? `AI agent · ${templateName(s.agentId)}` : "Direct patch"
-          }${s.businessHoursOnly ? " · business hours only" : ""}`,
-        );
-      });
+    const call = config.outboundCall.setup;
+    if (config.outboundCall.enabled && callAllowed && call) {
+      const during = call.ai.during;
+      const agentId = during.assignedOn ? during.assignedAgentId : during.unassignedAgentId;
+      push(
+        toMinutes(call.placeAfter),
+        formatDuration(call.placeAfter),
+        "Outbound call",
+        call.mode === "ai"
+          ? `AI Agent · ${templateName(agentId)}`
+          : "Direct Patch · business hours only",
+      );
     }
 
     if (config.followUpsEnabled) {

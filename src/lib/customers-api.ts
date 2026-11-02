@@ -98,6 +98,15 @@
 //     Full-record update (added 2026-09-10) — send every field back, not a patch.
 //     Dates go as dd/mm/yyyy, the same format getCustomerDetails returns and the
 //     intake validators demand; see backendDateToInput / inputDateToBackend.
+//     It also takes rpvFlag, which this app never sends (probed 2026-11-02):
+//     leaving it out or sending null keeps the flag, but 0 clears it and any
+//     other value is stored as is. The flag is system-owned (below).
+//   rpvFlag on getCustomerDetails (added 2026-11-02): 1 once an AI call has done
+//     Right Party Verification, else 0. The backend sets it after the call and
+//     never unsets it; it decides which weekly call limit Status Automation
+//     applies. No date or source call is returned with it yet, and the
+//     getCustomerList row doesn't carry it. Not a tag — it never appears among
+//     customerTags or in getTagList.
 //   POST /tenant/getTagList        { uploadedDebtorId } -> { tagList[] }
 //   POST /tenant/assignCustomerTag { uploadedDebtorId, tagName } -> {}
 //   POST /tenant/deleteCustomerTag { uploadedDebtorId, tagName } -> {}
@@ -277,6 +286,8 @@ export type CustomerDetails = {
   unreadMsgCount: number;
   /** The file's tags/flags. null when none; confirmed live as string[] when populated — read via normalizeTags. */
   customerTags: unknown;
+  /** System RPV flag: 1 once an AI call verified the debtor. Read-only here. */
+  rpvFlag?: number | null;
   /** The file's client — confirmed live 2026-10-07. Scopes document templates. */
   clientId: number;
   clientName: string;
@@ -584,8 +595,10 @@ export function updateCustomerStatus(input: {
 
 /* ----------------------------- Edit details ------------------------------- */
 
-/** Every field updateCustomerDetails accepts. It replaces the record, so callers
- *  send the current value for anything they didn't change. Dates are dd/mm/yyyy. */
+/** Every field updateCustomerDetails accepts, except rpvFlag: that one is
+ *  system-owned and left out on purpose (sending 0 would clear it). It replaces
+ *  the record, so callers send the current value for anything they didn't
+ *  change. Dates are dd/mm/yyyy. */
 export type UpdateCustomerDetailsInput = {
   uploadedDebtorId: number;
   creditorName: string;

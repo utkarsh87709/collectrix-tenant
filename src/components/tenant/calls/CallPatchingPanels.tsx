@@ -11,12 +11,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NativeSelect } from "@/components/tenant/ui";
+import { Switch } from "@/components/ui/switch";
 import { FieldLabel } from "@/components/tenant/statuses/automation-fields";
 import type { AssignableMember } from "@/lib/team-deck-api";
 import { fullName } from "@/lib/teams-api";
 import type {
   AnsweringDevice,
   AssignedPatchMethod,
+  CallForwarding,
   CallPatching,
   ManualDial,
   Ring,
@@ -24,9 +26,9 @@ import type {
 } from "@/lib/status-automation-api";
 
 // Who a call rings once it reaches a person, where they pick up and what is
-// said when nobody does. Outbound call steps (Status Automation) and a team's
-// incoming call settings (Call Configuration) carry the same fields, so both
-// screens draw them from here.
+// said when nobody does. A status' outbound call (Status Automation) and a
+// team's incoming call settings (Call Configuration) carry the same fields, so
+// both screens draw them from here.
 
 const ASSIGNED_METHODS: { id: AssignedPatchMethod; title: string; hint: string }[] = [
   {
@@ -171,6 +173,7 @@ export function AssignedFilesPanel({
   onChange,
   members,
   description,
+  forwarding = false,
 }: {
   /** Radio group name — unique per panel on the page. */
   name: string;
@@ -178,6 +181,8 @@ export function AssignedFilesPanel({
   onChange: (value: CallPatching["assigned"]) => void;
   members: AssignableMember[];
   description: string;
+  /** Exact match: show who is rung when the assigned member doesn't answer. */
+  forwarding?: boolean;
 }) {
   const setMethod = (method: AssignedPatchMethod) =>
     onChange({
@@ -218,6 +223,20 @@ export function AssignedFilesPanel({
           timesSuffix="time(s)"
         />
       )}
+      {value.method === "exactMatch" && forwarding && (
+        <div className="rounded-lg border border-border p-3 space-y-3">
+          <div>
+            <div className="text-sm font-semibold">If the assigned member doesn&apos;t answer</div>
+            <p className="text-[11px] text-muted-foreground">Forward the call to the team.</p>
+          </div>
+          <ForwardingChoices
+            name={`${name}-forwarding`}
+            value={value.forwarding}
+            onChange={(f) => onChange({ ...value, forwarding: f })}
+            members={members}
+          />
+        </div>
+      )}
       {value.method === "ringAll" && (
         <RingFields
           ring={value.ringAll}
@@ -244,6 +263,7 @@ export function UnassignedFilesPanel({
   onChange,
   members,
   description,
+  assignUserToggle = false,
 }: {
   /** Radio group name — unique per panel on the page. */
   name: string;
@@ -251,6 +271,51 @@ export function UnassignedFilesPanel({
   onChange: (value: CallPatching["unassigned"]) => void;
   members: AssignableMember[];
   description: string;
+  /** Show the "offer 'assign this file to me'" switch. */
+  assignUserToggle?: boolean;
+}) {
+  return (
+    <PanelShell
+      icon={<UserX className="h-4 w-4 text-muted-foreground" />}
+      title="Files that are not assigned"
+      badge="Call patching"
+      description={description}
+    >
+      <ForwardingChoices name={name} value={value} onChange={onChange} members={members} />
+      {assignUserToggle && (
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-border px-3 py-2">
+          <div>
+            <div className="text-sm font-medium">
+              Offer &ldquo;assign this file to me&rdquo; on answer
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Only members allowed to assign files see the offer.
+            </p>
+          </div>
+          <Switch
+            checked={value.assignUser}
+            onCheckedChange={(assignUser) => onChange({ ...value, assignUser })}
+            aria-label="Offer assign this file to me on answer"
+          />
+        </div>
+      )}
+    </PanelShell>
+  );
+}
+
+/** Round robin, ring everyone or a manual chain — the choices for unassigned
+ *  files and for a call the assigned member misses. */
+function ForwardingChoices<T extends CallForwarding>({
+  name,
+  value,
+  onChange,
+  members,
+}: {
+  /** Radio group name — unique per chain on the page. */
+  name: string;
+  value: T;
+  onChange: (value: T) => void;
+  members: AssignableMember[];
 }) {
   const memberIds = members.map((m) => m.userId);
   const setMethod = (method: UnassignedPatchMethod) =>
@@ -268,12 +333,7 @@ export function UnassignedFilesPanel({
     });
 
   return (
-    <PanelShell
-      icon={<UserX className="h-4 w-4 text-muted-foreground" />}
-      title="Files that are not assigned"
-      badge="Call patching"
-      description={description}
-    >
+    <>
       <div className="space-y-2">
         {UNASSIGNED_METHODS.map((m) => (
           <ChoiceCard
@@ -309,7 +369,7 @@ export function UnassignedFilesPanel({
           members={members}
         />
       )}
-    </PanelShell>
+    </>
   );
 }
 

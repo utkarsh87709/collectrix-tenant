@@ -17,9 +17,24 @@ import {
   RefreshCw,
   Loader2,
   Table2,
+  ShieldCheck,
+  Info,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DAY_KEYS, DAY_LABELS, type WeeklyHours } from "@/lib/agent-availability-utils";
+import {
+  COUNTRY_WIDE_STATE,
+  getComplianceHours,
+  getCountries,
+  getStates,
+  hoursFromRow,
+  invalidComplianceDays,
+  saveComplianceHours,
+  type ComplianceHoursRow,
+  type Country,
+  type State,
+} from "@/lib/compliance-hours-api";
 import {
   getTenantDetails,
   updateTenantDetails,
@@ -461,61 +476,7 @@ function SettingsPage() {
                         desc="When live agents can take escalated customer calls"
                         icon={<Clock className="h-5 w-5" />}
                       >
-                        <div className="rounded-xl border border-border overflow-hidden">
-                          {DAY_KEYS.map((d, i) => (
-                            <div
-                              key={d}
-                              className={`flex items-center gap-4 px-4 py-3 ${i !== DAY_KEYS.length - 1 ? "border-b border-border" : ""} ${weekly[d].enabled ? "bg-card" : "bg-muted/30"}`}
-                            >
-                              <div className="flex items-center gap-3 w-40">
-                                <Toggle
-                                  checked={weekly[d].enabled}
-                                  onChange={(v) =>
-                                    setWeekly((p) => ({ ...p, [d]: { ...p[d], enabled: v } }))
-                                  }
-                                  label={`Toggle ${DAY_LABELS[d]}`}
-                                />
-                                <span
-                                  className={`font-semibold text-sm ${!weekly[d].enabled ? "text-muted-foreground" : ""}`}
-                                >
-                                  {DAY_LABELS[d]}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="time"
-                                  disabled={!weekly[d].enabled}
-                                  value={weekly[d].start}
-                                  onChange={(e) =>
-                                    setWeekly((p) => ({
-                                      ...p,
-                                      [d]: { ...p[d], start: e.target.value },
-                                    }))
-                                  }
-                                  className="h-9 px-2 rounded-md bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:opacity-40"
-                                />
-                                <span className="text-muted-foreground text-xs">to</span>
-                                <input
-                                  type="time"
-                                  disabled={!weekly[d].enabled}
-                                  value={weekly[d].end}
-                                  onChange={(e) =>
-                                    setWeekly((p) => ({
-                                      ...p,
-                                      [d]: { ...p[d], end: e.target.value },
-                                    }))
-                                  }
-                                  className="h-9 px-2 rounded-md bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:opacity-40"
-                                />
-                              </div>
-                              {!weekly[d].enabled && (
-                                <span className="ml-auto text-[11px] text-muted-foreground">
-                                  Closed
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                        <DayHoursRows hours={weekly} onChange={setWeekly} offLabel="Closed" />
 
                         <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-tenant/5 border border-tenant/20 text-xs text-muted-foreground">
                           <Calendar className="h-4 w-4 text-tenant shrink-0 mt-0.5" />
@@ -529,6 +490,9 @@ function SettingsPage() {
                           <SectionFooter onSave={saveHours} label="Save hours" saving={saving} />
                         )}
                       </Section>
+                    </fieldset>
+                    <fieldset disabled={!canEditSettings} className="min-w-0 mt-6">
+                      <ComplianceHoursSection canEdit={canEditSettings} />
                     </fieldset>
                   </TabsContent>
 
@@ -671,6 +635,317 @@ function SettingsPage() {
   );
 }
 
+/** Compliance calling hours, one country / province-state rule at a time. */
+function ComplianceHoursSection({ canEdit }: { canEdit: boolean }) {
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [countryCode, setCountryCode] = useState("");
+  /** Tagged with its country, so a list still showing the previous country
+   *  is never used to load a rule for the new one. */
+  const [stateList, setStateList] = useState<{ countryCode: string; states: State[] }>({
+    countryCode: "",
+    states: [],
+  });
+  const states = stateList.countryCode === countryCode ? stateList.states : [];
+  const [stateCode, setStateCode] = useState(COUNTRY_WIDE_STATE);
+  const [rule, setRule] = useState<ComplianceHoursRow | null>(null);
+  const [hours, setHours] = useState<WeeklyHours | null>(null);
+  const [baseline, setBaseline] = useState<WeeklyHours | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  /** Ignore a response that arrives after the user picked somewhere else. */
+  const statesRequest = useRef(0);
+  const ruleRequest = useRef(0);
+
+  const failed = (e: unknown, fallback: string) =>
+    setError(e instanceof Error ? e.message : fallback);
+
+  const loadCountries = useCallback(() => {
+    setError(null);
+    getCountries()
+      .then((list) => {
+        setCountries(list);
+        setCountryCode((c) => c || list[0]?.countryCode || "");
+      })
+      .catch((e) => failed(e, "Failed to load countries."));
+  }, []);
+
+  useEffect(loadCountries, [loadCountries]);
+
+  useEffect(() => {
+    if (!countryCode) return;
+    const id = ++statesRequest.current;
+    setHours(null);
+    getStates(countryCode)
+      .then((list) => {
+        if (id !== statesRequest.current) return;
+        setStateList({ countryCode, states: list });
+        setStateCode(
+          list.some((s) => s.stateCode === COUNTRY_WIDE_STATE)
+            ? COUNTRY_WIDE_STATE
+            : (list[0]?.stateCode ?? ""),
+        );
+      })
+      .catch((e) => failed(e, "Failed to load provinces and states."));
+  }, [countryCode]);
+
+  const loadRule = useCallback(async (cc: string, sc: string) => {
+    const id = ++ruleRequest.current;
+    setHours(null);
+    setError(null);
+    try {
+      const row = await getComplianceHours(cc, sc);
+      if (id !== ruleRequest.current) return;
+      const h = hoursFromRow(row);
+      setRule(row);
+      setHours(h);
+      setBaseline(h);
+    } catch (e) {
+      if (id === ruleRequest.current) failed(e, "Failed to load the compliance hours.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      stateList.countryCode === countryCode &&
+      stateList.states.some((s) => s.stateCode === stateCode)
+    ) {
+      loadRule(countryCode, stateCode);
+    }
+  }, [countryCode, stateCode, stateList, loadRule]);
+
+  const countryName = countries.find((c) => c.countryCode === countryCode)?.countryName ?? "";
+  const state = states.find((s) => s.stateCode === stateCode);
+  const where =
+    stateCode === COUNTRY_WIDE_STATE ? countryName : `${state?.stateName ?? ""}, ${countryName}`;
+  const dirty = !!hours && JSON.stringify(hours) !== JSON.stringify(baseline);
+  const invalid = hours ? invalidComplianceDays(hours) : [];
+
+  const save = async () => {
+    if (!hours) return;
+    if (invalid.length) {
+      toast.error(
+        `Check ${invalid.map((d) => DAY_LABELS[d]).join(", ")}: the end time must be after the start time.`,
+      );
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveComplianceHours({ countryCode, stateCode, hours, exists: rule !== null });
+      toast.success(`Compliance hours saved for ${where}`);
+      await loadRule(countryCode, stateCode);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save the compliance hours");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Section
+      title="Compliance calling hours"
+      desc="When automated calls may reach a debtor, by country and province or state"
+      icon={<ShieldCheck className="h-5 w-5" />}
+    >
+      {error ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+          <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={() => (countries.length ? loadRule(countryCode, stateCode) : loadCountries())}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold hover:bg-muted"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Try again
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Country">
+              <SelectInput
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                disabled={dirty}
+              >
+                {countries.length === 0 && <option value="">Loading…</option>}
+                {countries.map((c) => (
+                  <option key={c.countryCode} value={c.countryCode}>
+                    {c.countryName}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            <Field label="Province / state">
+              <SelectInput
+                value={stateCode}
+                onChange={(e) => setStateCode(e.target.value)}
+                disabled={dirty}
+              >
+                {states.length === 0 && <option value={stateCode}>Loading…</option>}
+                {states.map((s) => (
+                  <option key={s.stateCode} value={s.stateCode}>
+                    {s.stateCode === COUNTRY_WIDE_STATE ? "Default (whole country)" : s.stateName}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+          </div>
+
+          {!hours ? (
+            <div className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading compliance hours…
+            </div>
+          ) : (
+            <>
+              <div className="mt-5 mb-3 flex flex-wrap items-center gap-2 text-xs">
+                {rule ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 font-semibold text-success-foreground">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Rule saved for {where}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 font-semibold text-warning-foreground">
+                    <AlertTriangle className="h-3.5 w-3.5" /> No rule for {where} yet — suggested
+                    hours shown, nothing is saved until you create it
+                  </span>
+                )}
+                {dirty && rule && (
+                  <span className="text-muted-foreground">
+                    Unsaved changes — save or discard them to switch to another place.
+                  </span>
+                )}
+              </div>
+
+              <DayHoursRows
+                hours={hours}
+                onChange={(next) => setHours(next)}
+                offLabel="No automated calls"
+                invalid={invalid}
+              />
+
+              <div className="mt-4 space-y-2">
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-tenant/5 border border-tenant/20 text-xs text-muted-foreground">
+                  <Clock className="h-4 w-4 text-tenant shrink-0 mt-0.5" />
+                  <div>
+                    Automated calls (AI Agent and Direct Patch) to a number in this jurisdiction are
+                    only placed inside these hours, in the debtor&apos;s local time. The time zone
+                    and province or state are worked out from the phone number&apos;s area code.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    If a number&apos;s time zone can&apos;t be worked out, no automated call is
+                    placed and a person decides how to handle it. This applies to every business and
+                    can&apos;t be switched off.
+                  </div>
+                </div>
+              </div>
+
+              {canEdit && (
+                <div className="mt-6 pt-5 border-t border-border flex justify-end gap-2">
+                  {dirty && rule && (
+                    <button
+                      type="button"
+                      onClick={() => setHours(baseline)}
+                      disabled={saving}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-semibold hover:bg-muted disabled:opacity-60"
+                    >
+                      <RotateCcw className="h-4 w-4" /> Discard
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={saving || (rule !== null && !dirty)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-60"
+                  >
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {rule ? "Save compliance hours" : "Create rule"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
+/** One row per weekday: on/off, then start and end time. */
+function DayHoursRows({
+  hours,
+  onChange,
+  offLabel,
+  invalid = [],
+}: {
+  hours: WeeklyHours;
+  onChange: (next: WeeklyHours) => void;
+  /** Shown on a day that is switched off. */
+  offLabel: string;
+  /** Days to flag: end not after start. */
+  invalid?: (keyof WeeklyHours)[];
+}) {
+  const set = (d: keyof WeeklyHours, p: Partial<WeeklyHours[keyof WeeklyHours]>) =>
+    onChange({ ...hours, [d]: { ...hours[d], ...p } });
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      {DAY_KEYS.map((d, i) => {
+        const bad = invalid.includes(d);
+        const timeCls = `h-9 px-2 rounded-md bg-muted border text-sm focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:opacity-40 ${
+          bad ? "border-destructive" : "border-border"
+        }`;
+        return (
+          <div
+            key={d}
+            className={`flex flex-wrap items-center gap-4 px-4 py-3 ${i !== DAY_KEYS.length - 1 ? "border-b border-border" : ""} ${hours[d].enabled ? "bg-card" : "bg-muted/30"}`}
+          >
+            <div className="flex items-center gap-3 w-40">
+              <Toggle
+                checked={hours[d].enabled}
+                onChange={(v) => set(d, { enabled: v })}
+                label={`Toggle ${DAY_LABELS[d]}`}
+              />
+              <span
+                className={`font-semibold text-sm ${!hours[d].enabled ? "text-muted-foreground" : ""}`}
+              >
+                {DAY_LABELS[d]}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <input
+                type="time"
+                disabled={!hours[d].enabled}
+                value={hours[d].start}
+                onChange={(e) => set(d, { start: e.target.value })}
+                aria-label={`${DAY_LABELS[d]} start time`}
+                className={timeCls}
+              />
+              <span className="text-muted-foreground text-xs">to</span>
+              <input
+                type="time"
+                disabled={!hours[d].enabled}
+                value={hours[d].end}
+                onChange={(e) => set(d, { end: e.target.value })}
+                aria-label={`${DAY_LABELS[d]} end time`}
+                className={timeCls}
+              />
+            </div>
+            {bad && <span className="text-[11px] text-destructive">End must be after start</span>}
+            {!hours[d].enabled && (
+              <span className="ml-auto text-[11px] text-muted-foreground">{offLabel}</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Section({
   title,
   desc,
@@ -759,17 +1034,20 @@ function SelectInput({
   value,
   onChange,
   children,
+  disabled = false,
 }: {
   value: string;
   onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <div className="relative">
       <select
         value={value}
         onChange={onChange}
-        className="w-full h-10 pl-3 pr-9 rounded-lg bg-muted border border-border text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-tenant/40"
+        disabled={disabled}
+        className="w-full h-10 pl-3 pr-9 rounded-lg bg-muted border border-border text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-tenant/40 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {children}
       </select>
