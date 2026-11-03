@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Loader2,
   Table2,
-  ShieldCheck,
+  Search,
   Info,
   RotateCcw,
 } from "lucide-react";
@@ -78,6 +78,8 @@ export const Route = createFileRoute("/tenant/settings/")({
 });
 
 type TabKey = "organization" | "availability" | "integrations" | "dataFields";
+/** Sub-tabs of the Hours tab. */
+type HoursTab = "availabilityHours" | "complianceHours";
 
 // Only Gmail and Outlook are offered. Backend stores the lowercase value
 // ("gmail" | "outlook"); legacy values (e.g. "Google", "Microsoft 365") are
@@ -130,6 +132,7 @@ function SettingsPage() {
   const canViewFields = can("dataFields.view");
   const tabCount = (canViewSettings ? 3 : 0) + (canViewFields ? 1 : 0);
   const [tab, setTab] = useState<TabKey>(canViewSettings ? "organization" : "dataFields");
+  const [hoursTab, setHoursTab] = useState<HoursTab>("availabilityHours");
   const [loading, setLoading] = useState(canViewSettings);
   const [saving, setSaving] = useState(false);
   const [timezones, setTimezones] = useState<TimezoneItem[]>([]);
@@ -468,32 +471,62 @@ function SettingsPage() {
                     </fieldset>
                   </TabsContent>
 
-                  {/* Availability */}
+                  {/* Hours: availability and compliance calling hours */}
                   <TabsContent value="availability" className="mt-0">
-                    <fieldset disabled={!canEditSettings} className="min-w-0">
-                      <Section
-                        title="Operating hours"
-                        desc="When live agents can take escalated customer calls"
-                        icon={<Clock className="h-5 w-5" />}
+                    <Tabs value={hoursTab} onValueChange={(v) => setHoursTab(v as HoursTab)}>
+                      <TabsList className="mb-5 bg-muted/60">
+                        <TabsTrigger
+                          value="availabilityHours"
+                          className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                        >
+                          Availability Hours
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="complianceHours"
+                          className="data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                        >
+                          Compliance Calling Hours
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="availabilityHours" className="mt-0">
+                        <fieldset disabled={!canEditSettings} className="min-w-0">
+                          <Section
+                            title="Operating hours"
+                            desc="When live agents can take escalated customer calls"
+                            icon={<Clock className="h-5 w-5" />}
+                          >
+                            <DayHoursRows hours={weekly} onChange={setWeekly} offLabel="Closed" />
+
+                            <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-tenant/5 border border-tenant/20 text-xs text-muted-foreground">
+                              <Calendar className="h-4 w-4 text-tenant shrink-0 mt-0.5" />
+                              <div>
+                                Outside these hours, the AI offers a callback at the customer's
+                                preferred time.
+                              </div>
+                            </div>
+
+                            {canEditSettings && (
+                              <SectionFooter
+                                onSave={saveHours}
+                                label="Save hours"
+                                saving={saving}
+                              />
+                            )}
+                          </Section>
+                        </fieldset>
+                      </TabsContent>
+
+                      {/* Kept mounted so a found rule and unsaved edits survive a
+                          switch to Availability Hours and back. */}
+                      <TabsContent
+                        value="complianceHours"
+                        forceMount
+                        className="mt-0 data-[state=inactive]:hidden"
                       >
-                        <DayHoursRows hours={weekly} onChange={setWeekly} offLabel="Closed" />
-
-                        <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-tenant/5 border border-tenant/20 text-xs text-muted-foreground">
-                          <Calendar className="h-4 w-4 text-tenant shrink-0 mt-0.5" />
-                          <div>
-                            Outside these hours, the AI offers a callback at the customer's
-                            preferred time.
-                          </div>
-                        </div>
-
-                        {canEditSettings && (
-                          <SectionFooter onSave={saveHours} label="Save hours" saving={saving} />
-                        )}
-                      </Section>
-                    </fieldset>
-                    <fieldset disabled={!canEditSettings} className="min-w-0 mt-6">
-                      <ComplianceHoursSection canEdit={canEditSettings} />
-                    </fieldset>
+                        <ComplianceHoursSection canEdit={canEditSettings} />
+                      </TabsContent>
+                    </Tabs>
                   </TabsContent>
 
                   {/* Integrations */}
@@ -635,21 +668,26 @@ function SettingsPage() {
   );
 }
 
-/** Compliance calling hours, one country / province-state rule at a time. */
+/** Compliance calling hours: pick a country and a province / state, find its
+ *  rule, then edit it — or create one when none exists yet. */
 function ComplianceHoursSection({ canEdit }: { canEdit: boolean }) {
   const [countries, setCountries] = useState<Country[]>([]);
   const [countryCode, setCountryCode] = useState("");
   /** Tagged with its country, so a list still showing the previous country
-   *  is never used to load a rule for the new one. */
+   *  is never offered for the new one. */
   const [stateList, setStateList] = useState<{ countryCode: string; states: State[] }>({
     countryCode: "",
     states: [],
   });
   const states = stateList.countryCode === countryCode ? stateList.states : [];
-  const [stateCode, setStateCode] = useState(COUNTRY_WIDE_STATE);
+  const [statesReload, setStatesReload] = useState(0);
+  const [stateCode, setStateCode] = useState("");
+  /** The place whose rule is shown — set by "Find compliance rules". */
+  const [found, setFound] = useState<{ countryCode: string; stateCode: string } | null>(null);
   const [rule, setRule] = useState<ComplianceHoursRow | null>(null);
   const [hours, setHours] = useState<WeeklyHours | null>(null);
   const [baseline, setBaseline] = useState<WeeklyHours | null>(null);
+  const [finding, setFinding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   /** Ignore a response that arrives after the user picked somewhere else. */
@@ -662,10 +700,7 @@ function ComplianceHoursSection({ canEdit }: { canEdit: boolean }) {
   const loadCountries = useCallback(() => {
     setError(null);
     getCountries()
-      .then((list) => {
-        setCountries(list);
-        setCountryCode((c) => c || list[0]?.countryCode || "");
-      })
+      .then(setCountries)
       .catch((e) => failed(e, "Failed to load countries."));
   }, []);
 
@@ -674,54 +709,62 @@ function ComplianceHoursSection({ canEdit }: { canEdit: boolean }) {
   useEffect(() => {
     if (!countryCode) return;
     const id = ++statesRequest.current;
-    setHours(null);
+    setError(null);
     getStates(countryCode)
       .then((list) => {
-        if (id !== statesRequest.current) return;
-        setStateList({ countryCode, states: list });
-        setStateCode(
-          list.some((s) => s.stateCode === COUNTRY_WIDE_STATE)
-            ? COUNTRY_WIDE_STATE
-            : (list[0]?.stateCode ?? ""),
-        );
+        if (id === statesRequest.current) setStateList({ countryCode, states: list });
       })
       .catch((e) => failed(e, "Failed to load provinces and states."));
-  }, [countryCode]);
+  }, [countryCode, statesReload]);
 
-  const loadRule = useCallback(async (cc: string, sc: string) => {
-    const id = ++ruleRequest.current;
+  /** Drops the shown rule, so it never sits under a different selection. */
+  const clearFound = () => {
+    ruleRequest.current += 1;
+    setFound(null);
+    setRule(null);
     setHours(null);
+    setBaseline(null);
+    setFinding(false);
+  };
+
+  const findRule = useCallback(async (cc: string, sc: string) => {
+    const id = ++ruleRequest.current;
+    setFinding(true);
     setError(null);
     try {
       const row = await getComplianceHours(cc, sc);
       if (id !== ruleRequest.current) return;
       const h = hoursFromRow(row);
+      setFound({ countryCode: cc, stateCode: sc });
       setRule(row);
       setHours(h);
       setBaseline(h);
     } catch (e) {
       if (id === ruleRequest.current) failed(e, "Failed to load the compliance hours.");
+    } finally {
+      if (id === ruleRequest.current) setFinding(false);
     }
   }, []);
 
-  useEffect(() => {
-    if (
-      stateList.countryCode === countryCode &&
-      stateList.states.some((s) => s.stateCode === stateCode)
-    ) {
-      loadRule(countryCode, stateCode);
-    }
-  }, [countryCode, stateCode, stateList, loadRule]);
+  const retry = () => {
+    if (!countries.length) loadCountries();
+    else if (countryCode && !states.length) setStatesReload((n) => n + 1);
+    else if (countryCode && stateCode) findRule(countryCode, stateCode);
+    else setError(null);
+  };
 
-  const countryName = countries.find((c) => c.countryCode === countryCode)?.countryName ?? "";
-  const state = states.find((s) => s.stateCode === stateCode);
-  const where =
-    stateCode === COUNTRY_WIDE_STATE ? countryName : `${state?.stateName ?? ""}, ${countryName}`;
+  const countryName = (cc: string) =>
+    countries.find((c) => c.countryCode === cc)?.countryName ?? "";
+  const where = found
+    ? found.stateCode === COUNTRY_WIDE_STATE
+      ? countryName(found.countryCode)
+      : `${states.find((s) => s.stateCode === found.stateCode)?.stateName ?? ""}, ${countryName(found.countryCode)}`
+    : "";
   const dirty = !!hours && JSON.stringify(hours) !== JSON.stringify(baseline);
   const invalid = hours ? invalidComplianceDays(hours) : [];
 
   const save = async () => {
-    if (!hours) return;
+    if (!hours || !found) return;
     if (invalid.length) {
       toast.error(
         `Check ${invalid.map((d) => DAY_LABELS[d]).join(", ")}: the end time must be after the start time.`,
@@ -730,9 +773,9 @@ function ComplianceHoursSection({ canEdit }: { canEdit: boolean }) {
     }
     setSaving(true);
     try {
-      await saveComplianceHours({ countryCode, stateCode, hours, exists: rule !== null });
+      await saveComplianceHours({ ...found, hours, exists: rule !== null });
       toast.success(`Compliance hours saved for ${where}`);
-      await loadRule(countryCode, stateCode);
+      await findRule(found.countryCode, found.stateCode);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save the compliance hours");
     } finally {
@@ -742,133 +785,148 @@ function ComplianceHoursSection({ canEdit }: { canEdit: boolean }) {
 
   return (
     <Section
-      title="Compliance calling hours"
-      desc="When automated calls may reach a debtor, by country and province or state"
-      icon={<ShieldCheck className="h-5 w-5" />}
+      title="Compliance Calling Hours"
+      desc="Calls are only placed when the debtor's local time is inside these Compliance Calling Hours. Your Business Hours are converted into the debtor's local time to choose the during-hours or after-hours AI agent. After business hours there is no live transfer. The debtor's time zone is detected from their phone number's area code. Debtors without a phone number are not called."
+      icon={<Clock className="h-5 w-5" />}
     >
-      {error ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-full sm:w-56">
+          <Field label="Country">
+            <SelectInput
+              value={countryCode}
+              onChange={(e) => {
+                setCountryCode(e.target.value);
+                setStateCode("");
+                clearFound();
+              }}
+              disabled={dirty}
+            >
+              <option value="">{countries.length ? "Select country" : "Loading…"}</option>
+              {countries.map((c) => (
+                <option key={c.countryCode} value={c.countryCode}>
+                  {c.countryName}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+        </div>
+        <div className="w-full sm:w-64">
+          <Field label="Province / State">
+            <SelectInput
+              value={stateCode}
+              onChange={(e) => {
+                setStateCode(e.target.value);
+                clearFound();
+              }}
+              disabled={dirty || !countryCode}
+            >
+              <option value="">
+                {countryCode && !states.length ? "Loading…" : "Select province / state"}
+              </option>
+              {states.map((s) => (
+                <option key={s.stateCode} value={s.stateCode}>
+                  {s.stateCode === COUNTRY_WIDE_STATE ? "Default (whole country)" : s.stateName}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+        </div>
+        <button
+          type="button"
+          onClick={() => findRule(countryCode, stateCode)}
+          disabled={!countryCode || !stateCode || finding || dirty}
+          className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-border text-sm font-semibold hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {finding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          Find compliance rules
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
           <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
           <span className="flex-1">{error}</span>
           <button
             type="button"
-            onClick={() => (countries.length ? loadRule(countryCode, stateCode) : loadCountries())}
+            onClick={retry}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold hover:bg-muted"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Try again
           </button>
         </div>
+      )}
+
+      {!found || !hours ? (
+        !finding && (
+          <p className="mt-5 text-sm text-muted-foreground">
+            Select a country and province or state, then click Find compliance rules to view its
+            calling hours.
+          </p>
+        )
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Country">
-              <SelectInput
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                disabled={dirty}
-              >
-                {countries.length === 0 && <option value="">Loading…</option>}
-                {countries.map((c) => (
-                  <option key={c.countryCode} value={c.countryCode}>
-                    {c.countryName}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
-            <Field label="Province / state">
-              <SelectInput
-                value={stateCode}
-                onChange={(e) => setStateCode(e.target.value)}
-                disabled={dirty}
-              >
-                {states.length === 0 && <option value={stateCode}>Loading…</option>}
-                {states.map((s) => (
-                  <option key={s.stateCode} value={s.stateCode}>
-                    {s.stateCode === COUNTRY_WIDE_STATE ? "Default (whole country)" : s.stateName}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
+          <div className="mt-5 mb-3 flex flex-wrap items-center gap-2 text-xs">
+            {rule ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 font-semibold text-success-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Rule saved for {where}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 font-semibold text-warning-foreground">
+                <AlertTriangle className="h-3.5 w-3.5" /> No rule for {where} yet — suggested hours
+                shown, nothing is saved until you create it
+              </span>
+            )}
+            {dirty && rule && (
+              <span className="text-muted-foreground">
+                Unsaved changes — save or discard them to look up another place.
+              </span>
+            )}
           </div>
 
-          {!hours ? (
-            <div className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading compliance hours…
+          <fieldset disabled={!canEdit} className="min-w-0">
+            <DayHoursRows
+              hours={hours}
+              onChange={(next) => setHours(next)}
+              offLabel="No automated calls"
+              invalid={invalid}
+            />
+          </fieldset>
+
+          <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground">
+            <Info className="h-4 w-4 shrink-0 mt-0.5" />
+            <div>
+              If a number&apos;s time zone can&apos;t be worked out, no automated call is placed and
+              a person decides how to handle it. This applies to every business and can&apos;t be
+              switched off.
             </div>
-          ) : (
-            <>
-              <div className="mt-5 mb-3 flex flex-wrap items-center gap-2 text-xs">
-                {rule ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 font-semibold text-success-foreground">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Rule saved for {where}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 font-semibold text-warning-foreground">
-                    <AlertTriangle className="h-3.5 w-3.5" /> No rule for {where} yet — suggested
-                    hours shown, nothing is saved until you create it
-                  </span>
-                )}
-                {dirty && rule && (
-                  <span className="text-muted-foreground">
-                    Unsaved changes — save or discard them to switch to another place.
-                  </span>
-                )}
-              </div>
+          </div>
 
-              <DayHoursRows
-                hours={hours}
-                onChange={(next) => setHours(next)}
-                offLabel="No automated calls"
-                invalid={invalid}
-              />
-
-              <div className="mt-4 space-y-2">
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-tenant/5 border border-tenant/20 text-xs text-muted-foreground">
-                  <Clock className="h-4 w-4 text-tenant shrink-0 mt-0.5" />
-                  <div>
-                    Automated calls (AI Agent and Direct Patch) to a number in this jurisdiction are
-                    only placed inside these hours, in the debtor&apos;s local time. The time zone
-                    and province or state are worked out from the phone number&apos;s area code.
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground">
-                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                  <div>
-                    If a number&apos;s time zone can&apos;t be worked out, no automated call is
-                    placed and a person decides how to handle it. This applies to every business and
-                    can&apos;t be switched off.
-                  </div>
-                </div>
-              </div>
-
-              {canEdit && (
-                <div className="mt-6 pt-5 border-t border-border flex justify-end gap-2">
-                  {dirty && rule && (
-                    <button
-                      type="button"
-                      onClick={() => setHours(baseline)}
-                      disabled={saving}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-semibold hover:bg-muted disabled:opacity-60"
-                    >
-                      <RotateCcw className="h-4 w-4" /> Discard
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={save}
-                    disabled={saving || (rule !== null && !dirty)}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-60"
-                  >
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    {rule ? "Save compliance hours" : "Create rule"}
-                  </button>
-                </div>
+          {canEdit && (
+            <div className="mt-6 pt-5 border-t border-border flex justify-end gap-2">
+              {dirty && rule && (
+                <button
+                  type="button"
+                  onClick={() => setHours(baseline)}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-semibold hover:bg-muted disabled:opacity-60"
+                >
+                  <RotateCcw className="h-4 w-4" /> Discard
+                </button>
               )}
-            </>
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving || (rule !== null && !dirty)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-tenant text-white text-sm font-semibold shadow-tenant disabled:opacity-60"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {rule ? "Save compliance hours" : "Create rule"}
+              </button>
+            </div>
           )}
         </>
       )}

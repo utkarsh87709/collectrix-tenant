@@ -53,6 +53,11 @@
 //     on each of assigned / unassigned files, per window — the backend dev
 //     chose that over the design's one agent per window.
 //   • Ring durations are seconds; placeCallAfterMins is minutes.
+//   • The retry interval travels inside callSetting as retryWholeSetupAfter
+//     (minutes), the key the old call steps used. It isn't in the backend dev's
+//     payload: the backend stores and returns it (verified 2026-11-03; at the
+//     top level it's dropped), but whether the calling side reads it is not
+//     confirmed. A saved setup without it shows an error in the Retry section.
 // Supporting lookups: AI voice agents are the client's "call" templates
 // (getClientTemplate), ring lists come from the team's members
 // (getTeamDeckAssignUserList) and caller ids from the team's numbers
@@ -252,6 +257,8 @@ export type CallSettingWire = {
   aiAgent: { duringBusiness: FilesWire; afterBusiness: FilesWire };
   directPatch: FilesWire & { greetingMessage: string | null; noAnswerMessage: string | null };
   placeCallAfterMins: number;
+  /** Minutes before the next attempt when a call doesn't reach a conversation. */
+  retryWholeSetupAfter: number | null;
   /** Caller ids (phoneNoId); calls are spread across them. */
   phoneIdList: number[];
   /** CUSTOMER_NUMBER_FIELDS, in dialling order. */
@@ -478,6 +485,10 @@ export type OutboundCallSetup = {
   direct: OutboundRouting & { greeting: string; noAnswerMessage: string };
   /** Measured from entering the status, like every other timing. */
   placeAfter: Duration;
+  /** Wait before the next attempt when a call doesn't reach a conversation. */
+  retryAfter: Duration;
+  /** A saved setup came back without a retry interval. */
+  retryMissing: boolean;
   callerIds: number[];
   customerNumbers: string[];
   /** Calls per customer file in a rolling 7 days until the debtor is verified. */
@@ -581,6 +592,7 @@ export function newFollowUp(channel: ChannelKey): FollowUp {
 
 const DEFAULT_RING: Ring = { seconds: 20, times: 1 };
 const DEFAULT_PLACE_CALL: Duration = { value: 1, unit: "days" };
+const DEFAULT_RETRY: Duration = { value: 4, unit: "hours" };
 const DEFAULT_WEEKLY_MAX_BEFORE_RPV = 5;
 
 function newForwarding(memberIds: number[]): CallForwarding {
@@ -622,6 +634,8 @@ export function newOutboundSetup(memberIds: number[]): OutboundCallSetup {
     ai: { during: newAiWindow(memberIds), after: newAiWindow(memberIds) },
     direct: { ...newRouting(memberIds), greeting: "", noAnswerMessage: "" },
     placeAfter: { ...DEFAULT_PLACE_CALL },
+    retryAfter: { ...DEFAULT_RETRY },
+    retryMissing: false,
     callerIds: [],
     customerNumbers: [],
     weeklyMaxBeforeRpv: DEFAULT_WEEKLY_MAX_BEFORE_RPV,
@@ -716,6 +730,8 @@ export function outboundSetupFromWire(
 ): OutboundCallSetup | null {
   if (!cs?.callMode) return null;
   const weekly = cs.weeklyMaxCallBeforeRpv;
+  const retry = cs.retryWholeSetupAfter;
+  const hasRetry = typeof retry === "number" && retry > 0;
   return {
     mode: cs.callMode === "directPatch" ? "directPatch" : "ai",
     ai: {
@@ -728,6 +744,10 @@ export function outboundSetupFromWire(
       noAnswerMessage: cs.directPatch?.noAnswerMessage ?? "",
     },
     placeAfter: fromMinutes(cs.placeCallAfterMins, { ...DEFAULT_PLACE_CALL }),
+    // Left empty when missing rather than defaulted, so nobody saves an interval
+    // they never chose.
+    retryAfter: hasRetry ? fromMinutes(retry, DEFAULT_RETRY) : { value: 0, unit: "hours" },
+    retryMissing: !hasRetry,
     callerIds: numbers(cs.phoneIdList),
     customerNumbers: (cs.customerCallNumbers ?? []).filter(
       (n): n is string => typeof n === "string",
@@ -858,6 +878,7 @@ export function outboundSetupToWire(s: OutboundCallSetup): CallSettingWire {
       ...filesToWire(s.direct),
     },
     placeCallAfterMins: toMinutes(s.placeAfter),
+    retryWholeSetupAfter: toMinutes(s.retryAfter) || null,
     phoneIdList: s.callerIds,
     customerCallNumbers: s.customerNumbers,
     weeklyMaxCallBeforeRpv: s.weeklyMaxBeforeRpv,
@@ -1030,6 +1051,7 @@ export function validateOutboundCall(s: OutboundCallSetup): string | null {
 
   if (s.callerIds.length === 0) return `${label}: pick at least one outbound caller ID.`;
   if (s.customerNumbers.length === 0) return `${label}: pick at least one customer number to call.`;
+  if (toMinutes(s.retryAfter) <= 0) return `${label}: set the retry interval.`;
   if (!(s.weeklyMaxBeforeRpv >= 1)) {
     return `${label}: set the maximum calls per week before Right Party Verification.`;
   }

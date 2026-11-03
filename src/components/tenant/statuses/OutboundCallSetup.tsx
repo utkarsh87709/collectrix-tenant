@@ -1,12 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
+  AlertCircle,
   Bot,
-  Info,
   Lock,
   Moon,
   PhoneForwarded,
-  RefreshCw,
   Sun,
   User,
   UserCheck,
@@ -31,6 +30,7 @@ import { formatPhoneNo, type TeamPhoneNumber } from "@/lib/teams-api";
 import {
   CUSTOMER_NUMBER_FIELDS,
   WEEKLY_MAX_AFTER_RPV,
+  toMinutes,
   type AiWindowSetup,
   type CallMode,
   type HoursWindow,
@@ -284,15 +284,6 @@ export function OutboundCallSetupEditor({
         <p className="text-[11px] text-muted-foreground">
           Counted from when the file entered this status.
         </p>
-        <p className="flex items-start gap-2 text-[11px] text-muted-foreground">
-          <Info className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            Calls stay within the compliance calling hours for the debtor&apos;s jurisdiction,
-            worked out from the phone number&apos;s area code. If the time zone can&apos;t be worked
-            out, no automated call is placed: the file is flagged &ldquo;Not called – unknown time
-            zone&rdquo; and team leads are alerted. Agents can still call manually.
-          </span>
-        </p>
       </div>
 
       {/* ── Numbers ──────────────────────────────────────────────────── */}
@@ -350,15 +341,26 @@ export function OutboundCallSetupEditor({
       </div>
 
       {/* ── Retry ────────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-3 rounded-lg border border-border px-4 py-3">
-        <RefreshCw className="h-4 w-4 shrink-0 mt-0.5 text-tenant" />
-        <div>
-          <div className="text-sm font-semibold">Retry is always on</div>
-          <p className="text-xs text-muted-foreground">
-            Calling continues until the file&apos;s status changes or the file is closed. A team
-            member not answering a transfer never triggers a retry.
+      <div className="rounded-lg border border-border p-3 space-y-2">
+        <div className="text-sm font-semibold">Retry interval</div>
+        <DurationField
+          value={setup.retryAfter}
+          onChange={(retryAfter) => patch({ retryAfter })}
+          ariaPrefix={`${name} retry interval`}
+          className="max-w-xs"
+        />
+        {setup.retryMissing && toMinutes(setup.retryAfter) <= 0 && (
+          <p role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            No retry interval came back for this setup. Enter one and save.
           </p>
-        </div>
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          Time to wait before the next call attempt when the call does not result in a conversation.
+        </p>
+        <p className="text-[11px] text-muted-foreground">
+          Calling continues until the file&apos;s status changes or the file is closed.
+        </p>
       </div>
 
       {/* ── Weekly call limits ───────────────────────────────────────── */}

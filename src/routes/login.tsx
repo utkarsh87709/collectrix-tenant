@@ -2,21 +2,11 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { useEffect, useState, type FormEvent } from "react";
 import { Lock, Mail, Loader2, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
-import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
-import { forgotPassword } from "@/lib/profile-api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { LoginBrandPanel } from "@/components/login/LoginBrandPanel";
+import { ForgotPasswordDialog } from "@/components/login/ForgotPasswordDialog";
 import logo from "@/assets/collectrix-logo.png";
 
 export const Route = createFileRoute("/login")({
@@ -38,31 +28,10 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotLoading, setForgotLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) navigate({ to: "/tenant" });
   }, [isAuthenticated, navigate]);
-
-  const handleForgot = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!forgotEmail) {
-      toast.error("Enter your email address.");
-      return;
-    }
-    setForgotLoading(true);
-    try {
-      await forgotPassword(forgotEmail.trim());
-      setForgotOpen(false);
-      toast.success(`If an account exists for ${forgotEmail.trim()}, a reset link has been sent.`);
-      setForgotEmail("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send reset link.");
-    } finally {
-      setForgotLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -131,10 +100,7 @@ function LoginPage() {
                 <Label htmlFor="password">Password</Label>
                 <button
                   type="button"
-                  onClick={() => {
-                    setForgotEmail(email);
-                    setForgotOpen(true);
-                  }}
+                  onClick={() => setForgotOpen(true)}
                   className="text-xs font-medium text-tenant hover:underline"
                 >
                   Forgot password?
@@ -183,40 +149,7 @@ function LoginPage() {
         </motion.div>
       </div>
 
-      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reset your password</DialogTitle>
-            <DialogDescription>
-              Enter the email associated with your account and we'll send you a password reset link.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleForgot} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="forgot-email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="forgot-email"
-                  type="email"
-                  placeholder="you@company.com"
-                  value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setForgotOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={forgotLoading}>
-                {forgotLoading ? "Sending…" : "Send reset link"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ForgotPasswordDialog open={forgotOpen} onOpenChange={setForgotOpen} defaultEmail={email} />
     </div>
   );
 }

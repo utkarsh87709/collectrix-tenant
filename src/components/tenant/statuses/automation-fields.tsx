@@ -10,7 +10,8 @@ export function DurationField({
   ariaPrefix,
   className = "",
 }: {
-  label: string;
+  /** Left out when the surrounding section already names the field. */
+  label?: string;
   value: Duration;
   onChange: (d: Duration) => void;
   ariaPrefix: string;
@@ -18,7 +19,7 @@ export function DurationField({
 }) {
   return (
     <div className={className}>
-      <FieldLabel>{label}</FieldLabel>
+      {label && <FieldLabel>{label}</FieldLabel>}
       <div className="flex gap-2">
         <input
           type="number"

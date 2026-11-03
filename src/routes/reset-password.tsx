@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { resetPassword, validateResetPassword } from "@/lib/profile-api";
+import { ForgotPasswordDialog } from "@/components/login/ForgotPasswordDialog";
 
 const searchSchema = z.object({
   // The backend reset links use ?resetPasswordCode=<uuid>; keep token as a fallback.
@@ -47,6 +48,7 @@ function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
   // Validate the reset code against the backend before showing the form.
   const [status, setStatus] = useState<"validating" | "valid" | "invalid">(code ? "validating" : "invalid");
 
@@ -103,9 +105,18 @@ function ResetPasswordPage() {
           ) : tokenMissing ? (
             <div className="space-y-4">
               <p className="text-sm text-destructive">
-                This reset link is invalid or has expired. Please request a new password reset email.
+                This password reset link is invalid or has expired. Please request a new password
+                reset link using the <strong>Forgot Password</strong> option below, or sign in using
+                your existing password.
               </p>
-              <Button className="w-full" onClick={() => navigate({ to: "/login" })}>
+              <Button className="w-full" onClick={() => setForgotOpen(true)}>
+                Forgot Password
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => navigate({ to: "/login" })}
+              >
                 Back to sign in
               </Button>
             </div>
@@ -170,6 +181,7 @@ function ResetPasswordPage() {
           )}
         </div>
       </div>
+      <ForgotPasswordDialog open={forgotOpen} onOpenChange={setForgotOpen} />
     </div>
   );
 }
