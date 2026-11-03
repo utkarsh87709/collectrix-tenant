@@ -266,11 +266,12 @@ function StatusAutomationPage() {
 
   const handleSave = async () => {
     if (!clientId || !teamId || !client) return;
-    // Validate everything before writing anything — a partial save would leave
-    // the pair half-configured.
+    // Validate everything being written before writing anything — a partial save
+    // would leave the pair half-configured. Untouched statuses aren't sent, so one
+    // that can't pass doesn't hold up the others.
     for (const row of rows) {
       const cfg = configs[row.statusId];
-      if (!cfg) continue;
+      if (!cfg || !dirtyIds.includes(row.statusId)) continue;
       const err = validateAutomation(cfg, allowed, !!client.documentEnabled, !!client.callEnabled);
       if (err) {
         toast.error(`${row.status}: ${err}`);
