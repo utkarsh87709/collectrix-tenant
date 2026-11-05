@@ -52,6 +52,8 @@
 //   • The AI voice agent (callTemplateId) and an on/off flag (enabledFlag) sit
 //     on each of assigned / unassigned files, per window — the backend dev
 //     chose that over the design's one agent per window.
+//   • aiAgent.afterBusiness has the same routing as duringBusiness (patch method,
+//     forwarding, ring lists, assignUserFlag), saved separately per window.
 //   • Ring durations are seconds; placeCallAfterMins is minutes.
 //   • The retry interval travels inside callSetting as retryWholeSetupAfter
 //     (minutes), the key the old call steps used. It isn't in the backend dev's
@@ -248,7 +250,7 @@ export type UnassignedFilesWire = {
   callTemplateId?: number | null;
 };
 
-type FilesWire = { assignedFiles: AssignedFilesWire; unAssignedFiles: UnassignedFilesWire };
+export type FilesWire = { assignedFiles: AssignedFilesWire; unAssignedFiles: UnassignedFilesWire };
 
 /** A status' outbound call setup, as sent in updateAutomation and returned by
  *  getStatusAutomationDetails. */
@@ -271,7 +273,7 @@ export type CallSettingWire = {
 
 /** What a saved callSetting may actually hold: the backend keeps whatever was
  *  sent, so any part can be missing or null. */
-type Loose<T> = T extends (infer U)[]
+export type Loose<T> = T extends (infer U)[]
   ? Loose<U>[]
   : T extends object
     ? { [K in keyof T]?: Loose<T[K]> | null }
@@ -478,8 +480,7 @@ export type AiWindowSetup = OutboundRouting & {
 /** A status' single outbound call setup (callSetting on the wire). */
 export type OutboundCallSetup = {
   mode: CallMode;
-  /** AI agent mode. After business hours there's no live transfer, so that
-   *  window's routing isn't shown — it's sent as it stands. */
+  /** AI agent mode. Each business-hours window has its own agents and routing. */
   ai: Record<HoursWindow, AiWindowSetup>;
   /** Direct patch mode — inside business hours only. */
   direct: OutboundRouting & { greeting: string; noAnswerMessage: string };
@@ -619,11 +620,11 @@ export function newCallPatching(memberIds: number[]): CallPatching {
   };
 }
 
-function newRouting(memberIds: number[]): OutboundRouting {
+export function newRouting(memberIds: number[]): OutboundRouting {
   return { ...newCallPatching(memberIds), assignedOn: true, unassignedOn: true };
 }
 
-function newAiWindow(memberIds: number[]): AiWindowSetup {
+export function newAiWindow(memberIds: number[]): AiWindowSetup {
   return { ...newRouting(memberIds), assignedAgentId: null, unassignedAgentId: null };
 }
 
@@ -681,7 +682,7 @@ const numbers = (v: unknown): number[] =>
 const ringFromWire = (r: Loose<RingWire> | null | undefined): Ring =>
   ringFrom(r?.ringDuration, r?.ringTimes);
 
-const orderFromWire = (r: Loose<RoundRobinWire> | null | undefined): RingOrder => ({
+export const orderFromWire = (r: Loose<RoundRobinWire> | null | undefined): RingOrder => ({
   ...ringFromWire(r),
   userIds: numbers(r?.userIdList),
 });
@@ -699,7 +700,7 @@ function forwardingFromWire(f: Loose<CallForwardingWire> | null | undefined): Ca
   };
 }
 
-function routingFromWire(f: Loose<FilesWire> | null | undefined): OutboundRouting {
+export function routingFromWire(f: Loose<FilesWire> | null | undefined): OutboundRouting {
   const a = f?.assignedFiles;
   const u = f?.unAssignedFiles;
   return {
@@ -716,7 +717,7 @@ function routingFromWire(f: Loose<FilesWire> | null | undefined): OutboundRoutin
   };
 }
 
-function aiWindowFromWire(f: Loose<FilesWire> | null | undefined): AiWindowSetup {
+export function aiWindowFromWire(f: Loose<FilesWire> | null | undefined): AiWindowSetup {
   return {
     ...routingFromWire(f),
     assignedAgentId: numberOrNull(f?.assignedFiles?.callTemplateId),
@@ -817,7 +818,7 @@ const flag = (b: boolean) => (b ? 1 : 0);
 
 const NO_RING: RingWire = { ringDuration: null, ringTimes: null };
 const ringToWire = (r: Ring): RingWire => ({ ringDuration: r.seconds, ringTimes: r.times });
-const orderToWire = (r: RingOrder | null): RoundRobinWire =>
+export const orderToWire = (r: RingOrder | null): RoundRobinWire =>
   r ? { ...ringToWire(r), userIdList: r.userIds } : { ...NO_RING, userIdList: [] };
 
 /** Only the chosen method's settings carry values; the others go as nulls. */
@@ -833,7 +834,7 @@ function forwardingToWire(f: CallForwarding, used = true): CallForwardingWire {
   };
 }
 
-function filesToWire(
+export function filesToWire(
   r: OutboundRouting,
   agents?: { assigned: number | null; unassigned: number | null },
 ): FilesWire {
@@ -1008,7 +1009,7 @@ export function validateCallPatching(p: CallPatching): string | null {
 }
 
 /** Only the kinds of file that are switched on need their routing filled in. */
-function validateRouting(r: OutboundRouting): string | null {
+export function validateRouting(r: OutboundRouting): string | null {
   return (
     (r.assignedOn ? validateAssigned(r.assigned, true) : null) ??
     (r.unassignedOn ? validateForwarding(r.unassigned, "unassigned files") : null)
@@ -1037,8 +1038,7 @@ export function validateOutboundCall(s: OutboundCallSetup): string | null {
       if (x.unassignedOn && !x.unassignedAgentId) {
         return `${where}: choose the AI voice agent for unassigned files.`;
       }
-      // Live transfer only happens inside business hours.
-      const routingError = w === "during" ? validateRouting(x) : null;
+      const routingError = validateRouting(x);
       if (routingError) return `${where}: ${routingError}`;
     }
   } else {

@@ -258,6 +258,8 @@ export type CustomerDetails = {
   /** dd/mm/yyyy */
   interestStartDate: string;
   currentOutstandingBalance: string;
+  /** The current payment agreement's interest; null when the file has none. */
+  paymentInterestAmount: string | null;
   currency: string;
   /** dd/mm/yyyy */
   delinquencyDate: string;

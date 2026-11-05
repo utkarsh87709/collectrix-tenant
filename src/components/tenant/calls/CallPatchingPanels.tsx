@@ -4,6 +4,7 @@ import {
   ArrowUp,
   Clock,
   Headphones,
+  MessageSquare,
   PhoneMissed,
   UserCheck,
   UserX,
@@ -88,10 +89,11 @@ const ANSWERING_DEVICES: {
 
 /* ---------------------------------- tabs ---------------------------------- */
 
-export type PatchTab = "assigned" | "unassigned" | "device" | "noAnswer";
+export type PatchTab = "greeting" | "assigned" | "unassigned" | "device" | "noAnswer";
 
 /** Each tab keeps the accent it has in the design when selected. */
 const TAB_META: Record<PatchTab, { label: string; icon: LucideIcon; active: string }> = {
+  greeting: { label: "Initialisation", icon: MessageSquare, active: "bg-sky-700 text-white" },
   assigned: { label: "Assigned files", icon: UserCheck, active: "bg-gradient-tenant text-white" },
   unassigned: { label: "Unassigned files", icon: UserX, active: "bg-orange-700 text-white" },
   device: { label: "Answering device", icon: Headphones, active: "bg-slate-800 text-white" },
@@ -459,6 +461,32 @@ export function NoAnswerPanel({
   );
 }
 
+export function GreetingPanel({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (message: string) => void;
+}) {
+  return (
+    <PanelShell
+      icon={<MessageSquare className="h-4 w-4 text-muted-foreground" />}
+      title="Initialisation"
+    >
+      <div>
+        <FieldLabel>Initial Message</FieldLabel>
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={3}
+          placeholder="Enter instructions for what the AI should say while the call is being connected to an agent."
+          className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background"
+        />
+      </div>
+    </PanelShell>
+  );
+}
+
 /* ------------------------------- fragments -------------------------------- */
 
 /** A whole number followed by its unit, e.g. "[20] seconds". */
@@ -532,7 +560,7 @@ function memberLabel(members: AssignableMember[], userId: number): string {
   return m ? fullName(m) : `User #${userId} (not on this team)`;
 }
 
-function RoundRobin({
+export function RoundRobin({
   value,
   onChange,
   members,

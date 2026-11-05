@@ -66,7 +66,6 @@ import {
   getCustomerDetails,
   customerDisplayName,
   formatMoney,
-  toMoney,
   fullName,
   getCustomerNotes,
   createCustomerNotes,
@@ -222,9 +221,6 @@ function DebtorProfile() {
     );
   }
 
-  const balance = toMoney(details.currentOutstandingBalance);
-  const principal = toMoney(details.principal);
-  const interest = Math.max(balance - principal, 0);
   const assignedAgent = fullName({
     firstName: details.assignedUserFirstName,
     lastName: details.assignedUserLastName,
@@ -327,7 +323,7 @@ function DebtorProfile() {
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-4">
             <SummaryTile label="Principal" value={formatMoney(details.principal)} />
             <SummaryTile label="Interest rate" value={`${details.interestRate}%`} />
-            <SummaryTile label="Interest" value={formatMoney(interest)} />
+            <SummaryTile label="Interest" value={formatMoney(details.paymentInterestAmount)} />
           </div>
 
           <SectionLabel>Assignment summary</SectionLabel>
@@ -457,7 +453,7 @@ function DebtorProfile() {
                 canManageAgreements={perms.can("customers.payments.manageAgreements")}
                 canSubmitClaim={perms.can("customers.payments.submitClaim")}
                 canVerify={perms.can("customers.payments.verify")}
-                onBalanceChanged={refresh}
+                onProfileChanged={refresh}
               />
             </TabsContent>
           )}

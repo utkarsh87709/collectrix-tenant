@@ -9,7 +9,11 @@
 //     (false) or shows the current agreement (true). debtorDetails is the
 //     getCustomerDetails record plus the active agreement's payment* fields (all
 //     null when there is none). agreementHistory holds every agreement, status
-//     "active" or "cancelled", with createdUserId but no creator name.
+//     "active", "cancelled" or "closed", with createdUserId but no creator name.
+//     debtorDetails.paymentAgreementStatus (added 2026-11-03) is null (no agreement),
+//     "open" or "closed". A closed agreement keeps activeAgreementExist true and its
+//     payment* fields, and can't be cancelled (seen live on debtor 167). No open
+//     agreement existed on devapi to confirm its row still says "active".
 //     paymentVerificationList holds every payment row (pending, verified,
 //     rejected) — claims from submitForVerification and finance postings from
 //     postPaymentReceived alike. paymentPendingList is its "pending" rows;
@@ -91,7 +95,7 @@ export type PaymentAgreement = PaymentAgreementFields & {
   createdAt: string;
   updatedAt: string;
   uploadedDebtorId: number;
-  /** "active" | "cancelled" */
+  /** "active" | "cancelled" | "closed" */
   status: string;
   createdUserId: number;
   cancelledUserId: number | null;
@@ -117,7 +121,8 @@ export type PaymentRecord = {
 
 export type PaymentAgreementDetails = {
   activeAgreementExist: boolean;
-  debtorDetails: CustomerDetails & PaymentAgreementFields;
+  debtorDetails: CustomerDetails &
+    PaymentAgreementFields & { paymentAgreementStatus: "open" | "closed" | null };
   agreementHistory: PaymentAgreement[];
   paymentVerificationList: PaymentRecord[];
   paymentPendingList: PaymentRecord[];

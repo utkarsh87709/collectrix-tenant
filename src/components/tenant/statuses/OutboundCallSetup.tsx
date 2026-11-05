@@ -89,7 +89,7 @@ export function OutboundCallSetupEditor({
               [
                 "ai",
                 "AI Agent",
-                "An AI voice agent places the call, during and after business hours. During business hours it can transfer the customer to a person.",
+                "An AI voice agent places the call, during and after business hours, and can transfer the customer to a person.",
                 <Bot key="ai" className="h-4 w-4" />,
               ],
               [
@@ -120,89 +120,56 @@ export function OutboundCallSetupEditor({
       {setup.mode === "ai" && (
         <div className="rounded-lg border border-border p-3 space-y-3">
           <HoursTabs active={hours} onSelect={setHours} />
-
-          {hours === "during" ? (
-            <>
-              <PatchTabBar
-                tabs={["assigned", "unassigned"]}
-                active={tab === "unassigned" ? "unassigned" : "assigned"}
-                onSelect={setTab}
+          <PatchTabBar
+            tabs={["assigned", "unassigned"]}
+            active={tab === "unassigned" ? "unassigned" : "assigned"}
+            onSelect={setTab}
+          />
+          {tab === "unassigned" ? (
+            <FilesBranch
+              kind="unassigned"
+              on={ai.unassignedOn}
+              onToggle={(unassignedOn) => patchWindow(hours, { unassignedOn })}
+              agent={{
+                value: ai.unassignedAgentId,
+                onChange: (unassignedAgentId) => patchWindow(hours, { unassignedAgentId }),
+                options: agents,
+              }}
+            >
+              <UnassignedFilesPanel
+                name={`${name}-ai-${hours}-unassigned`}
+                value={ai.unassigned}
+                onChange={(unassigned) => patchWindow(hours, { unassigned })}
+                members={members}
+                description={`${UNASSIGNED_HINT} When the AI hands the call over, this is who is rung.`}
+                assignUserToggle
               />
-              {tab === "unassigned" ? (
-                <FilesBranch
-                  kind="unassigned"
-                  on={ai.unassignedOn}
-                  onToggle={(unassignedOn) => patchWindow(hours, { unassignedOn })}
-                  agent={{
-                    value: ai.unassignedAgentId,
-                    onChange: (unassignedAgentId) => patchWindow(hours, { unassignedAgentId }),
-                    options: agents,
-                  }}
-                >
-                  <UnassignedFilesPanel
-                    name={`${name}-ai-unassigned`}
-                    value={ai.unassigned}
-                    onChange={(unassigned) => patchWindow(hours, { unassigned })}
-                    members={members}
-                    description={`${UNASSIGNED_HINT} When the AI hands the call over, this is who is rung.`}
-                    assignUserToggle
-                  />
-                </FilesBranch>
-              ) : (
-                <FilesBranch
-                  kind="assigned"
-                  on={ai.assignedOn}
-                  onToggle={(assignedOn) => patchWindow(hours, { assignedOn })}
-                  agent={{
-                    value: ai.assignedAgentId,
-                    onChange: (assignedAgentId) => patchWindow(hours, { assignedAgentId }),
-                    options: agents,
-                  }}
-                >
-                  <AssignedFilesPanel
-                    name={`${name}-ai-assigned`}
-                    value={ai.assigned}
-                    onChange={(assigned) => patchWindow(hours, { assigned })}
-                    members={members}
-                    description={`${ASSIGNED_HINT} When the AI hands the call over, this is who is rung.`}
-                    forwarding
-                  />
-                </FilesBranch>
-              )}
-              <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-                <PhoneForwarded className="h-3.5 w-3.5 shrink-0" />
-                If no team member answers the transfer, the AI offers a callback.
-              </p>
-            </>
+            </FilesBranch>
           ) : (
-            <>
-              <p className="flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info-foreground">
-                <Moon className="h-3.5 w-3.5 shrink-0 mt-px" />
-                After business hours there is no live transfer. The AI will offer the debtor a
-                callback within allowed calling hours.
-              </p>
-              <FilesBranch
-                kind="assigned"
-                on={ai.assignedOn}
-                onToggle={(assignedOn) => patchWindow(hours, { assignedOn })}
-                agent={{
-                  value: ai.assignedAgentId,
-                  onChange: (assignedAgentId) => patchWindow(hours, { assignedAgentId }),
-                  options: agents,
-                }}
+            <FilesBranch
+              kind="assigned"
+              on={ai.assignedOn}
+              onToggle={(assignedOn) => patchWindow(hours, { assignedOn })}
+              agent={{
+                value: ai.assignedAgentId,
+                onChange: (assignedAgentId) => patchWindow(hours, { assignedAgentId }),
+                options: agents,
+              }}
+            >
+              <AssignedFilesPanel
+                name={`${name}-ai-${hours}-assigned`}
+                value={ai.assigned}
+                onChange={(assigned) => patchWindow(hours, { assigned })}
+                members={members}
+                description={`${ASSIGNED_HINT} When the AI hands the call over, this is who is rung.`}
+                forwarding
               />
-              <FilesBranch
-                kind="unassigned"
-                on={ai.unassignedOn}
-                onToggle={(unassignedOn) => patchWindow(hours, { unassignedOn })}
-                agent={{
-                  value: ai.unassignedAgentId,
-                  onChange: (unassignedAgentId) => patchWindow(hours, { unassignedAgentId }),
-                  options: agents,
-                }}
-              />
-            </>
+            </FilesBranch>
           )}
+          <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            <PhoneForwarded className="h-3.5 w-3.5 shrink-0" />
+            If no team member answers the transfer, the AI offers a callback.
+          </p>
         </div>
       )}
 

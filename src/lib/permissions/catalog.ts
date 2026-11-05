@@ -402,6 +402,21 @@ export const PERMISSION_CATALOG = [
           },
         ],
       },
+      {
+        id: "unmatchedCalls",
+        label: "Unmatched calls",
+        description: "The Unmatched Calls tab in Appointments.",
+        actions: [
+          {
+            key: "unmatchedCalls.view",
+            kind: "view",
+            label: "View Unmatched Calls",
+            description:
+              "See calls from unrecognised numbers, including recordings, transcripts and messages taken by AI.",
+            endpoints: [],
+          },
+        ],
+      },
     ],
   },
   {

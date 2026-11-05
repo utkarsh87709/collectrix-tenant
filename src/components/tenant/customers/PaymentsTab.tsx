@@ -45,17 +45,17 @@ import {
 /**
  * The customer profile's Payments tab. Everything comes from one
  * paymentAgreementDetails call: the agreement card shows the four agreement
- * types or the active agreement (activeAgreementExist), the left card lets an
- * agent submit a payment the customer reports for finance to verify, and the
- * right card is finance's side — post a payment directly, approve or reject
- * pending claims, and the verified/rejected history.
+ * types or the current agreement (activeAgreementExist), which stays on the card
+ * once closed, the left card lets an agent submit a payment the customer reports
+ * for finance to verify, and the right card is finance's side — post a payment
+ * directly, approve or reject pending claims, and the verified/rejected history.
  */
 export function PaymentsTab({
   uploadedDebtorId,
   canManageAgreements,
   canSubmitClaim,
   canVerify,
-  onBalanceChanged,
+  onProfileChanged,
 }: {
   uploadedDebtorId: number;
   /** customers.payments.manageAgreements — create / cancel agreements. */
@@ -64,8 +64,9 @@ export function PaymentsTab({
   canSubmitClaim: boolean;
   /** customers.payments.verify — post, approve, reject. */
   canVerify: boolean;
-  /** A verified payment lowers the file's balance, so the profile reloads. */
-  onBalanceChanged: () => void;
+  /** A verified payment lowers the file's balance and an agreement sets the
+   *  interest on its profile card, so the profile reloads. */
+  onProfileChanged: () => void;
 }) {
   const [data, setData] = useState<PaymentAgreementDetails | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -123,7 +124,7 @@ export function PaymentsTab({
         data={data}
         balance={balance}
         canManage={canManageAgreements}
-        onChanged={load}
+        onChanged={onProfileChanged}
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <VerificationRequestCard
@@ -139,7 +140,7 @@ export function PaymentsTab({
           history={data.paymentHistoryList}
           canVerify={canVerify}
           onRejected={load}
-          onBalanceChanged={onBalanceChanged}
+          onBalanceChanged={onProfileChanged}
         />
       </div>
     </div>
@@ -367,7 +368,7 @@ function AgreementCard({
   const [openType, setOpenType] = useState<PaymentAgreementType | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const history = useMemo(() => newestFirst(data.agreementHistory), [data.agreementHistory]);
-  const activeRow = history.find((a) => a.status === "active");
+  const currentRow = history.find((a) => a.status !== "cancelled");
   const active = data.activeAgreementExist ? data.debtorDetails : null;
 
   return (
@@ -377,7 +378,8 @@ function AgreementCard({
         {active?.paymentAgreementType ? (
           <ActiveAgreement
             agreement={active}
-            createdAt={activeRow?.createdAt}
+            closed={active.paymentAgreementStatus === "closed"}
+            row={currentRow}
             canManage={canManage}
             onCancel={() => setCancelOpen(true)}
           />
@@ -459,29 +461,43 @@ function AgreementCard({
 
 function ActiveAgreement({
   agreement,
-  createdAt,
+  closed,
+  row,
   canManage,
   onCancel,
 }: {
   agreement: PaymentAgreementFields;
-  createdAt: string | undefined;
+  closed: boolean;
+  row: PaymentAgreement | undefined;
   canManage: boolean;
   onCancel: () => void;
 }) {
   const type = agreement.paymentAgreementType!;
   return (
-    <div className="rounded-xl border-2 border-[color:var(--tenant)]/30 bg-[color:var(--tenant)]/5 p-4">
+    <div
+      className={`rounded-xl border-2 p-4 ${
+        closed
+          ? "border-border bg-muted/30"
+          : "border-[color:var(--tenant)]/30 bg-[color:var(--tenant)]/5"
+      }`}
+    >
       <div className="flex flex-wrap items-start gap-3">
         <div className="h-10 w-10 rounded-lg bg-background border border-border flex items-center justify-center shrink-0">
           {TYPE_META[type].icon}
         </div>
         {/* min width lets the Cancel button wrap below on a phone instead of squeezing this. */}
         <div className="flex-1 min-w-[12rem]">
-          <div className="text-[10px] uppercase tracking-wider font-bold text-tenant">
-            Active agreement
-            {createdAt && (
+          <div
+            className={`text-[10px] uppercase tracking-wider font-bold ${
+              closed ? "text-muted-foreground" : "text-tenant"
+            }`}
+          >
+            {closed ? "Closed agreement" : "Active agreement"}
+            {row && (
               <span className="ml-2 font-semibold text-muted-foreground normal-case tracking-normal">
-                since {timestampDateLabel(createdAt)}
+                {closed
+                  ? `on ${timestampDateLabel(row.updatedAt)}`
+                  : `since ${timestampDateLabel(row.createdAt)}`}
               </span>
             )}
           </div>
@@ -512,7 +528,9 @@ function ActiveAgreement({
         {canManage && (
           <button
             onClick={onCancel}
-            className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted shrink-0"
+            disabled={closed}
+            title={closed ? "A closed agreement can't be cancelled." : undefined}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           >
             Cancel agreement
           </button>
@@ -523,7 +541,12 @@ function ActiveAgreement({
 }
 
 function AgreementHistoryRow({ agreement }: { agreement: PaymentAgreement }) {
-  const isActive = agreement.status === "active";
+  const ended =
+    agreement.status === "cancelled"
+      ? "Cancelled"
+      : agreement.status === "closed"
+        ? "Closed"
+        : null;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs">
       <span className="font-semibold">
@@ -532,11 +555,11 @@ function AgreementHistoryRow({ agreement }: { agreement: PaymentAgreement }) {
           : "Agreement"}
       </span>
       <span className="text-muted-foreground">{agreementHeadline(agreement)}</span>
-      <Pill tone={isActive ? "success" : "muted"}>{agreement.status}</Pill>
+      <Pill tone={ended ? "muted" : "success"}>{agreement.status}</Pill>
       <span className="ml-auto text-muted-foreground">
-        {isActive
-          ? `Created ${timestampDateLabel(agreement.createdAt)}`
-          : `Cancelled ${timestampDateLabel(agreement.updatedAt)}`}
+        {ended
+          ? `${ended} ${timestampDateLabel(agreement.updatedAt)}`
+          : `Created ${timestampDateLabel(agreement.createdAt)}`}
       </span>
     </li>
   );
